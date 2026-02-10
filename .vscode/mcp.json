@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "zeroheight-scraper": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://localhost:3000/api/mcp"]
+    }
+  }
+}
