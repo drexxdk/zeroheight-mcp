@@ -2,6 +2,22 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
+import fs from 'fs';
+import path from 'path';
+import { promisify } from 'util';
+import { pipeline } from 'stream';
+
+const streamPipeline = promisify(pipeline);
+
+async function downloadImage(url: string, filepath: string): Promise<void> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+    await streamPipeline(response.body as any, fs.createWriteStream(filepath));
+  } catch (error) {
+    console.error(`Error downloading ${url}:`, error);
+  }
+}
 
 const handler = createMcpHandler(
   (server) => {
@@ -9,13 +25,25 @@ const handler = createMcpHandler(
       "scrape_zeroheight_project",
       {
         title: "Scrape ZeroHeight Project",
-        description: "Scrape a ZeroHeight design system project and return page data as JSON. Provide the project URL and password if required.",
-        inputSchema: z.object({
-          url: z.string().url(),
-          password: z.string().optional(),
-        }),
+        description: "Scrape the configured ZeroHeight design system project and return page data as JSON.",
+        inputSchema: z.object({}),
       },
-      async ({ url, password }) => {
+      async ({}) => {
+        const url = process.env.ZEROHEIGHT_PROJECT_URL;
+        const password = process.env.ZEROHEIGHT_PROJECT_PASSWORD;
+        
+        if (!url) {
+          return {
+            content: [{ type: "text", text: "Error: ZEROHEIGHT_PROJECT_URL environment variable not set" }],
+          };
+        }
+
+        // Ensure output directory exists
+        const outputDir = path.join(process.cwd(), 'output');
+        if (!fs.existsSync(outputDir)) {
+          fs.mkdirSync(outputDir, { recursive: true });
+        }
+
         try {
           // Extract project URL if a page URL is provided
           const projectUrl = url.includes('/p/') ? url.split('/p/')[0] : url;
@@ -59,16 +87,51 @@ const handler = createMcpHandler(
           const scrapedData = [];
 
           // Scrape each page
+          const scrapedData = [];
+
           for (const link of uniqueLinks) {
             try {
               await page.goto(link, { waitUntil: 'networkidle2' });
-              const title = await page.title();
-              const content = await page.$eval('.content, .zh-content, main', el => el.textContent?.trim() || '').catch(() => '');
-              scrapedData.push({
+              const title: string = await page.title();
+              let content: string = await page.$eval('.content, .zh-content, main', (el: Element) => el.textContent?.trim() || '').catch(() => '');
+
+              // Get all images on the page
+              const images = await page.$$eval('img', (imgs: HTMLImageElement[]) => 
+                imgs.map((img, index) => ({ src: img.src, alt: img.alt, index }))
+              );
+
+              // Download images and update content
+              const imageMap: { [key: string]: string } = {};
+              for (const img of images) {
+                if (img.src && img.src.startsWith('http')) {
+                  const ext = path.extname(new URL(img.src).pathname) || '.png';
+                  const filename = `image_${Date.now()}_${img.index}${ext}`;
+                  const filepath = path.join(process.cwd(), 'output', filename);
+                  
+                  await downloadImage(img.src, filepath);
+                  
+                  // Map original URL to local path
+                  imageMap[img.src] = `./output/${filename}`;
+                  
+                  // Replace in content (if content contains HTML, but since we're getting textContent, images are not in content)
+                  // For now, just save the mapping
+                }
+              }
+
+              const pageData = {
                 url: link,
                 title,
-                content
-              });
+                content,
+                images: imageMap
+              };
+
+              // Save page data as JSON
+              const jsonFilename = `page_${Date.now()}_${uniqueLinks.indexOf(link)}.json`;
+              const jsonPath = path.join(process.cwd(), 'output', jsonFilename);
+              fs.writeFileSync(jsonPath, JSON.stringify(pageData, null, 2));
+
+              scrapedData.push(pageData);
+
             } catch (e) {
               console.error(`Failed to scrape ${link}:`, e);
             }
