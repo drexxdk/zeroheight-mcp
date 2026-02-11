@@ -263,7 +263,7 @@ const handler = createMcpHandler(
         inputSchema: z.object({
           search: z.string().optional().describe("Search term to find in page titles or content"),
           url: z.string().optional().describe("Specific page URL to retrieve"),
-          includeImages: z.boolean().optional().default(false).describe("Whether to include image data in the response"),
+          includeImages: z.boolean().optional().default(true).describe("Whether to include image data in the response"),
           limit: z.number().optional().default(10).describe("Maximum number of results to return"),
         }),
       },
@@ -344,7 +344,6 @@ const handler = createMcpHandler(
                 pageData.images = images.map(img => ({
                   original_url: img.original_url,
                   local_path: img.local_path,
-                  // Check if local file exists
                   exists: fs.existsSync(path.join(process.cwd(), img.local_path))
                 }));
               }
