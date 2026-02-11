@@ -216,8 +216,8 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
 
     console.log("Data cleanup complete, starting scrape...");
 
-    // Extract project URL if a page URL is provided
-    const projectUrl = url.includes('/p/') ? url.split('/p/')[0] : url;
+    // Extract project URL - use the origin (base URL)
+    const projectUrl = new URL(url).origin;
 
     const browser = await puppeteer.launch({
       headless: true,
@@ -249,29 +249,60 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
         if (submitButton) {
           await submitButton.click();
           await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
+          console.log('Password submitted, current URL:', page.url());
+          console.log('Page title after login:', await page.title());
         }
+      } else {
+        console.log('No password input found, proceeding without login');
       }
+    } else {
+      console.log('No password provided');
     }
 
     // Wait for content to load and get page links
     await page.waitForSelector('.sidebar, .zh-sidebar, nav', { timeout: 10000 });
+    await page.waitForSelector('a', { timeout: 10000 });
     const projectUrlObj = new URL(projectUrl);
     const allowedHostname = projectUrlObj.hostname;
+    
+    console.log(`Scraping project URL: ${projectUrl}`);
+    console.log(`Allowed hostname: ${allowedHostname}`);
+    console.log(`Page title: ${await page.title()}`);
+    
+    // Debug: Check all links on the page
+    const allLinksOnPage = await page.$$eval('a', links => links.map(link => link.href));
+    console.log(`Total links found on page: ${allLinksOnPage.length}`);
+    console.log(`Sample links:`, allLinksOnPage.slice(0, 5));
     
     const allLinks = new Set<string>();
     
     // Start with the main page links
-    const initialLinks = await page.$$eval('a[href*="/p/"]', links =>
+    const initialLinks = await page.$$eval('a[href]', (links, projUrl, host) =>
       links.map(link => link.href).filter(href => {
+        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return false;
         try {
-          const linkUrl = new URL(href);
-          return linkUrl.hostname === allowedHostname && href.includes('/p/');
+          const linkUrl = new URL(href, projUrl); // Resolve relative URLs
+          return linkUrl.hostname === host && linkUrl.href !== projUrl; // Exclude the main page itself
         } catch {
           return false;
         }
       })
-    );
+    , projectUrl, allowedHostname);
+    console.log(`Found ${initialLinks.length} initial links on main page`);
+    initialLinks.forEach(link => console.log(`- ${link}`));
     initialLinks.forEach(link => allLinks.add(link));
+
+    const debugInfo = {
+      projectUrl,
+      allowedHostname,
+      pageTitle: await page.title(),
+      totalLinksOnPage: allLinksOnPage.length,
+      sampleLinks: allLinksOnPage.slice(0, 5),
+      initialLinksCount: initialLinks.length,
+      initialLinks: initialLinks.slice(0, 5)
+    };
+
+    console.log('Debug info:', debugInfo);
 
     const scrapedData = [];
     const processedLinks = new Set<string>();
@@ -418,10 +449,21 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
       }
     }
 
+    const finalPageTitle = await page.title();
     await browser.close();
 
+    const finalDebugInfo = {
+      projectUrl,
+      allowedHostname,
+      finalPageTitle,
+      totalLinksOnPage: allLinksOnPage.length,
+      sampleLinks: allLinksOnPage.slice(0, 5),
+      totalLinksFound: allLinks.size,
+      pagesProcessed: scrapedData.length
+    };
+
     return {
-      content: [{ type: "text", text: `Scraped and cached ${scrapedData.length} pages:\n${JSON.stringify(scrapedData, null, 2)}` }],
+      content: [{ type: "text", text: `Debug info: ${JSON.stringify(finalDebugInfo, null, 2)}\n\nScraped and cached ${scrapedData.length} pages:\n${JSON.stringify(scrapedData, null, 2)}` }],
     };
   } catch (error) {
     console.error('Scraping error:', error);
