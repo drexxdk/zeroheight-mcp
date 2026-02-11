@@ -24,12 +24,22 @@ let supabase: ReturnType<typeof createClient> | null = null;
 function getSupabaseClient() {
   if (!supabase) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ACCESS_TOKEN;
+    const supabaseKey = process.env.SUPABASE_ACCESS_TOKEN; // Use anon key for regular operations
     if (supabaseUrl && supabaseKey) {
       supabase = createClient(supabaseUrl, supabaseKey);
     }
   }
   return supabase;
+}
+
+function getSupabaseAdminClient() {
+  // Use service role key only for admin operations like creating buckets
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && supabaseKey) {
+    return createClient(supabaseUrl, supabaseKey);
+  }
+  return null;
 }
 
 async function downloadImage(
@@ -41,7 +51,9 @@ async function downloadImage(
     if (!response.ok)
       throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
     const buffer = await response.arrayBuffer();
-    const file = new File([buffer], filename, { type: "image/png" });
+    const ext = path.extname(filename).toLowerCase();
+    const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.svg' ? 'image/svg+xml' : 'image/png';
+    const file = new File([buffer], filename, { type: mimeType });
 
     // Upload to Supabase storage
     const client = getSupabaseClient();
@@ -50,33 +62,52 @@ async function downloadImage(
       return null;
     }
 
-    // Ensure bucket exists
-    const { data: buckets } = await client.storage.listBuckets();
-    const bucketExists = buckets?.some(
-      (bucket) => bucket.name === "zeroheight-images",
-    );
-
-    if (!bucketExists) {
-      const { error: createError } = await client.storage.createBucket(
-        "zeroheight-images",
-        {
-          public: true,
-          allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"],
-          fileSizeLimit: 10485760, // 10MB
-        },
+    // Ensure bucket exists - use admin client for this
+    const adminClient = getSupabaseAdminClient();
+    if (adminClient) {
+      const { data: buckets } = await adminClient.storage.listBuckets();
+      const bucketExists = buckets?.some(
+        (bucket) => bucket.name === "zeroheight-images",
       );
-      if (createError) {
-        console.error("Error creating bucket:", createError);
-        return null;
+
+      if (!bucketExists) {
+        console.log("Creating bucket 'zeroheight-images' with admin client...");
+        const { error: createError } = await adminClient.storage.createBucket(
+          "zeroheight-images",
+          {
+            public: true,
+            allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/svg+xml"],
+            fileSizeLimit: 10485760, // 10MB
+          },
+        );
+        if (createError) {
+          console.error("Error creating bucket:", createError);
+          return null;
+        }
       }
+    } else {
+      console.log("Admin client not available, assuming bucket exists...");
     }
 
-    const { data, error } = await client.storage
-      .from("zeroheight-images")
-      .upload(filename, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+    // Upload using admin client if available, otherwise regular client
+    let uploadResult;
+    if (adminClient) {
+      uploadResult = await adminClient.storage
+        .from("zeroheight-images")
+        .upload(filename, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+    } else {
+      uploadResult = await client.storage
+        .from("zeroheight-images")
+        .upload(filename, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+    }
+
+    const { data, error } = uploadResult;
 
     if (error) {
       console.error("Error uploading image:", error);
@@ -118,6 +149,73 @@ function authenticateRequest(request: NextRequest): { isValid: boolean; error?: 
 
 async function scrapeZeroHeightProject(url: string, password?: string): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   try {
+    console.log("Starting ZeroHeight project scrape - clearing existing data first...");
+
+    // Clear existing data before scraping
+    const client = getSupabaseClient();
+    const adminClient = getSupabaseAdminClient();
+
+    if (client && adminClient) {
+      // Clear images table
+      console.log("Clearing images table...");
+      const { error: imagesError } = await client
+        .from("images")
+        .delete()
+        .neq("id", 0); // Delete all rows
+
+      if (imagesError) {
+        console.error("Error clearing images table:", imagesError);
+      } else {
+        console.log("Images table cleared");
+      }
+
+      // Clear pages table
+      console.log("Clearing pages table...");
+      const { error: pagesError } = await client
+        .from("pages")
+        .delete()
+        .neq("id", 0); // Delete all rows
+
+      if (pagesError) {
+        console.error("Error clearing pages table:", pagesError);
+      } else {
+        console.log("Pages table cleared");
+      }
+
+      // Clear storage bucket
+      console.log("Clearing zeroheight-images storage bucket...");
+      try {
+        // List all files in the bucket
+        const { data: files, error: listError } = await adminClient.storage
+          .from("zeroheight-images")
+          .list();
+
+        if (listError) {
+          console.error("Error listing files in bucket:", listError);
+        } else if (files && files.length > 0) {
+          // Delete all files
+          const fileNames = files.map(file => file.name);
+          const { error: deleteError } = await adminClient.storage
+            .from("zeroheight-images")
+            .remove(fileNames);
+
+          if (deleteError) {
+            console.error("Error deleting files from bucket:", deleteError);
+          } else {
+            console.log(`Deleted ${fileNames.length} files from storage bucket`);
+          }
+        } else {
+          console.log("No files to delete from storage bucket");
+        }
+      } catch (storageError) {
+        console.error("Error clearing storage bucket:", storageError);
+      }
+    } else {
+      console.log("Supabase clients not available, skipping data cleanup");
+    }
+
+    console.log("Data cleanup complete, starting scrape...");
+
     // Extract project URL if a page URL is provided
     const projectUrl = url.includes('/p/') ? url.split('/p/')[0] : url;
 
@@ -171,10 +269,48 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
         const title: string = await page.title();
         const content: string = await page.$eval('.content, .zh-content, main', (el: Element) => el.textContent?.trim() || '').catch(() => '');
 
+        // Scroll to load lazy images
+        await page.evaluate(() => {
+          window.scrollTo(0, document.body.scrollHeight);
+        });
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
         // Process images
         const images = await page.$$eval('img', (imgs: HTMLImageElement[]) =>
-          imgs.map((img, index) => ({ src: img.src, alt: img.alt, index }))
+          imgs.map((img, index) => {
+            let src = img.src;
+            if (!src.startsWith('http')) {
+              src = new URL(src, window.location.href).href;
+            }
+            return { src, alt: img.alt, index };
+          })
         );
+
+        // Also find background images
+        const bgImages = await page.$$eval(
+          '*',
+          (elements, imagesLength) => {
+            return elements.map((el, index) => {
+              const style = window.getComputedStyle(el);
+              const bg = style.backgroundImage;
+              if (bg && bg.startsWith('url(')) {
+                let url = bg.slice(4, -1).replace(/['"]/g, '');
+                if (!url.startsWith('http')) {
+                  url = new URL(url, window.location.href).href;
+                }
+                if (url.startsWith('http')) {
+                  return { src: url, alt: '', index: imagesLength + index };
+                }
+              }
+              return null;
+            }).filter(Boolean);
+          },
+          images.length
+        );
+
+        const allImages = [...images, ...bgImages].filter(Boolean);
+
+        console.log(`Found ${images.length} img tags and ${bgImages.length} background images on page ${link}`);
 
         // Save page to Supabase
         const client = getSupabaseClient();
@@ -199,16 +335,20 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
 
         // Download and save images
         const imageMap: { [key: string]: string } = {};
-        for (const img of images) {
+        for (const img of allImages) {
+          if (!img) continue;
+          console.log(`Processing image: ${img.src}`);
           if (img.src && img.src.startsWith('http')) {
             const ext = path.extname(new URL(img.src).pathname).toLowerCase();
 
-            // Skip GIF and SVG files
-            if (ext === '.gif' || ext === '.svg') continue;
+            // Skip GIF files, but allow SVG and others
+            if (ext === '.gif') continue;
 
             const filename = `${pageId}_${img.index}_${Date.now()}${ext || '.png'}`;
+            console.log(`Uploading image ${img.src} as ${filename}`);
             const storagePath = await downloadImage(img.src, filename);
             if (storagePath) {
+              console.log(`Uploaded image to ${storagePath}`);
               imageMap[img.src] = storagePath;
 
               // Save image reference to database
@@ -220,7 +360,11 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
                 } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 { onConflict: "page_id,original_url" },
               );
+            } else {
+              console.log(`Failed to upload image ${img.src}`);
             }
+          } else {
+            console.log(`Skipping image with invalid src: ${img.src}`);
           }
         }
 
@@ -258,12 +402,10 @@ const handler = createMcpHandler(
       "scrape_zeroheight_project",
       {
         title: "Scrape ZeroHeight Project",
-        description: "Scrape the configured ZeroHeight design system project and return page data as JSON. Uses cached data when available.",
-        inputSchema: z.object({
-          forceRefresh: z.boolean().optional().default(false).describe("Force a fresh scrape instead of using cached data"),
-        }),
+        description: "Scrape the configured ZeroHeight design system project and return page data as JSON. Always performs a fresh scrape and updates the database.",
+        inputSchema: z.object({}),
       },
-      async ({ forceRefresh = false }) => {
+      async () => {
         const url = process.env.ZEROHEIGHT_PROJECT_URL;
         const password = process.env.ZEROHEIGHT_PROJECT_PASSWORD;
         
@@ -273,70 +415,7 @@ const handler = createMcpHandler(
           };
         }
 
-        // Check if we have cached data in Supabase
-        const client = getSupabaseClient();
-        if (!client) {
-          return {
-            content: [
-              { type: "text", text: "Error: Supabase client not configured" },
-            ],
-          };
-        }
-
-        const { data: pages, error: countError } = await client
-          .from("pages")
-          .select("id", { count: "exact" });
-
-        if (countError) {
-          console.error("Error checking cached data:", countError);
-        }
-
-        if (pages && pages.length > 0 && !forceRefresh) {
-          // Return cached data
-          const { data: cachedPages, error: fetchError } = await client.from(
-            "pages",
-          ).select(`
-              id,
-              title,
-              url,
-              content,
-              images (
-                original_url,
-                storage_path
-              )
-            `) as { data: ZeroHeightPage[] | null, error: Error | null };
-
-          if (fetchError) {
-            console.error("Error fetching cached data:", fetchError);
-            return await scrapeZeroHeightProject(url, password);
-          }
-
-          const result =
-            cachedPages?.map((page) => ({
-              url: page.url,
-              title: page.title,
-              content: page.content,
-              images: page.images
-                ? Object.fromEntries(
-                    page.images.map((img) => [
-                      img.original_url,
-                      img.storage_path,
-                    ]),
-                  )
-                : {},
-            })) || [];
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Using cached data (${result.length} pages):\n${JSON.stringify(result, null, 2)}`,
-              },
-            ],
-          };
-        }
-
-        // No cached data, need to scrape
+        // Always perform a fresh scrape
         return await scrapeZeroHeightProject(url, password);
       }
     );

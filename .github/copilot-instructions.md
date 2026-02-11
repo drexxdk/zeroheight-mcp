@@ -13,6 +13,13 @@
   - Remove unused imports and variables
   - Follow consistent naming conventions
 
+### Never run npm run dev
+
+- **Priority**: High
+- **Action**: Assume the development server is already running. Do not attempt to start it with `npm run dev`.
+- **Rationale**: The development server should be managed by the user.
+- **If failures occur**: If operations fail due to the server not being started, inform the user to start it manually and retry when ready.
+
 ### TypeScript Best Practices
 
 - Use specific types instead of `any`
