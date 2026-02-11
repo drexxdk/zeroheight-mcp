@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 
 export default function Home() {
-  const [activeSection, setActiveSection] = useState('features');
+  const [activeSection, setActiveSection] = useState("features");
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -15,21 +15,24 @@ export default function Home() {
 
       window.scrollTo({
         top: offsetPosition,
-        behavior: 'smooth'
+        behavior: "smooth",
       });
     }
   };
 
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ['features', 'api', 'tech'];
+      const sections = ["features", "tools", "tech", "legal"];
       const scrollPosition = window.scrollY + 100; // Offset for header height
 
       for (const section of sections) {
         const element = document.getElementById(section);
         if (element) {
           const { offsetTop, offsetHeight } = element;
-          if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
+          if (
+            scrollPosition >= offsetTop &&
+            scrollPosition < offsetTop + offsetHeight
+          ) {
             setActiveSection(section);
             break;
           }
@@ -37,10 +40,10 @@ export default function Home() {
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
     handleScroll(); // Check initial position
 
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
@@ -53,47 +56,58 @@ export default function Home() {
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">ZH</span>
               </div>
-              <h1 className="text-xl font-bold text-white">
-                ZeroHeight MCP
-              </h1>
+              <h1 className="text-xl font-bold text-white">ZeroHeight MCP</h1>
             </div>
             <nav className="hidden md:flex space-x-8">
               <button
-                onClick={() => scrollToSection('features')}
+                onClick={() => scrollToSection("features")}
                 className={`relative transition-all duration-500 ease-in-out transform hover:scale-105 ${
-                  activeSection === 'features'
-                    ? 'text-cyan-400 border-b-2 border-cyan-400 pb-1'
-                    : 'text-slate-400 hover:text-white'
+                  activeSection === "features"
+                    ? "text-cyan-400 border-b-2 border-cyan-400 pb-1"
+                    : "text-slate-400 hover:text-white"
                 }`}
               >
                 Features
-                {activeSection === 'features' && (
+                {activeSection === "features" && (
                   <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-cyan-400 animate-pulse"></div>
                 )}
               </button>
               <button
-                onClick={() => scrollToSection('api')}
+                onClick={() => scrollToSection("tools")}
                 className={`relative transition-all duration-500 ease-in-out transform hover:scale-105 ${
-                  activeSection === 'api'
-                    ? 'text-cyan-400 border-b-2 border-cyan-400 pb-1'
-                    : 'text-slate-400 hover:text-white'
+                  activeSection === "tools"
+                    ? "text-cyan-400 border-b-2 border-cyan-400 pb-1"
+                    : "text-slate-400 hover:text-white"
                 }`}
               >
-                API
-                {activeSection === 'api' && (
+                Tools
+                {activeSection === "tools" && (
                   <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-cyan-400 animate-pulse"></div>
                 )}
               </button>
               <button
-                onClick={() => scrollToSection('tech')}
+                onClick={() => scrollToSection("tech")}
                 className={`relative transition-all duration-500 ease-in-out transform hover:scale-105 ${
-                  activeSection === 'tech'
-                    ? 'text-cyan-400 border-b-2 border-cyan-400 pb-1'
-                    : 'text-slate-400 hover:text-white'
+                  activeSection === "tech"
+                    ? "text-cyan-400 border-b-2 border-cyan-400 pb-1"
+                    : "text-slate-400 hover:text-white"
                 }`}
               >
                 Tech Stack
-                {activeSection === 'tech' && (
+                {activeSection === "tech" && (
+                  <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-cyan-400 animate-pulse"></div>
+                )}
+              </button>
+              <button
+                onClick={() => scrollToSection("legal")}
+                className={`relative transition-all duration-500 ease-in-out transform hover:scale-105 ${
+                  activeSection === "legal"
+                    ? "text-cyan-400 border-b-2 border-cyan-400 pb-1"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Legal
+                {activeSection === "legal" && (
                   <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-cyan-400 animate-pulse"></div>
                 )}
               </button>
@@ -118,11 +132,15 @@ export default function Home() {
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-slate-300 max-w-4xl mx-auto mb-12 leading-relaxed">
-              A powerful Model Context Protocol server that scrapes, indexes, and provides intelligent querying capabilities for Zeroheight design system documentation. Built for design systems teams who need programmatic access to their component libraries and design guidelines.
+              A powerful Model Context Protocol server that scrapes, indexes,
+              and provides intelligent querying capabilities for Zeroheight
+              design system documentation. Built for design systems teams who
+              need programmatic access to their component libraries and design
+              guidelines.
             </p>
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
               <Link
-                href="#api"
+                href="#tools"
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-10 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-cyan-500/25"
               >
                 Get Started
@@ -141,19 +159,28 @@ export default function Home() {
       </section>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col py-8">
         {/* Features Section */}
-        <section id="features" className="mb-20">
-          <h2 className="text-3xl font-bold text-center text-white mb-12">
+        <section id="features" className="grid gap-6 py-8">
+          <h2 className="text-3xl font-bold text-center text-white">
             Key Features
           </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-700">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-green-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  <svg
+                    className="w-6 h-6 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-xl font-semibold text-white">
@@ -161,15 +188,27 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400">
-                Automatically discovers and scrapes all pages, components, and documentation from your ZeroHeight design system with smart link following and content extraction.
+                Automatically discovers and scrapes all pages, components, and
+                documentation from your ZeroHeight design system with smart link
+                following and content extraction.
               </p>
             </div>
 
             <div className="bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-700">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-blue-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <svg
+                    className="w-6 h-6 text-blue-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-xl font-semibold text-white">
@@ -177,15 +216,27 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400">
-                Query your design system data with full-text search across titles, content, and URLs. Find components, patterns, and guidelines instantly.
+                Query your design system data with full-text search across
+                titles, content, and URLs. Find components, patterns, and
+                guidelines instantly.
               </p>
             </div>
 
             <div className="bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-700">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-purple-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                  <svg
+                    className="w-6 h-6 text-purple-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-xl font-semibold text-white">
@@ -193,15 +244,26 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400">
-                Built on the Model Context Protocol for seamless integration with AI assistants, design tools, and development workflows.
+                Built on the Model Context Protocol for seamless integration
+                with AI assistants, design tools, and development workflows.
               </p>
             </div>
 
             <div className="bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-700">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-orange-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <svg
+                    className="w-6 h-6 text-orange-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-xl font-semibold text-white">
@@ -209,15 +271,26 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400">
-                Automatically downloads, processes, and stores design system images and assets with optimized storage and fast retrieval.
+                Automatically downloads, processes, and stores design system
+                images and assets with optimized storage and fast retrieval.
               </p>
             </div>
 
             <div className="bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-700">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-red-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <svg
+                    className="w-6 h-6 text-red-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-xl font-semibold text-white">
@@ -225,15 +298,26 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400">
-                Enterprise-grade authentication with API key validation and secure access controls for your design system data.
+                Enterprise-grade authentication with API key validation and
+                secure access controls for your design system data.
               </p>
             </div>
 
             <div className="bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-700">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-indigo-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  <svg
+                    className="w-6 h-6 text-indigo-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-xl font-semibold text-white">
@@ -241,15 +325,16 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400">
-                Optimized for speed with bulk database operations, progress tracking, and efficient caching for large design systems.
+                Optimized for speed with bulk database operations, progress
+                tracking, and efficient caching for large design systems.
               </p>
             </div>
           </div>
         </section>
 
-        {/* API Section */}
-        <section id="api" className="mb-20">
-          <h2 className="text-3xl font-bold text-center text-white mb-12">
+        {/* Tools Section */}
+        <section id="tools" className="grid gap-6 py-8">
+          <h2 className="text-3xl font-bold text-center text-white">
             MCP Tools
           </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -257,8 +342,18 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-blue-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
+                  <svg
+                    className="w-6 h-6 text-blue-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
@@ -266,10 +361,12 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400 mb-4 text-sm">
-                Performs a fresh scrape of your configured Zeroheight design system and caches all pages, components, and documentation.
+                Performs a fresh scrape of your configured Zeroheight design
+                system and caches all pages, components, and documentation.
               </p>
               <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
-                &lbrace;&quot;name&quot;: &quot;Scrape Zeroheight Project&quot;&rbrace;
+                &lbrace;&quot;name&quot;: &quot;Scrape Zeroheight
+                Project&quot;&rbrace;
               </code>
             </div>
 
@@ -277,8 +374,18 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-green-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <svg
+                    className="w-6 h-6 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
@@ -286,10 +393,13 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400 mb-4 text-sm">
-                Search and retrieve design system data with full-text search across titles, content, and URLs.
+                Search and retrieve design system data with full-text search
+                across titles, content, and URLs.
               </p>
               <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
-                &lbrace;&quot;name&quot;: &quot;Query Zeroheight Data&quot;, &quot;arguments&quot;: &lbrace;&quot;search&quot;: &quot;...&quot;&rbrace;&rbrace;
+                &lbrace;&quot;name&quot;: &quot;Query Zeroheight Data&quot;,
+                &quot;arguments&quot;: &lbrace;&quot;search&quot;:
+                &quot;...&quot;&rbrace;&rbrace;
               </code>
             </div>
 
@@ -297,8 +407,18 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-yellow-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <svg
+                    className="w-6 h-6 text-yellow-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
@@ -306,10 +426,13 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400 mb-4 text-sm">
-                Execute raw SQL queries directly on the database for advanced data operations.
+                Execute raw SQL queries directly on the database for advanced
+                data operations.
               </p>
               <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
-                &lbrace;&quot;name&quot;: &quot;Execute SQL&quot;, &quot;arguments&quot;: &lbrace;&quot;query&quot;: &quot;SELECT ...&quot;&rbrace;&rbrace;
+                &lbrace;&quot;name&quot;: &quot;Execute SQL&quot;,
+                &quot;arguments&quot;: &lbrace;&quot;query&quot;: &quot;SELECT
+                ...&quot;&rbrace;&rbrace;
               </code>
             </div>
 
@@ -317,8 +440,18 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-purple-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                  <svg
+                    className="w-6 h-6 text-purple-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
@@ -329,7 +462,8 @@ export default function Home() {
                 Generate TypeScript type definitions for your database schema.
               </p>
               <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
-                &lbrace;&quot;name&quot;: &quot;Generate TypeScript Types&quot;&rbrace;
+                &lbrace;&quot;name&quot;: &quot;Generate TypeScript
+                Types&quot;&rbrace;
               </code>
             </div>
 
@@ -337,8 +471,18 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-indigo-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  <svg
+                    className="w-6 h-6 text-indigo-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
@@ -357,8 +501,18 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-pink-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  <svg
+                    className="w-6 h-6 text-pink-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
@@ -366,10 +520,12 @@ export default function Home() {
                 </h3>
               </div>
               <p className="text-slate-400 mb-4 text-sm">
-                Get all publishable API keys for your project, including legacy anon keys and modern keys.
+                Get all publishable API keys for your project, including legacy
+                anon keys and modern keys.
               </p>
               <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
-                &lbrace;&quot;name&quot;: &quot;Get Publishable API Keys&quot;&rbrace;
+                &lbrace;&quot;name&quot;: &quot;Get Publishable API
+                Keys&quot;&rbrace;
               </code>
             </div>
 
@@ -377,8 +533,18 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-cyan-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                  <svg
+                    className="w-6 h-6 text-cyan-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
@@ -389,7 +555,9 @@ export default function Home() {
                 List all tables in one or more database schemas.
               </p>
               <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
-                &lbrace;&quot;name&quot;: &quot;List Tables&quot;, &quot;arguments&quot;: &lbrace;&quot;schemas&quot;: [&quot;public&quot;]&rbrace;&rbrace;
+                &lbrace;&quot;name&quot;: &quot;List Tables&quot;,
+                &quot;arguments&quot;: &lbrace;&quot;schemas&quot;:
+                [&quot;public&quot;]&rbrace;&rbrace;
               </code>
             </div>
 
@@ -397,8 +565,18 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-orange-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  <svg
+                    className="w-6 h-6 text-orange-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
@@ -417,27 +595,38 @@ export default function Home() {
             <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-red-900 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <svg
+                    className="w-6 h-6 text-red-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Get Logs
-                </h3>
+                <h3 className="text-lg font-semibold text-white">Get Logs</h3>
               </div>
               <p className="text-slate-400 mb-4 text-sm">
-                Retrieve logs for your Supabase project by service type (API, database, auth, etc.).
+                Retrieve logs for your Supabase project by service type (API,
+                database, auth, etc.).
               </p>
               <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
-                &lbrace;&quot;name&quot;: &quot;Get Logs&quot;, &quot;arguments&quot;: &lbrace;&quot;service&quot;: &quot;api&quot;&rbrace;&rbrace;
+                &lbrace;&quot;name&quot;: &quot;Get Logs&quot;,
+                &quot;arguments&quot;: &lbrace;&quot;service&quot;:
+                &quot;api&quot;&rbrace;&rbrace;
               </code>
             </div>
           </div>
         </section>
 
         {/* Tech Stack Section */}
-        <section id="tech" className="mb-20">
-          <h2 className="text-3xl font-bold text-center text-white mb-12">
+        <section id="tech" className="grid gap-6 py-8">
+          <h2 className="text-3xl font-bold text-center text-white">
             Technology Stack
           </h2>
           <div className="grid md:grid-cols-2 gap-8">
@@ -499,38 +688,116 @@ export default function Home() {
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="text-center bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-8">
-          <h2 className="text-2xl font-bold text-white mb-4">
-            Ready to enhance your design system workflow?
+        {/* Legal Compliance Section */}
+        <section id="legal" className="grid gap-6 py-8">
+          <h2 className="text-3xl font-bold text-center text-white">
+            Terms & Conditions
           </h2>
-          <p className="text-slate-400 mb-6 max-w-2xl mx-auto">
-            Integrate ZeroHeight MCP Server into your development pipeline and give your team programmatic access to design system documentation, components, and guidelines.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/api/mcp"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
-            >
-              Try the API
-            </Link>
-            <a
-              href="https://modelcontextprotocol.io"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="border border-slate-600 hover:border-slate-500 text-slate-300 px-8 py-3 rounded-lg font-medium transition-colors"
-            >
-              Learn about MCP
-            </a>
+          <div className="bg-slate-800/50 rounded-xl p-8 border border-slate-700 space-y-4 text-slate-300">
+            <p>
+              This ZeroHeight MCP Server operates in full compliance with
+              applicable laws and regulations. All data scraping and processing
+              activities respect user privacy and data protection requirements.
+            </p>
+            <div className="bg-slate-700/50 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-white mb-2">
+                Terms of Service Compliance
+              </h3>
+              <p className="text-sm">
+                ZeroHeight&apos;s{" "}
+                <a
+                  href="https://terms.zeroheight.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 hover:text-cyan-300 underline"
+                >
+                  Terms of Service
+                </a>{" "}
+                do not prohibit scraping of projects where you maintain proper
+                authentication and access permissions. This tool operates solely
+                within the bounds of authorized access that you already possess.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <h4 className="font-semibold text-white mb-2">
+                  ✅ Authorized Access Only
+                </h4>
+                <p className="text-sm">
+                  All operations require valid authentication and respect
+                  existing access permissions.
+                </p>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <h4 className="font-semibold text-white mb-2">
+                  ✅ Data Privacy
+                </h4>
+                <p className="text-sm">
+                  No personal data collection or unauthorized data sharing
+                  occurs.
+                </p>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <h4 className="font-semibold text-white mb-2">
+                  ✅ Rate Limiting
+                </h4>
+                <p className="text-sm">
+                  Built-in rate limiting prevents excessive API calls and server
+                  strain.
+                </p>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <h4 className="font-semibold text-white mb-2">
+                  ✅ Audit Trail
+                </h4>
+                <p className="text-sm">
+                  All operations are logged for transparency and debugging
+                  purposes.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+
+        <section className="py-8">
+          <div className="text-center bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">
+              Ready to enhance your design system workflow?
+            </h2>
+            <p className="text-slate-400 mb-6 max-w-2xl mx-auto">
+              Integrate ZeroHeight MCP Server into your development pipeline and
+              give your team programmatic access to design system documentation,
+              components, and guidelines.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/api/mcp"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+              >
+                Try the API
+              </Link>
+              <a
+                href="https://modelcontextprotocol.io"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="border border-slate-600 hover:border-slate-500 text-slate-300 px-8 py-3 rounded-lg font-medium transition-colors"
+              >
+                Learn about MCP
+              </a>
+            </div>
           </div>
         </section>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-700 bg-slate-900/50 backdrop-blur-sm mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <footer className="border-t border-slate-700 bg-slate-900/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="text-center text-slate-400">
-            <p>Built with Next.js, TypeScript, and the Model Context Protocol</p>
+            <p>
+              Built with Next.js, TypeScript, and the Model Context Protocol
+            </p>
           </div>
         </div>
       </footer>
