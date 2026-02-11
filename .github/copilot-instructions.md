@@ -2,6 +2,18 @@
 
 ## Code Quality Rules
 
+### Never use "any" type
+
+- **Priority**: High
+- **Action**: Never use the `any` type in TypeScript code. Always use specific types, interfaces, or union types instead.
+- **Rationale**: The `any` type defeats the purpose of TypeScript's type safety and can lead to runtime errors that could have been caught at compile time.
+- **Common alternatives**:
+  - Define proper interfaces for objects
+  - Use union types (`string | number`) for variables that can have multiple types
+  - Use generic types when the type is parameterized
+  - Use `unknown` for truly unknown values that need type checking before use
+  - Leverage TypeScript's built-in utility types (`Record<string, unknown>`, `Partial<T>`, etc.)
+
 ### Always fix ESLint errors
 
 - **Priority**: High

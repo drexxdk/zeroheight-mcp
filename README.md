@@ -63,10 +63,81 @@ Queries the cached ZeroHeight data from the database with flexible search option
     "url": "https://example.zeroheight.com/project/p/page-slug",
     "includeImages": true
   }
-}
+## API Usage Examples
+
+### Raw HTTP Calls (for testing/debugging)
+
+For testing the MCP server directly via HTTP, use these examples:
+
+**Scrape ZeroHeight Project:**
+```bash
+curl -X POST http://localhost:3000/api/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key-here" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Scrape ZeroHeight Project","arguments":{}}}'
 ```
 
-## Setup
+**Query ZeroHeight Data:**
+```bash
+curl -X POST http://localhost:3000/api/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key-here" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Query ZeroHeight Data","arguments":{"search":"color"}}}'
+```
+
+**PowerShell Examples:**
+```powershell
+# Set API key environment variable
+$env:MCP_API_KEY = "your-api-key-here"
+
+# Scrape project
+Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
+  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
+  -Body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Scrape ZeroHeight Project","arguments":{}}}' | Format-List
+
+# Query data
+Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
+  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
+  -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Query ZeroHeight Data","arguments":{"search":"color"}}}' | Format-List
+```
+
+**Required Headers:**
+- `Content-Type: application/json` - JSON-RPC request format
+- `X-API-Key: <your-key>` - Authentication (or use `Authorization: Bearer <your-key>`)
+- `Accept: application/json, text/event-stream` - Required for MCP streaming responses
+
+**Environment Setup:**
+```bash
+# Set the API key in your shell session
+export MCP_API_KEY="your-api-key-here"
+# Or for PowerShell:
+$env:MCP_API_KEY = "your-api-key-here"
+```
+
+## Troubleshooting
+
+### Common Errors
+
+**401 Unauthorized:**
+- **Cause:** Missing or invalid API key
+- **Solution:** Set `MCP_API_KEY` environment variable and include in request headers
+
+**406 Not Acceptable:**
+- **Cause:** Missing required Accept header for JSON-RPC streaming
+- **Solution:** Add `Accept: application/json, text/event-stream` header
+
+**Connection Refused:**
+- **Cause:** Server not running
+- **Solution:** Run `npm run dev` first
+
+**Test Your Setup:**
+```bash
+npm run test-api
+```
+
+This will run automated tests to verify your API key and server configuration.
 
 1. Install dependencies: `npm install`
 2. Copy `.env.example` to `.env.local` and configure your environment variables:
@@ -76,7 +147,7 @@ Queries the cached ZeroHeight data from the database with flexible search option
    - Go to [vercel.com](https://vercel.com) → Your Project → Settings → Environment Variables
    - Add `MCP_API_KEY` with a secure random value
 4. Run the scraper: `npx tsx scrape.ts` (optional, for testing)
-5. Start the server: `npm run dev`
+5. Test the API: `npm run test-api` (requires MCP_API_KEY environment variable and pre-scraped data)
 
 ## MCP Configuration
 

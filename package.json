@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test-api": "npx tsx scripts/test-api.ts",
     "generate-database-schema": "npx -y supabase@latest gen types typescript --project-id qyoexslrsblaphbcvjdk --schema public > lib/database.schema.ts",
     "generate-database-types": "npm run generate-database-schema && npx tsx scripts/generate-schemas.ts"
   },

@@ -1,6 +1,8 @@
 {
     "cSpell.words": [
+        "networkidle",
         "Supabase",
         "zeroheight"
-    ]
+    ],
+    "css.lint.unknownAtRules": "ignore"
 }
