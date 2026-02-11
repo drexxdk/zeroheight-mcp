@@ -255,19 +255,53 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
 
     // Wait for content to load and get page links
     await page.waitForSelector('.sidebar, .zh-sidebar, nav', { timeout: 10000 });
-    const pageLinks = await page.$$eval('a[href*="/p/"]', links =>
-      links.map(link => link.href).filter(href => href.includes('/p/'))
+    const projectUrlObj = new URL(projectUrl);
+    const allowedHostname = projectUrlObj.hostname;
+    
+    const allLinks = new Set<string>();
+    
+    // Start with the main page links
+    const initialLinks = await page.$$eval('a[href*="/p/"]', links =>
+      links.map(link => link.href).filter(href => {
+        try {
+          const linkUrl = new URL(href);
+          return linkUrl.hostname === allowedHostname && href.includes('/p/');
+        } catch {
+          return false;
+        }
+      })
     );
-    const uniqueLinks = [...new Set(pageLinks)];
+    initialLinks.forEach(link => allLinks.add(link));
 
     const scrapedData = [];
+    const processedLinks = new Set<string>();
 
-    // Scrape each page
-    for (const link of uniqueLinks) {
-      try {
-        await page.goto(link, { waitUntil: 'networkidle2' });
-        const title: string = await page.title();
-        const content: string = await page.$eval('.content, .zh-content, main', (el: Element) => el.textContent?.trim() || '').catch(() => '');
+    // Iteratively scrape pages and discover new links
+    while (allLinks.size > processedLinks.size) {
+      const linksToProcess = Array.from(allLinks).filter(link => !processedLinks.has(link));
+      
+      for (const link of linksToProcess) {
+        if (processedLinks.has(link)) continue;
+        
+        try {
+          await page.goto(link, { waitUntil: 'networkidle2' });
+          processedLinks.add(link);
+          
+          const title: string = await page.title();
+          const content: string = await page.$eval('.content, .zh-content, main', (el: Element) => el.textContent?.trim() || '').catch(() => '');
+
+          // Discover additional links on this page
+          const pageLinks = await page.$$eval('a[href*="/p/"]', links =>
+            links.map(link => link.href).filter(href => {
+              try {
+                const linkUrl = new URL(href);
+                return linkUrl.hostname === allowedHostname && href.includes('/p/');
+              } catch {
+                return false;
+              }
+            })
+          );
+          pageLinks.forEach(newLink => allLinks.add(newLink));
 
         // Scroll to load lazy images
         await page.evaluate(() => {
@@ -368,18 +402,19 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
           }
         }
 
-        scrapedData.push({
-          url: link,
-          title,
-          content,
-          images: Object.entries(imageMap).map(([original_url, storage_path]) => ({
-            original_url,
-            storage_path,
-          })),
-        });
+          scrapedData.push({
+            url: link,
+            title,
+            content,
+            images: Object.entries(imageMap).map(([original_url, storage_path]) => ({
+              original_url,
+              storage_path,
+            })),
+          });
 
-      } catch (e) {
-        console.error(`Failed to scrape ${link}:`, e);
+        } catch (e) {
+          console.error(`Failed to scrape ${link}:`, e);
+        }
       }
     }
 

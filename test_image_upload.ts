@@ -20,7 +20,7 @@ function loadEnv() {
     console.log('- SUPABASE_ACCESS_TOKEN:', process.env.SUPABASE_ACCESS_TOKEN ? 'Set (length: ' + process.env.SUPABASE_ACCESS_TOKEN!.length + ')' : 'Not set');
     console.log('- SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Set (length: ' + process.env.SUPABASE_SERVICE_ROLE_KEY!.length + ')' : 'Not set');
   } catch (error) {
-    console.log('Could not load .env.local file, using existing environment variables');
+    console.log('Could not load .env.local file, using existing environment variables:', error instanceof Error ? error.message : error);
   }
 }
 
