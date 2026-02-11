@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Test script for ZeroHeight MCP API Query functionality
- * This tests the Query ZeroHeight Data tool (assumes data was already scraped)
+ * Test script for Zeroheight MCP API Query functionality
+ * This tests the Query Zeroheight Data tool (assumes data was already scraped)
  * Run with: npx tsx scripts/test-api.ts
  */
 
@@ -20,14 +20,14 @@ if (!API_KEY) {
 }
 
 async function testApi() {
-  console.log('🧪 Testing ZeroHeight MCP API...');
+  console.log('🧪 Testing Zeroheight MCP API...');
   console.log(`📍 API URL: ${API_URL}`);
   console.log(`🔑 API Key: ${API_KEY ? API_KEY.substring(0, 8) + '...' : 'NOT SET'}`);
   console.log('');
 
   try {
-    // Test: Query ZeroHeight Data (assumes data was already scraped)
-    console.log('🔍 Testing Query ZeroHeight Data...');
+    // Test: Query Zeroheight Data (assumes data was already scraped)
+    console.log('🔍 Testing Query Zeroheight Data...');
     const queryResponse = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -40,7 +40,7 @@ async function testApi() {
         id: 1,
         method: 'tools/call',
         params: {
-          name: 'Query ZeroHeight Data',
+          name: 'Query Zeroheight Data',
           arguments: {
             search: 'color',
             includeImages: true,

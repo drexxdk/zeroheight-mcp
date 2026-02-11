@@ -22,9 +22,9 @@ function createProgressBar(current: number, total: number, width: number = 20): 
   return `[${progressBar}]`;
 }
 
-async function scrapeZeroHeightProject(url: string, password?: string) {
+async function scrapeZeroheightProject(url: string, password?: string) {
   try {
-    console.log("Starting ZeroHeight project scrape - clearing existing data first...");
+    console.log("Starting Zeroheight project scrape - clearing existing data first...");
 
     // Clear existing data before scraping
     const client = getSupabaseClient();
@@ -178,7 +178,7 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
 
     console.log(`Found ${allLinksOnPage.length} links on main page`);
 
-    // Also check for ZeroHeight-specific page links
+    // Also check for Zeroheight-specific page links
     const zhPageLinks = await page.$$eval('a[href*="/p/"]', links =>
       links.map(link => link.href).filter(href => {
         try {
@@ -189,7 +189,7 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
         }
       })
     );
-    console.log(`Found ${zhPageLinks.length} ZeroHeight page links (/p/ pattern)`);
+    console.log(`Found ${zhPageLinks.length} Zeroheight page links (/p/ pattern)`);
     console.log(`Sample ZH page links: ${zhPageLinks.slice(0, 5).join(', ')}`);
     
     // Add these to the main links set
@@ -464,8 +464,8 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
 }
 
 export const scrapeZeroheightProjectTool = {
-  title: "Scrape ZeroHeight Project",
-  description: "Scrape the configured ZeroHeight design system project and return page data as JSON. Always performs a fresh scrape and updates the database.",
+  title: "Scrape Zeroheight Project",
+  description: "Scrape the configured Zeroheight design system project and return page data as JSON. Always performs a fresh scrape and updates the database.",
   inputSchema: z.object({}),
   handler: async () => {
     const url = process.env.ZEROHEIGHT_PROJECT_URL;
@@ -476,13 +476,13 @@ export const scrapeZeroheightProjectTool = {
     }
 
     // Always perform a fresh scrape
-    return await scrapeZeroHeightProject(url, password);
+    return await scrapeZeroheightProject(url, password);
   }
 };
 
 export const queryZeroheightDataTool = {
-  title: "Query ZeroHeight Data",
-  description: "Query the cached ZeroHeight design system data from the database. Supports searching by title, content, or URL, and can include image data.",
+  title: "Query Zeroheight Data",
+  description: "Query the cached Zeroheight design system data from the database. Supports searching by title, content, or URL, and can include image data.",
   inputSchema: z.object({
     search: z.string().optional().describe("Search term to find in page titles or content"),
     url: z.string().optional().describe("Specific page URL to retrieve"),

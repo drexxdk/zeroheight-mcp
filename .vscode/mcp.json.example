@@ -2,18 +2,26 @@
   "mcpServers": {
     "zeroheight-scraper": {
       "command": "npx",
-      "args": ["mcp-remote", "http://localhost:3000/api/mcp"]
+      "args": [
+        "mcp-remote",
+        "http://localhost:3000/api/mcp",
+        "--header",
+        "X-API-Key: ${MCP_API_KEY}"
+      ],
+      "env": {
+        "MCP_API_KEY": "your-local-api-key-here"
+      }
     },
     "zeroheight-scraper-prod": {
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://zeroheight-mcp.vercel.app/api/mcp",
+        "https://your-deployment-url.vercel.app/api/mcp",
         "--header",
         "Authorization: Bearer ${MCP_API_KEY}"
       ],
       "env": {
-        "MCP_API_KEY": "your-actual-api-key-here"
+        "MCP_API_KEY": "your-production-api-key-here"
       }
     }
   }

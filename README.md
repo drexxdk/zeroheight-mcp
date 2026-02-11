@@ -1,164 +1,93 @@
-# ZeroHeight MCP Server
+# Zeroheight MCP Server
 
-A Model Context Protocol (MCP) server for scraping and querying ZeroHeight design system projects.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16.1.6-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 
-## Security
+A powerful Model Context Protocol (MCP) server that scrapes, indexes, and provides intelligent querying capabilities for Zeroheight design system documentation. Built for design systems teams who need programmatic access to their component libraries and design guidelines.
 
-This MCP server is secured with API key authentication. The API key is configured server-side only and is not stored in the repository for security reasons.
+## ✨ Features
 
-**Authentication Methods:**
+- **Intelligent Scraping**: Automatically discovers and scrapes all pages, components, and documentation from Zeroheight design systems
+- **Powerful Search**: Full-text search across titles, content, and URLs with flexible query options
+- **MCP Integration**: Built on the Model Context Protocol for seamless integration with AI assistants and design tools
+- **Image Management**: Automatically downloads, processes, and stores design system images and assets
+- **Secure Access**: Enterprise-grade authentication with API key validation
+- **High Performance**: Optimized for speed with bulk database operations and efficient caching
 
-- `Authorization: Bearer <your-api-key>` header (recommended)
-- `X-API-Key: <your-api-key>` header
-- `?api_key=<your-api-key>` query parameter (fallback)
+## 🚀 Quick Start
 
-**Important:** The `MCP_API_KEY` environment variable must be set in your Vercel deployment, not in local environment files.
+### Prerequisites
 
-## Tools
+- Node.js 18+ and npm
+- A Zeroheight design system project URL
+- API key for authentication
 
-### 1. scrape_zeroheight_project
+### Installation
 
-Scrapes a ZeroHeight design system project and caches the data in a SQLite database.
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/drexxdk/zeroheight-mcp.git
+   cd zeroheight-mcp
+   ```
 
-**Parameters:** None (uses environment variables)
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-**Environment Variables Required:**
+3. **Configure environment variables:**
+   ```bash
+   cp .env.example .env.local
+   ```
 
-- `ZEROHEIGHT_PROJECT_URL`: The URL of the ZeroHeight project to scrape
-- `ZEROHEIGHT_PROJECT_PASSWORD`: Password if the project is protected (optional)
+   Edit `.env.local` with your Zeroheight project details:
+   ```env
+   ZEROHEIGHT_PROJECT_URL=https://your-project.zeroheight.com/p/project-id
+   ZEROHEIGHT_PROJECT_PASSWORD=your-password-if-required
+   MCP_API_KEY=your-secure-api-key
+   ```
 
-### 2. query_zeroheight_data
+4. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
 
-Queries the cached ZeroHeight data from the database with flexible search options.
+5. **Test the setup:**
+   ```bash
+   npm run test-api
+   ```
 
-**Parameters:**
+## 🔧 Configuration
 
-- `search` (optional): Search term to find in page titles or content
-- `url` (optional): Specific page URL to retrieve
-- `includeImages` (optional, default: false): Whether to include image data in the response
-- `limit` (optional, default: 10): Maximum number of results to return
+### Environment Variables
 
-**Examples:**
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `ZEROHEIGHT_PROJECT_URL` | URL of the Zeroheight project to scrape | Yes |
+| `ZEROHEIGHT_PROJECT_PASSWORD` | Password if project is protected | No |
+| `MCP_API_KEY` | API key for server authentication | Yes (production) |
 
+### MCP Client Configuration
+
+Copy the MCP configuration for your preferred setup:
+
+**Local Development:**
 ```json
-// Get all pages (limited to 10)
 {
-  "name": "query_zeroheight_data",
-  "arguments": {}
-}
-
-// Search for pages containing "brand"
-{
-  "name": "query_zeroheight_data",
-  "arguments": {
-    "search": "brand",
-    "includeImages": true
+  "mcpServers": {
+    "zeroheight-scraper": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://localhost:3000/api/mcp"],
+      "env": {
+        "MCP_API_KEY": "your-api-key-here"
+      }
+    }
   }
 }
-
-// Get specific page by URL
-{
-  "name": "query_zeroheight_data",
-  "arguments": {
-    "url": "https://example.zeroheight.com/project/p/page-slug",
-    "includeImages": true
-  }
-## API Usage Examples
-
-### Raw HTTP Calls (for testing/debugging)
-
-For testing the MCP server directly via HTTP, use these examples:
-
-**Scrape ZeroHeight Project:**
-```bash
-curl -X POST http://localhost:3000/api/mcp \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your-api-key-here" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Scrape ZeroHeight Project","arguments":{}}}'
 ```
 
-**Query ZeroHeight Data:**
-```bash
-curl -X POST http://localhost:3000/api/mcp \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your-api-key-here" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Query ZeroHeight Data","arguments":{"search":"color"}}}'
-```
-
-**PowerShell Examples:**
-```powershell
-# Set API key environment variable
-$env:MCP_API_KEY = "your-api-key-here"
-
-# Scrape project
-Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
-  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
-  -Body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Scrape ZeroHeight Project","arguments":{}}}' | Format-List
-
-# Query data
-Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
-  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
-  -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Query ZeroHeight Data","arguments":{"search":"color"}}}' | Format-List
-```
-
-**Required Headers:**
-- `Content-Type: application/json` - JSON-RPC request format
-- `X-API-Key: <your-key>` - Authentication (or use `Authorization: Bearer <your-key>`)
-- `Accept: application/json, text/event-stream` - Required for MCP streaming responses
-
-**Environment Setup:**
-```bash
-# Set the API key in your shell session
-export MCP_API_KEY="your-api-key-here"
-# Or for PowerShell:
-$env:MCP_API_KEY = "your-api-key-here"
-```
-
-## Troubleshooting
-
-### Common Errors
-
-**401 Unauthorized:**
-- **Cause:** Missing or invalid API key
-- **Solution:** Set `MCP_API_KEY` environment variable and include in request headers
-
-**406 Not Acceptable:**
-- **Cause:** Missing required Accept header for JSON-RPC streaming
-- **Solution:** Add `Accept: application/json, text/event-stream` header
-
-**Connection Refused:**
-- **Cause:** Server not running
-- **Solution:** Run `npm run dev` first
-
-**Test Your Setup:**
-```bash
-npm run test-api
-```
-
-This will run automated tests to verify your API key and server configuration.
-
-1. Install dependencies: `npm install`
-2. Copy `.env.example` to `.env.local` and configure your environment variables:
-   - `ZEROHEIGHT_PROJECT_URL`: The URL of the ZeroHeight project to scrape
-   - `ZEROHEIGHT_PROJECT_PASSWORD`: Password if the project is protected (optional)
-3. **Configure API Key on Vercel**: Set `MCP_API_KEY` as an environment variable in your Vercel deployment:
-   - Go to [vercel.com](https://vercel.com) → Your Project → Settings → Environment Variables
-   - Add `MCP_API_KEY` with a secure random value
-4. Run the scraper: `npx tsx scrape.ts` (optional, for testing)
-5. Test the API: `npm run test-api` (requires MCP_API_KEY environment variable and pre-scraped data)
-
-## MCP Configuration
-
-Copy `.vscode/mcp.json.example` to `.vscode/mcp.json` and configure it with your actual API key.
-
-### Production (Vercel)
-
-To connect to the deployed MCP server, configure your MCP client with the API key passed as an Authorization header:
-
-**Example MCP Configuration:**
-
+**Production (Vercel):**
 ```json
 {
   "mcpServers": {
@@ -178,15 +107,336 @@ To connect to the deployed MCP server, configure your MCP client with the API ke
 }
 ```
 
-**Important:** The MCP server requires a valid API key for all requests.
+## 📚 API Reference
 
-### Local Development
+### Tools
 
-For local development and testing, you can temporarily set `MCP_API_KEY` in your local environment to test the authentication.
+#### 1. Scrape Zeroheight Project
 
-## Database Schema
+Scrapes a Zeroheight design system project and caches the data in the database.
 
-- **pages**: Stores page content (id, url, title, content, scraped_at)
-- **images**: Stores image references (id, page_id, original_url, local_path)
+**Parameters:** None (uses environment variables)
 
-Images are downloaded locally and their paths are stored in the database for fast retrieval.
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "Scrape Zeroheight Project",
+    "arguments": {}
+  }
+}
+```
+
+#### 2. Query Zeroheight Data
+
+Queries the cached Zeroheight data with flexible search options.
+
+**Parameters:**
+- `search` (optional): Search term for titles or content
+- `url` (optional): Specific page URL to retrieve
+- `includeImages` (optional, default: false): Include image data
+- `limit` (optional, default: 10): Maximum results
+
+**Examples:**
+
+```json
+// Get all pages (limited to 10)
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "Query Zeroheight Data",
+    "arguments": {}
+  }
+}
+
+// Search for pages containing "brand"
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "Query Zeroheight Data",
+    "arguments": {
+      "search": "brand",
+      "includeImages": true
+    }
+  }
+}
+
+// Get specific page by URL
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "Query Zeroheight Data",
+    "arguments": {
+      "url": "https://example.zeroheight.com/p/project/page-slug",
+      "includeImages": true
+    }
+  }
+}
+```
+
+## 🧪 Testing
+
+### HTTP API Testing
+
+**Scrape Project:**
+```bash
+curl -X POST http://localhost:3000/api/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Scrape Zeroheight Project","arguments":{}}}'
+```
+
+**Query Data:**
+```bash
+curl -X POST http://localhost:3000/api/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Query Zeroheight Data","arguments":{"search":"color"}}}'
+```
+
+### PowerShell Testing
+
+```powershell
+# Set API key
+$env:MCP_API_KEY = "your-api-key-here"
+
+# Scrape project
+Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
+  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
+  -Body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Scrape Zeroheight Project","arguments":{}}}' | Format-List
+
+# Query data
+Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
+  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
+  -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Query Zeroheight Data","arguments":{"search":"color"}}}' | Format-List
+```
+
+### Automated Testing
+
+Run the built-in test suite:
+```bash
+npm run test-api
+```
+
+## 🔒 Security
+
+This MCP server uses API key authentication. The API key should be:
+
+- Set as `MCP_API_KEY` environment variable
+- Passed in requests via:
+  - `Authorization: Bearer <your-api-key>` header (recommended)
+  - `X-API-Key: <your-api-key>` header
+  - `?api_key=<your-api-key>` query parameter (fallback)
+
+**Important:** Never commit API keys to version control. For production deployments, set the `MCP_API_KEY` environment variable in your hosting platform (Vercel, etc.).
+
+## 🗄️ Database Schema
+
+The server uses Supabase with the following tables:
+
+- **pages**: Stores page content
+  - `id`: Primary key
+  - `url`: Page URL
+  - `title`: Page title
+  - `content`: Page content (markdown)
+  - `scraped_at`: Timestamp
+
+- **images**: Stores image references
+  - `id`: Primary key
+  - `page_id`: Foreign key to pages
+  - `original_url`: Original image URL
+  - `local_path`: Local storage path
+
+## 🚀 Deployment
+
+### Vercel (Recommended)
+
+1. **Connect your repository:**
+   ```bash
+   # Install Vercel CLI
+   npm i -g vercel
+
+   # Deploy
+   vercel
+   ```
+
+2. **Set environment variables in Vercel:**
+   - Go to your project settings
+   - Add `MCP_API_KEY` with a secure random value
+   - Add `ZEROHEIGHT_PROJECT_URL` and `ZEROHEIGHT_PROJECT_PASSWORD` if needed
+
+3. **Configure your MCP client** with the production URL and API key.
+
+### Other Platforms
+
+The server can be deployed to any platform supporting Node.js:
+
+```bash
+npm run build
+npm start
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**401 Unauthorized**
+- Check that `MCP_API_KEY` is set correctly
+- Verify the API key is included in request headers
+
+**406 Not Acceptable**
+- Add `Accept: application/json, text/event-stream` header
+
+**Connection Refused**
+- Ensure the server is running (`npm run dev`)
+- Check the correct port (default: 3000)
+
+**Scraping Fails**
+- Verify `ZEROHEIGHT_PROJECT_URL` is accessible
+- Check `ZEROHEIGHT_PROJECT_PASSWORD` if required
+- Ensure the project allows scraping
+
+### Debug Mode
+
+Enable verbose logging by setting:
+```env
+DEBUG=mcp-server:*
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -am 'Add your feature'`
+4. Push to the branch: `git push origin feature/your-feature`
+5. Submit a pull request
+
+### Development Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Run tests
+npm run test-api
+
+# Lint code
+npm run lint
+
+# Generate database types
+npm run generate-database-types
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Model Context Protocol](https://modelcontextprotocol.io/) for the protocol specification
+- [Zeroheight](https://zeroheight.com/) for their design system platform
+- [Next.js](https://nextjs.org/) for the web framework
+- [Supabase](https://supabase.com/) for the database and storage
+
+---
+
+Built with ❤️ using Next.js, TypeScript, and the Model Context Protocol
+{
+  "name": "query_zeroheight_data",
+  "arguments": {
+    "search": "brand",
+    "includeImages": true
+  }
+}
+
+// Get specific page by URL
+{
+  "name": "query_zeroheight_data",
+  "arguments": {
+    "url": "https://example.zeroheight.com/project/p/page-slug",
+    "includeImages": true
+  }
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**401 Unauthorized**
+- Check that `MCP_API_KEY` is set correctly
+- Verify the API key is included in request headers
+
+**406 Not Acceptable**
+- Add `Accept: application/json, text/event-stream` header
+
+**Connection Refused**
+- Ensure the server is running (`npm run dev`)
+- Check the correct port (default: 3000)
+
+**Scraping Fails**
+- Verify `ZEROHEIGHT_PROJECT_URL` is accessible
+- Check `ZEROHEIGHT_PROJECT_PASSWORD` if required
+- Ensure the project allows scraping
+
+### Debug Mode
+
+Enable verbose logging by setting:
+```env
+DEBUG=mcp-server:*
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -am 'Add your feature'`
+4. Push to the branch: `git push origin feature/your-feature`
+5. Submit a pull request
+
+### Development Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Run tests
+npm run test-api
+
+# Lint code
+npm run lint
+
+# Generate database types
+npm run generate-database-types
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Model Context Protocol](https://modelcontextprotocol.io/) for the protocol specification
+- [Zeroheight](https://zeroheight.com/) for their design system platform
+- [Next.js](https://nextjs.org/) for the web framework
+- [Supabase](https://supabase.com/) for the database and storage
+
+---
+
+Built with ❤️ using Next.js, TypeScript, and the Model Context Protocol
