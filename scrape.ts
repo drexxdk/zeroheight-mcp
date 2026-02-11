@@ -1,10 +1,24 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
-import { promisify } from 'util';
-import { pipeline } from 'stream';
+import Database from 'better-sqlite3';
 
-const streamPipeline = promisify(pipeline);
+// Helper function to clear directory
+function clearDirectory(dirPath: string): void {
+  if (fs.existsSync(dirPath)) {
+    const files = fs.readdirSync(dirPath);
+    for (const file of files) {
+      const filePath = path.join(dirPath, file);
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        clearDirectory(filePath);
+        fs.rmdirSync(filePath);
+      } else {
+        fs.unlinkSync(filePath);
+      }
+    }
+  }
+}
 
 interface ScrapedPage {
   url: string;
@@ -17,18 +31,46 @@ async function downloadImage(url: string, filepath: string): Promise<void> {
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
-    await streamPipeline(response.body as any, fs.createWriteStream(filepath));
+    const buffer = await response.arrayBuffer();
+    fs.writeFileSync(filepath, Buffer.from(buffer));
   } catch (error) {
     console.error(`Error downloading ${url}:`, error);
   }
 }
 
 async function scrapeZeroHeight(url: string, password?: string): Promise<ScrapedPage[]> {
-  // Ensure output directory exists
+  // Ensure output directory exists and is clear
   const outputDir = path.join(process.cwd(), 'output');
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  clearDirectory(outputDir);
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  // Initialize database
+  const dbPath = path.join(outputDir, 'zeroheight.db');
+  const db = new Database(dbPath);
+
+  // Create tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      url TEXT UNIQUE,
+      title TEXT,
+      content TEXT,
+      scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      page_id INTEGER,
+      original_url TEXT,
+      local_path TEXT,
+      alt_text TEXT,
+      FOREIGN KEY (page_id) REFERENCES pages (id)
+    );
+  `);
+
+  // Prepare statements
+  const insertPage = db.prepare('INSERT OR REPLACE INTO pages (url, title, content) VALUES (?, ?, ?)');
+  const insertImage = db.prepare('INSERT INTO images (page_id, original_url, local_path, alt_text) VALUES (?, ?, ?, ?)');
 
   // Use the provided URL as is
   const startUrl: string = url;
@@ -74,25 +116,34 @@ async function scrapeZeroHeight(url: string, password?: string): Promise<Scraped
     try {
       await page.goto(link, { waitUntil: 'networkidle2' });
       const title: string = await page.title();
-      let content: string = await page.$eval('.content, .zh-content, main', (el: Element) => el.textContent?.trim() || '').catch(() => '');
+      const content: string = await page.$eval('.content, .zh-content, main', (el: Element) => el.textContent?.trim() || '').catch(() => '');
 
       // Get all images on the page
       const images = await page.$$eval('img', (imgs: HTMLImageElement[]) => 
         imgs.map((img, index) => ({ src: img.src, alt: img.alt, index }))
       );
 
-      // Download images and update content
-      const imageMap: { [key: string]: string } = {};
+      // Insert page into database
+      const pageResult = insertPage.run(link, title, content);
+      const pageId = pageResult.lastInsertRowid as number;
+
+      // Download images and save to database
       for (const img of images) {
         if (img.src && img.src.startsWith('http')) {
-          const ext = path.extname(new URL(img.src).pathname) || '.png';
-          const filename = `image_${Date.now()}_${img.index}${ext}`;
+          const ext = path.extname(new URL(img.src).pathname).toLowerCase();
+          
+          // Skip GIF and SVG files
+          if (ext === '.gif' || ext === '.svg') {
+            continue;
+          }
+          
+          const filename = `image_${Date.now()}_${img.index}${ext || '.png'}`;
           const filepath = path.join(process.cwd(), 'output', filename);
           
           await downloadImage(img.src, filepath);
           
-          // Map original URL to local path
-          imageMap[img.src] = `./output/${filename}`;
+          // Insert image into database
+          insertImage.run(pageId, img.src, `./output/${filename}`, img.alt || '');
         }
       }
 
@@ -100,13 +151,21 @@ async function scrapeZeroHeight(url: string, password?: string): Promise<Scraped
         url: link,
         title,
         content,
-        images: imageMap
+        images: images.reduce((map, img) => {
+          if (img.src && img.src.startsWith('http')) {
+            const ext = path.extname(new URL(img.src).pathname).toLowerCase();
+            
+            // Skip GIF and SVG files
+            if (ext === '.gif' || ext === '.svg') {
+              return map;
+            }
+            
+            const filename = `image_${Date.now()}_${img.index}${ext || '.png'}`;
+            map[img.src] = `./output/${filename}`;
+          }
+          return map;
+        }, {} as { [key: string]: string })
       };
-
-      // Save page data as JSON
-      const jsonFilename = `page_${Date.now()}_${uniqueLinks.indexOf(link)}.json`;
-      const jsonPath = path.join(process.cwd(), 'output', jsonFilename);
-      fs.writeFileSync(jsonPath, JSON.stringify(pageData, null, 2));
 
       scrapedData.push(pageData);
 
@@ -114,6 +173,9 @@ async function scrapeZeroHeight(url: string, password?: string): Promise<Scraped
       console.error(`Failed to scrape ${link}:`, e);
     }
   }
+
+  // Close database
+  db.close();
 
   await browser.close();
 

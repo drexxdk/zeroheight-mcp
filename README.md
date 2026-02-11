@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ZeroHeight MCP Server
 
-## Getting Started
+A Model Context Protocol (MCP) server for scraping and querying ZeroHeight design system projects.
 
-First, run the development server:
+## Tools
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### 1. scrape_zeroheight_project
+
+Scrapes a ZeroHeight design system project and caches the data in a SQLite database.
+
+**Parameters:** None (uses environment variables)
+
+**Environment Variables Required:**
+
+- `ZEROHEIGHT_PROJECT_URL`: The URL of the ZeroHeight project to scrape
+- `ZEROHEIGHT_PROJECT_PASSWORD`: Password if the project is protected (optional)
+
+### 2. query_zeroheight_data
+
+Queries the cached ZeroHeight data from the database with flexible search options.
+
+**Parameters:**
+
+- `search` (optional): Search term to find in page titles or content
+- `url` (optional): Specific page URL to retrieve
+- `includeImages` (optional, default: false): Whether to include image data in the response
+- `limit` (optional, default: 10): Maximum number of results to return
+
+**Examples:**
+
+```json
+// Get all pages (limited to 10)
+{
+  "name": "query_zeroheight_data",
+  "arguments": {}
+}
+
+// Search for pages containing "brand"
+{
+  "name": "query_zeroheight_data",
+  "arguments": {
+    "search": "brand",
+    "includeImages": true
+  }
+}
+
+// Get specific page by URL
+{
+  "name": "query_zeroheight_data",
+  "arguments": {
+    "url": "https://example.zeroheight.com/project/p/page-slug",
+    "includeImages": true
+  }
+}
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Install dependencies: `npm install`
+2. Set environment variables in `.env.local`
+3. Run the scraper: `npx tsx scrape.ts` (optional, for testing)
+4. Start the server: `npm run dev`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Database Schema
 
-## Learn More
+- **pages**: Stores page content (id, url, title, content, scraped_at)
+- **images**: Stores image references (id, page_id, original_url, local_path)
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Images are downloaded locally and their paths are stored in the database for fast retrieval.

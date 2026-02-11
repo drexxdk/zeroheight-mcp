@@ -12,6 +12,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@sparticuz/chromium": "^143.0.4",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.6.2",
     "mcp-handler": "^1.0.7",
     "next": "16.1.6",
     "puppeteer": "^24.37.2",
