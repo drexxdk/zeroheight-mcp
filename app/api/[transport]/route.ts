@@ -35,7 +35,10 @@ async function downloadImage(
   filename: string,
 ): Promise<string | null> {
   try {
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok)
       throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
     const buffer = await response.arrayBuffer();
@@ -303,7 +306,7 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
         if (processedLinks.has(link)) continue;
         
         try {
-          await page.goto(link, { waitUntil: 'networkidle2' });
+          await page.goto(link, { waitUntil: 'networkidle2', timeout: 30000 });
           processedLinks.add(link);
           
           const title: string = await page.title();
@@ -404,13 +407,12 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
               imageMap[img.src] = storagePath;
 
               // Save image reference to database
-              const { error: imageError } = await client.from("images").upsert(
+              const { error: imageError } = await client.from("images").insert(
                 {
                   page_id: pageId,
                   original_url: img.src,
                   storage_path: storagePath,
-                },
-                { onConflict: "page_id,original_url" },
+                }
               );
               if (imageError) {
                 console.error(`Error saving image ${img.src} to database:`, imageError);
