@@ -118,8 +118,8 @@ export default function Home() {
 
       {/* Hero Section - Full Width */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-linear-to-br from-slate-900 via-blue-900/30 to-purple-900/40"></div>
-        <div className="absolute inset-0 bg-linear-to-r from-blue-600/10 via-transparent to-purple-600/10"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900/30 to-purple-900/40"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-purple-600/10"></div>
         <div className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl"></div>
         <div className="absolute right-1/4 bottom-0 h-96 w-96 rounded-full bg-purple-500/20 blur-3xl"></div>
 
@@ -127,7 +127,7 @@ export default function Home() {
           <div className="text-center">
             <h1 className="mb-6 text-5xl leading-tight font-bold text-white md:text-7xl">
               Zeroheight Design System
-              <span className="block animate-pulse bg-linear-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+              <span className="block animate-pulse bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
                 MCP Server
               </span>
             </h1>
@@ -141,7 +141,7 @@ export default function Home() {
             <div className="flex flex-col justify-center gap-6 sm:flex-row">
               <Link
                 href="#tools"
-                className="transform rounded-xl bg-linear-to-r from-cyan-500 to-blue-600 px-10 py-4 text-lg font-semibold text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:from-cyan-600 hover:to-blue-700 hover:shadow-cyan-500/25"
+                className="transform rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-10 py-4 text-lg font-semibold text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:from-cyan-600 hover:to-blue-700 hover:shadow-cyan-500/25"
               >
                 Get Started
               </Link>
@@ -787,39 +787,20 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-700/50 bg-linear-to-r from-slate-900 via-slate-900/95 to-slate-900 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="text-center">
-              <div className="flex items-center justify-center space-x-3 text-sm leading-relaxed font-medium text-slate-300">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-blue-600 to-cyan-600 shadow-lg">
-                  <span className="text-xs font-bold text-white">ZH</span>
-                </div>
-                <span>
-                  Built with{" "}
-                  <span className="font-semibold text-cyan-400">Next.js</span>,{" "}
-                  <span className="font-semibold text-blue-400">
-                    TypeScript
-                  </span>
-                  , and the{" "}
-                  <span className="font-semibold text-purple-400">
-                    Model Context Protocol
-                  </span>
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="h-1 w-1 animate-pulse rounded-full bg-cyan-400"></div>
-              <div
-                className="h-1 w-1 animate-pulse rounded-full bg-blue-400"
-                style={{ animationDelay: "0.2s" }}
-              ></div>
-              <div
-                className="h-1 w-1 animate-pulse rounded-full bg-purple-400"
-                style={{ animationDelay: "0.4s" }}
-              ></div>
-            </div>
+      <footer className="px-8 py-4 border-t border-slate-700/50 bg-gradient-to-r from-slate-800 via-slate-800/95 to-slate-800 backdrop-blur-sm">
+        <div className="flex items-center justify-center space-x-3 text-sm leading-relaxed font-medium text-slate-300">
+          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-600 shadow-lg">
+            <span className="text-xs font-bold text-white">ZH</span>
           </div>
+          <span>
+            Built with{" "}
+            <span className="font-semibold text-cyan-400">Next.js</span>,{" "}
+            <span className="font-semibold text-blue-400">TypeScript</span>, and
+            the{" "}
+            <span className="font-semibold text-purple-400">
+              Model Context Protocol
+            </span>
+          </span>
         </div>
       </footer>
     </div>
