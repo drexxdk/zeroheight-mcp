@@ -1,10 +1,52 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 export default function Home() {
+  const [activeSection, setActiveSection] = useState('features');
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      const headerOffset = 80; // Account for sticky header height
+      const elementPosition = element.offsetTop;
+      const offsetPosition = elementPosition - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = ['features', 'api', 'tech'];
+      const scrollPosition = window.scrollY + 100; // Offset for header height
+
+      for (const section of sections) {
+        const element = document.getElementById(section);
+        if (element) {
+          const { offsetTop, offsetHeight } = element;
+          if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
+            setActiveSection(section);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Check initial position
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-slate-900 scroll-smooth">
       {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-700 bg-slate-900/95 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-3">
@@ -16,15 +58,45 @@ export default function Home() {
               </h1>
             </div>
             <nav className="hidden md:flex space-x-8">
-              <a href="#features" className="text-slate-400 hover:text-white transition-colors">
+              <button
+                onClick={() => scrollToSection('features')}
+                className={`relative transition-all duration-500 ease-in-out transform hover:scale-105 ${
+                  activeSection === 'features'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400 pb-1'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
                 Features
-              </a>
-              <a href="#api" className="text-slate-400 hover:text-white transition-colors">
+                {activeSection === 'features' && (
+                  <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-cyan-400 animate-pulse"></div>
+                )}
+              </button>
+              <button
+                onClick={() => scrollToSection('api')}
+                className={`relative transition-all duration-500 ease-in-out transform hover:scale-105 ${
+                  activeSection === 'api'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400 pb-1'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
                 API
-              </a>
-              <a href="#tech" className="text-slate-400 hover:text-white transition-colors">
+                {activeSection === 'api' && (
+                  <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-cyan-400 animate-pulse"></div>
+                )}
+              </button>
+              <button
+                onClick={() => scrollToSection('tech')}
+                className={`relative transition-all duration-500 ease-in-out transform hover:scale-105 ${
+                  activeSection === 'tech'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400 pb-1'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
                 Tech Stack
-              </a>
+                {activeSection === 'tech' && (
+                  <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-cyan-400 animate-pulse"></div>
+                )}
+              </button>
             </nav>
           </div>
         </div>
