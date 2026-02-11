@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "ZeroHeight MCP Server",
-  description: "A powerful Model Context Protocol server that scrapes, indexes, and provides intelligent querying capabilities for Zeroheight design system documentation.",
+  description:
+    "A powerful Model Context Protocol server that scrapes, indexes, and provides intelligent querying capabilities for Zeroheight design system documentation.",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },

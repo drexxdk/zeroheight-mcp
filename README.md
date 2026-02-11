@@ -26,22 +26,26 @@ A powerful Model Context Protocol (MCP) server that scrapes, indexes, and provid
 ### Installation
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/drexxdk/zeroheight-mcp.git
    cd zeroheight-mcp
    ```
 
 2. **Install dependencies:**
+
    ```bash
    npm install
    ```
 
 3. **Configure environment variables:**
+
    ```bash
    cp .env.example .env.local
    ```
 
    Edit `.env.local` with your Zeroheight project details:
+
    ```env
    ZEROHEIGHT_PROJECT_URL=https://your-project.zeroheight.com/p/project-id
    ZEROHEIGHT_PROJECT_PASSWORD=your-password-if-required
@@ -49,6 +53,7 @@ A powerful Model Context Protocol (MCP) server that scrapes, indexes, and provid
    ```
 
 4. **Start the development server:**
+
    ```bash
    npm run dev
    ```
@@ -62,17 +67,18 @@ A powerful Model Context Protocol (MCP) server that scrapes, indexes, and provid
 
 ### Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `ZEROHEIGHT_PROJECT_URL` | URL of the Zeroheight project to scrape | Yes |
-| `ZEROHEIGHT_PROJECT_PASSWORD` | Password if project is protected | No |
-| `MCP_API_KEY` | API key for server authentication | Yes (production) |
+| Variable                      | Description                             | Required         |
+| ----------------------------- | --------------------------------------- | ---------------- |
+| `ZEROHEIGHT_PROJECT_URL`      | URL of the Zeroheight project to scrape | Yes              |
+| `ZEROHEIGHT_PROJECT_PASSWORD` | Password if project is protected        | No               |
+| `MCP_API_KEY`                 | API key for server authentication       | Yes (production) |
 
 ### MCP Client Configuration
 
 Copy the MCP configuration for your preferred setup:
 
 **Local Development:**
+
 ```json
 {
   "mcpServers": {
@@ -88,6 +94,7 @@ Copy the MCP configuration for your preferred setup:
 ```
 
 **Production (Vercel):**
+
 ```json
 {
   "mcpServers": {
@@ -118,6 +125,7 @@ Scrapes a Zeroheight design system project and caches the data in the database.
 **Parameters:** None (uses environment variables)
 
 **Example:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -135,6 +143,7 @@ Scrapes a Zeroheight design system project and caches the data in the database.
 Queries the cached Zeroheight data with flexible search options.
 
 **Parameters:**
+
 - `search` (optional): Search term for titles or content
 - `url` (optional): Specific page URL to retrieve
 - `includeImages` (optional, default: false): Include image data
@@ -188,6 +197,7 @@ Queries the cached Zeroheight data with flexible search options.
 ### HTTP API Testing
 
 **Scrape Project:**
+
 ```bash
 curl -X POST http://localhost:3000/api/mcp \
   -H "Content-Type: application/json" \
@@ -197,6 +207,7 @@ curl -X POST http://localhost:3000/api/mcp \
 ```
 
 **Query Data:**
+
 ```bash
 curl -X POST http://localhost:3000/api/mcp \
   -H "Content-Type: application/json" \
@@ -225,6 +236,7 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
 ### Automated Testing
 
 Run the built-in test suite:
+
 ```bash
 npm run test-api
 ```
@@ -263,6 +275,7 @@ The server uses Supabase with the following tables:
 ### Vercel (Recommended)
 
 1. **Connect your repository:**
+
    ```bash
    # Install Vercel CLI
    npm i -g vercel
@@ -292,17 +305,21 @@ npm start
 ### Common Issues
 
 **401 Unauthorized**
+
 - Check that `MCP_API_KEY` is set correctly
 - Verify the API key is included in request headers
 
 **406 Not Acceptable**
+
 - Add `Accept: application/json, text/event-stream` header
 
 **Connection Refused**
+
 - Ensure the server is running (`npm run dev`)
 - Check the correct port (default: 3000)
 
 **Scraping Fails**
+
 - Verify `ZEROHEIGHT_PROJECT_URL` is accessible
 - Check `ZEROHEIGHT_PROJECT_PASSWORD` if required
 - Ensure the project allows scraping
@@ -310,6 +327,7 @@ npm start
 ### Debug Mode
 
 Enable verbose logging by setting:
+
 ```env
 DEBUG=mcp-server:*
 ```
@@ -356,21 +374,22 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Built with ❤️ using Next.js, TypeScript, and the Model Context Protocol
 {
-  "name": "query_zeroheight_data",
-  "arguments": {
-    "search": "brand",
-    "includeImages": true
-  }
+"name": "query_zeroheight_data",
+"arguments": {
+"search": "brand",
+"includeImages": true
+}
 }
 
 // Get specific page by URL
 {
-  "name": "query_zeroheight_data",
-  "arguments": {
-    "url": "https://example.zeroheight.com/project/p/page-slug",
-    "includeImages": true
-  }
-```
+"name": "query_zeroheight_data",
+"arguments": {
+"url": "https://example.zeroheight.com/project/p/page-slug",
+"includeImages": true
+}
+
+````
 
 ## 🐛 Troubleshooting
 
@@ -397,7 +416,7 @@ Built with ❤️ using Next.js, TypeScript, and the Model Context Protocol
 Enable verbose logging by setting:
 ```env
 DEBUG=mcp-server:*
-```
+````
 
 ## 🤝 Contributing
 

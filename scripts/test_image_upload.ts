@@ -1,26 +1,48 @@
 import { createClient } from "@supabase/supabase-js";
-import path from 'path';
-import { readFileSync } from 'fs';
+import path from "path";
+import { readFileSync } from "fs";
 
 // Load environment variables from .env.local
 function loadEnv() {
   try {
-    const envContent = readFileSync('.env.local', 'utf8');
-    const envVars = envContent.split('\n').reduce((acc, line) => {
-      const [key, ...valueParts] = line.split('=');
-      if (key && valueParts.length > 0) {
-        acc[key.trim()] = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
-      }
-      return acc;
-    }, {} as Record<string, string>);
+    const envContent = readFileSync(".env.local", "utf8");
+    const envVars = envContent.split("\n").reduce(
+      (acc, line) => {
+        const [key, ...valueParts] = line.split("=");
+        if (key && valueParts.length > 0) {
+          acc[key.trim()] = valueParts
+            .join("=")
+            .trim()
+            .replace(/^["']|["']$/g, "");
+        }
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
 
     Object.assign(process.env, envVars);
-    console.log('Loaded environment variables:');
-    console.log('- NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Set' : 'Not set');
-    console.log('- SUPABASE_ACCESS_TOKEN:', process.env.SUPABASE_ACCESS_TOKEN ? 'Set (length: ' + process.env.SUPABASE_ACCESS_TOKEN!.length + ')' : 'Not set');
-    console.log('- SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Set (length: ' + process.env.SUPABASE_SERVICE_ROLE_KEY!.length + ')' : 'Not set');
+    console.log("Loaded environment variables:");
+    console.log(
+      "- NEXT_PUBLIC_SUPABASE_URL:",
+      process.env.NEXT_PUBLIC_SUPABASE_URL ? "Set" : "Not set",
+    );
+    console.log(
+      "- SUPABASE_ACCESS_TOKEN:",
+      process.env.SUPABASE_ACCESS_TOKEN
+        ? "Set (length: " + process.env.SUPABASE_ACCESS_TOKEN!.length + ")"
+        : "Not set",
+    );
+    console.log(
+      "- SUPABASE_SERVICE_ROLE_KEY:",
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+        ? "Set (length: " + process.env.SUPABASE_SERVICE_ROLE_KEY!.length + ")"
+        : "Not set",
+    );
   } catch (error) {
-    console.log('Could not load .env.local file, using existing environment variables:', error instanceof Error ? error.message : error);
+    console.log(
+      "Could not load .env.local file, using existing environment variables:",
+      error instanceof Error ? error.message : error,
+    );
   }
 }
 
@@ -57,10 +79,21 @@ async function downloadImage(
       throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
     const buffer = await response.arrayBuffer();
     const ext = path.extname(filename).toLowerCase();
-    const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.svg' ? 'image/svg+xml' : 'image/png';
+    const mimeType =
+      ext === ".jpg" || ext === ".jpeg"
+        ? "image/jpeg"
+        : ext === ".png"
+          ? "image/png"
+          : ext === ".webp"
+            ? "image/webp"
+            : ext === ".svg"
+              ? "image/svg+xml"
+              : "image/png";
     const file = new File([buffer], filename, { type: mimeType });
 
-    console.log(`Created file with size: ${buffer.byteLength} bytes, type: ${mimeType}`);
+    console.log(
+      `Created file with size: ${buffer.byteLength} bytes, type: ${mimeType}`,
+    );
 
     // Upload to Supabase storage
     const client = getSupabaseClient();
@@ -76,7 +109,10 @@ async function downloadImage(
     if (adminClient) {
       const result = await adminClient.storage.listBuckets();
       buckets = result.data;
-      console.log("Existing buckets:", buckets?.map(b => b.name));
+      console.log(
+        "Existing buckets:",
+        buckets?.map((b) => b.name),
+      );
     } else {
       console.log("Admin client not available, using regular client...");
       const result = await client.storage.listBuckets();
@@ -94,7 +130,14 @@ async function downloadImage(
           "zeroheight-images",
           {
             public: true,
-            allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/svg+xml"],
+            allowedMimeTypes: [
+              "image/png",
+              "image/jpeg",
+              "image/jpg",
+              "image/gif",
+              "image/webp",
+              "image/svg+xml",
+            ],
             fileSizeLimit: 10485760, // 10MB
           },
         );
@@ -153,7 +196,7 @@ async function testImageUpload() {
   const testUrls = [
     "https://picsum.photos/100/100",
     "https://httpbin.org/image/png",
-    "https://via.placeholder.com/100x100.png"
+    "https://via.placeholder.com/100x100.png",
   ];
 
   for (const testImageUrl of testUrls) {
@@ -180,7 +223,10 @@ async function testImageUpload() {
         console.log(`❌ Failed with ${testImageUrl}`);
       }
     } catch (error) {
-      console.log(`❌ Error with ${testImageUrl}:`, error instanceof Error ? error.message : error);
+      console.log(
+        `❌ Error with ${testImageUrl}:`,
+        error instanceof Error ? error.message : error,
+      );
     }
   }
 
@@ -188,16 +234,16 @@ async function testImageUpload() {
 
   // Create a simple test image (1x1 pixel PNG)
   const testImageBuffer = Buffer.from([
-    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
     0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-    0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
-    0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0x99, 0x01, 0x01, 0x00, 0x00, 0x00,
-    0xFF, 0xFF, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
-    0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+    0x0c, 0x49, 0x44, 0x41, 0x54, 0x08, 0x99, 0x01, 0x01, 0x00, 0x00, 0x00,
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
   ]);
 
   const filename = `test_pixel_${Date.now()}.png`;
-  const file = new File([testImageBuffer], filename, { type: 'image/png' });
+  const file = new File([testImageBuffer], filename, { type: "image/png" });
 
   console.log("Created test pixel image, uploading to Supabase...");
 
@@ -213,7 +259,10 @@ async function testImageUpload() {
   if (adminClient) {
     const result = await adminClient.storage.listBuckets();
     buckets = result.data;
-    console.log("Existing buckets:", buckets?.map(b => b.name));
+    console.log(
+      "Existing buckets:",
+      buckets?.map((b) => b.name),
+    );
   } else {
     console.log("Admin client not available, using regular client...");
     const result = await client.storage.listBuckets();
@@ -231,7 +280,14 @@ async function testImageUpload() {
         "zeroheight-images",
         {
           public: true,
-          allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/svg+xml"],
+          allowedMimeTypes: [
+            "image/png",
+            "image/jpeg",
+            "image/jpg",
+            "image/gif",
+            "image/webp",
+            "image/svg+xml",
+          ],
           fileSizeLimit: 10485760, // 10MB
         },
       );

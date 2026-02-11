@@ -1,10 +1,6 @@
 {
-    "cSpell.words": [
-        "networkidle",
-        "Supabase",
-        "zeroheight"
-    ],
-    "css.lint.unknownAtRules": "ignore",
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  "cSpell.words": ["networkidle", "Supabase", "zeroheight"],
+  "css.lint.unknownAtRules": "ignore",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode"
 }

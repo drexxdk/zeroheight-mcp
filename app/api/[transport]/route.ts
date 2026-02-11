@@ -1,21 +1,21 @@
 import { createMcpHandler } from "mcp-handler";
-import { NextRequest } from 'next/server';
-import { authenticateRequest } from '../../../lib/auth';
+import { NextRequest } from "next/server";
+import { authenticateRequest } from "../../../lib/auth";
 import {
   listTablesTool,
   executeSqlTool,
   listMigrationsTool,
-  getLogsTool
-} from '../../../lib/tools/database';
+  getLogsTool,
+} from "../../../lib/tools/database";
 import {
   generateTypescriptTypesTool,
   getProjectUrlTool,
-  getPublishableKeysTool
-} from '../../../lib/tools/development';
+  getPublishableKeysTool,
+} from "../../../lib/tools/development";
 import {
   scrapeZeroheightProjectTool,
-  queryZeroheightDataTool
-} from '../../../lib/tools/scraper';
+  queryZeroheightDataTool,
+} from "../../../lib/tools/scraper";
 
 const handler = createMcpHandler(
   (server) => {
@@ -28,7 +28,7 @@ const handler = createMcpHandler(
         description: scrapeZeroheightProjectTool.description,
         inputSchema: scrapeZeroheightProjectTool.inputSchema,
       },
-      scrapeZeroheightProjectTool.handler
+      scrapeZeroheightProjectTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "Query ZeroHeight Data", "arguments": { "search": "button", "includeImages": true, "limit": 10 } } }
@@ -39,7 +39,7 @@ const handler = createMcpHandler(
         description: queryZeroheightDataTool.description,
         inputSchema: queryZeroheightDataTool.inputSchema,
       },
-      queryZeroheightDataTool.handler
+      queryZeroheightDataTool.handler,
     );
 
     // Database Inspection & Management Tools
@@ -51,7 +51,7 @@ const handler = createMcpHandler(
         description: listTablesTool.description,
         inputSchema: listTablesTool.inputSchema,
       },
-      listTablesTool.handler
+      listTablesTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "Execute SQL", "arguments": { "query": "SELECT * FROM pages LIMIT 5;" } } }
@@ -62,7 +62,7 @@ const handler = createMcpHandler(
         description: executeSqlTool.description,
         inputSchema: executeSqlTool.inputSchema,
       },
-      executeSqlTool.handler
+      executeSqlTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "List Migrations", "arguments": {} } }
@@ -73,7 +73,7 @@ const handler = createMcpHandler(
         description: listMigrationsTool.description,
         inputSchema: listMigrationsTool.inputSchema,
       },
-      listMigrationsTool.handler
+      listMigrationsTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "Get Logs", "arguments": {} } }
@@ -84,7 +84,7 @@ const handler = createMcpHandler(
         description: getLogsTool.description,
         inputSchema: getLogsTool.inputSchema,
       },
-      getLogsTool.handler
+      getLogsTool.handler,
     );
 
     // Development & Deployment Tools
@@ -96,7 +96,7 @@ const handler = createMcpHandler(
         description: generateTypescriptTypesTool.description,
         inputSchema: generateTypescriptTypesTool.inputSchema,
       },
-      generateTypescriptTypesTool.handler
+      generateTypescriptTypesTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "Get Project URL", "arguments": {} } }
@@ -107,7 +107,7 @@ const handler = createMcpHandler(
         description: getProjectUrlTool.description,
         inputSchema: getProjectUrlTool.inputSchema,
       },
-      getProjectUrlTool.handler
+      getProjectUrlTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "Get Publishable API Keys", "arguments": {} } }
@@ -118,7 +118,7 @@ const handler = createMcpHandler(
         description: getPublishableKeysTool.description,
         inputSchema: getPublishableKeysTool.inputSchema,
       },
-      getPublishableKeysTool.handler
+      getPublishableKeysTool.handler,
     );
   },
   {},
@@ -126,7 +126,7 @@ const handler = createMcpHandler(
     basePath: "/api",
     maxDuration: 300, // 5 minutes for scraping
     verboseLogs: true,
-  }
+  },
 );
 
 // Authentication wrapper for Next.js API routes
@@ -134,19 +134,22 @@ async function authenticatedHandler(request: NextRequest) {
   const auth = authenticateRequest(request);
 
   if (!auth.isValid) {
-    return new Response(JSON.stringify({
-      jsonrpc: "2.0",
-      error: {
-        code: -32600,
-        message: auth.error
+    return new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: {
+          code: -32600,
+          message: auth.error,
+        },
+        id: null,
+      }),
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+        },
       },
-      id: null
-    }), {
-      status: 401,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    );
   }
 
   // Call the MCP handler with the authenticated request
