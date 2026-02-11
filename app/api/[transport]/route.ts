@@ -4,6 +4,7 @@ import puppeteer from 'puppeteer';
 import path from 'path';
 import { NextRequest } from 'next/server';
 import { createClient } from "@supabase/supabase-js";
+import sharp from 'sharp';
 import type { Database } from '../../../lib/database.schema';
 
 // Supabase client will be created when needed
@@ -42,9 +43,16 @@ async function downloadImage(
     if (!response.ok)
       throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
     const buffer = await response.arrayBuffer();
-    const ext = path.extname(filename).toLowerCase();
-    const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.svg' ? 'image/svg+xml' : 'image/png';
-    const file = new File([buffer], filename, { type: mimeType });
+    
+    // Process image with sharp: resize to max 600x600, convert to JPEG, optimize
+    const processedBuffer = await sharp(Buffer.from(buffer))
+      .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    
+    const mimeType = 'image/jpeg';
+    const processedFilename = filename.replace(/\.[^.]+$/, '.jpg'); // Change extension to .jpg
+    const file = new File([new Uint8Array(processedBuffer)], processedFilename, { type: mimeType });
 
     // Upload to Supabase storage
     const client = getSupabaseClient();
@@ -85,14 +93,14 @@ async function downloadImage(
     if (adminClient) {
       uploadResult = await adminClient.storage
         .from("zeroheight-images")
-        .upload(filename, file, {
+        .upload(processedFilename, file, {
           cacheControl: "3600",
           upsert: false,
         });
     } else {
       uploadResult = await client.storage
         .from("zeroheight-images")
-        .upload(filename, file, {
+        .upload(processedFilename, file, {
           cacheControl: "3600",
           upsert: false,
         });
@@ -146,6 +154,9 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
     const client = getSupabaseClient();
     const adminClient = getSupabaseAdminClient();
 
+    console.log("Client available:", !!client);
+    console.log("Admin client available:", !!adminClient);
+
     if (client && adminClient) {
       // Clear images table
       console.log("Clearing images table...");
@@ -176,27 +187,58 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
       // Clear storage bucket
       console.log("Clearing zeroheight-images storage bucket...");
       try {
-        // List all files in the bucket
-        const { data: files, error: listError } = await adminClient.storage
-          .from("zeroheight-images")
-          .list();
-
-        if (listError) {
-          console.error("Error listing files in bucket:", listError);
-        } else if (files && files.length > 0) {
-          // Delete all files
-          const fileNames = files.map(file => file.name);
-          const { error: deleteError } = await adminClient.storage
-            .from("zeroheight-images")
-            .remove(fileNames);
-
-          if (deleteError) {
-            console.error("Error deleting files from bucket:", deleteError);
-          } else {
-            console.log(`Deleted ${fileNames.length} files from storage bucket`);
-          }
+        // Try admin client first, then regular client
+        const storageClient = adminClient || client;
+        if (!storageClient) {
+          console.log("No storage client available for clearing bucket");
         } else {
-          console.log("No files to delete from storage bucket");
+          const allFiles: string[] = [];
+          let offset = 0;
+          const limit = 100;
+          let hasMore = true;
+
+          while (hasMore) {
+            const { data: files, error: listError } = await storageClient.storage
+              .from("zeroheight-images")
+              .list('', { limit, offset });
+
+            if (listError) {
+              console.error("Error listing files in bucket:", listError);
+              break;
+            }
+
+            if (files && files.length > 0) {
+              const fileNames = files.map(file => file.name);
+              allFiles.push(...fileNames);
+              offset += limit;
+              if (files.length < limit) {
+                hasMore = false;
+              }
+            } else {
+              hasMore = false;
+            }
+          }
+
+          console.log(`Found ${allFiles.length} files to delete`);
+
+          if (allFiles.length > 0) {
+            // Delete in batches of 100
+            for (let i = 0; i < allFiles.length; i += 100) {
+              const batch = allFiles.slice(i, i + 100);
+              const { error: deleteError } = await storageClient.storage
+                .from("zeroheight-images")
+                .remove(batch);
+
+              if (deleteError) {
+                console.error(`Error deleting batch ${i / 100 + 1}:`, deleteError);
+              } else {
+                console.log(`Deleted batch ${i / 100 + 1} (${batch.length} files)`);
+              }
+            }
+            console.log(`Deleted ${allFiles.length} files from storage bucket`);
+          } else {
+            console.log("No files to delete from storage bucket");
+          }
         }
       } catch (storageError) {
         console.error("Error clearing storage bucket:", storageError);
@@ -393,11 +435,11 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
         for (const img of allImages) {
           if (!img) continue;
           console.log(`Processing image: ${img.src}`);
-          if (img.src && img.src.startsWith('http')) {
+          if (img.src && img.src.startsWith('http') && !img.src.includes('zeroheight-uploads.s3.eu-west-1.amazonaws.com')) {
             const ext = path.extname(new URL(img.src).pathname).toLowerCase();
 
-            // Skip GIF files, but allow SVG and others
-            if (ext === '.gif') continue;
+            // Skip GIF and SVG files
+            if (ext === '.gif' || ext === '.svg') continue;
 
             const filename = `${pageId}_${img.index}_${Date.now()}${ext || '.png'}`;
             console.log(`Uploading image ${img.src} as ${filename}`);
