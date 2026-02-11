@@ -2,10 +2,94 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
-import fs from 'fs';
 import path from 'path';
-import Database from 'better-sqlite3';
 import { NextRequest } from 'next/server';
+import { createClient } from "@supabase/supabase-js";
+
+// Type definitions
+interface ZeroHeightImage {
+  original_url: string;
+  storage_path: string;
+}
+
+interface ZeroHeightPage {
+  url: string;
+  title: string;
+  content: string;
+  images?: ZeroHeightImage[];
+}
+
+// Supabase client will be created when needed
+let supabase: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseClient() {
+  if (!supabase) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ACCESS_TOKEN;
+    if (supabaseUrl && supabaseKey) {
+      supabase = createClient(supabaseUrl, supabaseKey);
+    }
+  }
+  return supabase;
+}
+
+async function downloadImage(
+  url: string,
+  filename: string,
+): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok)
+      throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+    const buffer = await response.arrayBuffer();
+    const file = new File([buffer], filename, { type: "image/png" });
+
+    // Upload to Supabase storage
+    const client = getSupabaseClient();
+    if (!client) {
+      console.error("Supabase client not available for image upload");
+      return null;
+    }
+
+    // Ensure bucket exists
+    const { data: buckets } = await client.storage.listBuckets();
+    const bucketExists = buckets?.some(
+      (bucket) => bucket.name === "zeroheight-images",
+    );
+
+    if (!bucketExists) {
+      const { error: createError } = await client.storage.createBucket(
+        "zeroheight-images",
+        {
+          public: true,
+          allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"],
+          fileSizeLimit: 10485760, // 10MB
+        },
+      );
+      if (createError) {
+        console.error("Error creating bucket:", createError);
+        return null;
+      }
+    }
+
+    const { data, error } = await client.storage
+      .from("zeroheight-images")
+      .upload(filename, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("Error uploading image:", error);
+      return null;
+    }
+
+    return data.path;
+  } catch (error) {
+    console.error("Error downloading/uploading image:", error);
+    return null;
+  }
+}
 
 // Authentication middleware
 function authenticateRequest(request: NextRequest): { isValid: boolean; error?: string } {
@@ -33,73 +117,7 @@ function authenticateRequest(request: NextRequest): { isValid: boolean; error?: 
   return { isValid: true };
 }
 
-// Helper function to clear directory
-function clearDirectory(dirPath: string): void {
-  if (fs.existsSync(dirPath)) {
-    const files = fs.readdirSync(dirPath);
-    for (const file of files) {
-      const filePath = path.join(dirPath, file);
-      const stat = fs.statSync(filePath);
-      if (stat.isDirectory()) {
-        clearDirectory(filePath);
-        fs.rmdirSync(filePath);
-      } else {
-        fs.unlinkSync(filePath);
-      }
-    }
-  }
-}
-
-// Type definitions
-interface PageData {
-  id: number;
-  title: string;
-  url: string;
-  content: string;
-  scraped_at: string;
-  image_data?: string;
-}
-
-interface ImageData {
-  id: number;
-  page_id: number;
-  original_url: string;
-  local_path: string;
-}
-
-interface QueryResult {
-  id: number;
-  title: string;
-  url: string;
-  content: string;
-  scraped_at: string;
-  images?: Array<{
-    original_url: string;
-    local_path: string;
-    exists: boolean;
-  }>;
-}
-
-async function downloadImage(url: string, filepath: string): Promise<void> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
-    const buffer = await response.arrayBuffer();
-    fs.writeFileSync(filepath, Buffer.from(buffer));
-  } catch (error) {
-    console.error(`Error downloading ${url}:`, error);
-  }
-}
-
 async function scrapeZeroHeightProject(url: string, password?: string): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  // Ensure output directory exists and is clear
-  const outputDir = path.join(process.cwd(), 'output');
-  clearDirectory(outputDir);
-  fs.mkdirSync(outputDir, { recursive: true });
-
-  const dbPath = path.join(outputDir, 'zeroheight.db');
-  const db = new Database(dbPath);
-
   try {
     // Extract project URL if a page URL is provided
     const projectUrl = url.includes('/p/') ? url.split('/p/')[0] : url;
@@ -134,24 +152,6 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
     );
     const uniqueLinks = [...new Set(pageLinks)];
 
-    // Initialize database tables
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS pages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        url TEXT UNIQUE,
-        title TEXT,
-        content TEXT,
-        scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS images (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        page_id INTEGER,
-        original_url TEXT,
-        local_path TEXT,
-        FOREIGN KEY (page_id) REFERENCES pages (id)
-      );
-    `);
-
     const scrapedData = [];
 
     // Scrape each page
@@ -166,10 +166,26 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
           imgs.map((img, index) => ({ src: img.src, alt: img.alt, index }))
         );
 
-        // Save page to database
-        const insertPage = db.prepare('INSERT OR REPLACE INTO pages (url, title, content) VALUES (?, ?, ?)');
-        const result = insertPage.run(link, title, content);
-        const pageId = result.lastInsertRowid as number;
+        // Save page to Supabase
+        const client = getSupabaseClient();
+        if (!client) {
+          console.error("Supabase client not available for page saving");
+          continue;
+        }
+
+        const { data: pageData, error: pageError } = await client
+          .from("pages")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .upsert({ url: link, title, content } as any, { onConflict: "url" })
+          .select()
+          .single();
+
+        if (pageError) {
+          console.error("Error saving page:", pageError);
+          continue;
+        }
+
+        const pageId = (pageData as { id: number }).id;
 
         // Download and save images
         const imageMap: { [key: string]: string } = {};
@@ -180,16 +196,21 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
             // Skip GIF and SVG files
             if (ext === '.gif' || ext === '.svg') continue;
 
-            const filename = `image_${Date.now()}_${img.index}${ext || '.png'}`;
-            const filepath = path.join(outputDir, filename);
+            const filename = `${pageId}_${img.index}_${Date.now()}${ext || '.png'}`;
+            const storagePath = await downloadImage(img.src, filename);
+            if (storagePath) {
+              imageMap[img.src] = storagePath;
 
-            await downloadImage(img.src, filepath);
-
-            // Save to database
-            const insertImage = db.prepare('INSERT INTO images (page_id, original_url, local_path) VALUES (?, ?, ?)');
-            insertImage.run(pageId, img.src, `./output/${filename}`);
-
-            imageMap[img.src] = `./output/${filename}`;
+              // Save image reference to database
+              await client.from("images").upsert(
+                {
+                  page_id: pageId,
+                  original_url: img.src,
+                  storage_path: storagePath,
+                } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                { onConflict: "page_id,original_url" },
+              );
+            }
           }
         }
 
@@ -197,7 +218,10 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
           url: link,
           title,
           content,
-          images: imageMap
+          images: Object.entries(imageMap).map(([original_url, storage_path]) => ({
+            original_url,
+            storage_path,
+          })),
         });
 
       } catch (e) {
@@ -206,7 +230,6 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
     }
 
     await browser.close();
-    db.close();
 
     return {
       content: [{ type: "text", text: `Scraped and cached ${scrapedData.length} pages:\n${JSON.stringify(scrapedData, null, 2)}` }],
@@ -238,43 +261,66 @@ const handler = createMcpHandler(
           };
         }
 
-        // Ensure output directory exists and is clear
-        const outputDir = path.join(process.cwd(), 'output');
-        clearDirectory(outputDir);
-        fs.mkdirSync(outputDir, { recursive: true });
-
-        const dbPath = path.join(outputDir, 'zeroheight.db');
-        const db = new Database(dbPath);
-
-        // Check if we have cached data
-        const pageCount = db.prepare('SELECT COUNT(*) as count FROM pages').get() as { count: number };
-        
-        if (pageCount.count > 0) {
-          // Return cached data
-          const pages = db.prepare(`
-            SELECT p.id, p.title, p.url, p.content, 
-                   GROUP_CONCAT(i.original_url || '|' || i.local_path) as image_data
-            FROM pages p 
-            LEFT JOIN images i ON p.id = i.page_id 
-            GROUP BY p.id
-          `).all() as PageData[];
-
-          const result = pages.map(page => ({
-            url: page.url,
-            title: page.title,
-            content: page.content,
-            images: page.image_data ? Object.fromEntries(
-              page.image_data.split(',').map((img: string) => {
-                const [url, localPath] = img.split('|');
-                return [url, localPath];
-              })
-            ) : {}
-          }));
-
-          db.close();
-          
+        // Check if we have cached data in Supabase
+        const client = getSupabaseClient();
+        if (!client) {
           return {
-            content: [{ type: "text", text: `Using cached data (${result.length} pages):\n${JSON.stringify(result, null, 2)}` }],
+            content: [
+              { type: "text", text: "Error: Supabase client not configured" },
+            ],
+          };
+        }
+
+        const { data: pages, error: countError } = await client
+          .from("pages")
+          .select("id", { count: "exact" });
+
+        if (countError) {
+          console.error("Error checking cached data:", countError);
+        }
+
+        if (pages && pages.length > 0) {
+          // Return cached data
+          const { data: cachedPages, error: fetchError } = await client.from(
+            "pages",
+          ).select(`
+              id,
+              title,
+              url,
+              content,
+              images (
+                original_url,
+                storage_path
+              )
+            `) as { data: ZeroHeightPage[] | null, error: Error | null };
+
+          if (fetchError) {
+            console.error("Error fetching cached data:", fetchError);
+            return await scrapeZeroHeightProject(url, password);
+          }
+
+          const result =
+            cachedPages?.map((page) => ({
+              url: page.url,
+              title: page.title,
+              content: page.content,
+              images: page.images
+                ? Object.fromEntries(
+                    page.images.map((img) => [
+                      img.original_url,
+                      img.storage_path,
+                    ]),
+                  )
+                : {},
+            })) || [];
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Using cached data (${result.length} pages):\n${JSON.stringify(result, null, 2)}`,
+              },
+            ],
           };
         }
 
@@ -296,102 +342,66 @@ const handler = createMcpHandler(
         }),
       },
       async ({ search, url, includeImages = false, limit = 10 }) => {
-        const outputDir = path.join(process.cwd(), 'output');
-        const dbPath = path.join(outputDir, 'zeroheight.db');
-
-        if (!fs.existsSync(dbPath)) {
+        const client = getSupabaseClient();
+        if (!client) {
           return {
-            content: [{ type: "text", text: "Error: No database found. Please run the scraping tool first." }],
+            content: [
+              { type: "text", text: "Error: Supabase client not configured" },
+            ],
           };
         }
 
-        const db = new Database(dbPath);
+        let query = client.from("pages").select(`
+            id,
+            title,
+            url,
+            content,
+            images (
+              original_url,
+              storage_path
+            )
+          `);
 
-        try {
-          let query: string;
-          let params: (string | number)[] = [];
+        if (search) {
+          query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`);
+        }
 
-          if (url) {
-            // Query specific URL
-            query = `
-              SELECT p.id, p.title, p.url, p.content, p.scraped_at
-              FROM pages p
-              WHERE p.url = ?
-            `;
-            params = [url];
-          } else if (search) {
-            // Search in title and content
-            query = `
-              SELECT p.id, p.title, p.url, p.content, p.scraped_at
-              FROM pages p
-              WHERE p.title LIKE ? OR p.content LIKE ?
-              ORDER BY p.title
-              LIMIT ?
-            `;
-            params = [`%${search}%`, `%${search}%`, limit];
-          } else {
-            // Return all pages
-            query = `
-              SELECT p.id, p.title, p.url, p.content, p.scraped_at
-              FROM pages p
-              ORDER BY p.title
-              LIMIT ?
-            `;
-            params = [limit];
-          }
+        if (url) {
+          query = query.eq("url", url);
+        }
 
-          const pages = db.prepare(query).all(...params) as QueryResult[];
+        query = query.limit(limit);
 
-          if (pages.length === 0) {
-            db.close();
-            return {
-              content: [{ type: "text", text: `No pages found matching the criteria.` }],
-            };
-          }
+        const { data: pages, error } = await query as { data: ZeroHeightPage[] | null, error: Error | null };
 
-          const results = [];
-
-          for (const page of pages) {
-            const pageData: QueryResult = {
-              id: page.id,
-              title: page.title,
-              url: page.url,
-              content: page.content,
-              scraped_at: page.scraped_at,
-            };
-
-            if (includeImages) {
-              // Get images for this page
-              const images = db.prepare(`
-                SELECT original_url, local_path
-                FROM images
-                WHERE page_id = ?
-              `).all(page.id) as Pick<ImageData, 'original_url' | 'local_path'>[];
-
-              if (images.length > 0) {
-                pageData.images = images.map(img => ({
-                  original_url: img.original_url,
-                  local_path: img.local_path,
-                  exists: fs.existsSync(path.join(process.cwd(), img.local_path))
-                }));
-              }
-            }
-
-            results.push(pageData);
-          }
-
-          db.close();
-
+        if (error) {
+          console.error("Error querying data:", error);
           return {
-            content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
-          };
-        } catch (error) {
-          db.close();
-          console.error('Query error:', error);
-          return {
-            content: [{ type: "text", text: `Error querying database: ${error instanceof Error ? error.message : String(error)}` }],
+            content: [
+              { type: "text", text: `Error querying data: ${error.message}` },
+            ],
           };
         }
+
+        const result =
+          pages?.map((page) => ({
+            url: page.url,
+            title: page.title,
+            content: page.content,
+            images:
+              includeImages && page.images
+                ? Object.fromEntries(
+                    page.images.map((img) => [
+                      img.original_url,
+                      img.storage_path,
+                    ]),
+                  )
+                : {},
+          })) || [];
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
       }
     );
   },
