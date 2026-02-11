@@ -4,40 +4,28 @@ import puppeteer from 'puppeteer';
 import path from 'path';
 import { NextRequest } from 'next/server';
 import { createClient } from "@supabase/supabase-js";
-
-// Type definitions
-interface ZeroHeightImage {
-  original_url: string;
-  storage_path: string;
-}
-
-interface ZeroHeightPage {
-  url: string;
-  title: string;
-  content: string;
-  images?: ZeroHeightImage[];
-}
+import type { Database } from '../../../lib/database.schema';
 
 // Supabase client will be created when needed
-let supabase: ReturnType<typeof createClient> | null = null;
+let supabase: ReturnType<typeof createClient<Database>> | null = null;
 
-function getSupabaseClient() {
+function getSupabaseClient(): ReturnType<typeof createClient<Database>> | null {
   if (!supabase) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_ACCESS_TOKEN; // Use anon key for regular operations
     if (supabaseUrl && supabaseKey) {
-      supabase = createClient(supabaseUrl, supabaseKey);
+      supabase = createClient<Database>(supabaseUrl, supabaseKey);
     }
   }
   return supabase;
 }
 
-function getSupabaseAdminClient() {
+function getSupabaseAdminClient(): ReturnType<typeof createClient<Database>> | null {
   // Use service role key only for admin operations like creating buckets
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (supabaseUrl && supabaseKey) {
-    return createClient(supabaseUrl, supabaseKey);
+    return createClient<Database>(supabaseUrl, supabaseKey);
   }
   return null;
 }
@@ -386,8 +374,7 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
 
         const { data: pageData, error: pageError } = await client
           .from("pages")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .upsert({ url: link, title, content } as any, { onConflict: "url" })
+          .upsert({ url: link, title, content }, { onConflict: "url" })
           .select()
           .single();
 
@@ -417,14 +404,19 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
               imageMap[img.src] = storagePath;
 
               // Save image reference to database
-              await client.from("images").upsert(
+              const { error: imageError } = await client.from("images").upsert(
                 {
                   page_id: pageId,
                   original_url: img.src,
                   storage_path: storagePath,
-                } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                },
                 { onConflict: "page_id,original_url" },
               );
+              if (imageError) {
+                console.error(`Error saving image ${img.src} to database:`, imageError);
+              } else {
+                console.log(`Saved image ${img.src} to database`);
+              }
             } else {
               console.log(`Failed to upload image ${img.src}`);
             }
@@ -433,15 +425,34 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
           }
         }
 
-          scrapedData.push({
-            url: link,
-            title,
-            content,
-            images: Object.entries(imageMap).map(([original_url, storage_path]) => ({
-              original_url,
-              storage_path,
-            })),
-          });
+        // Discover new links on this page
+        const newLinks = await page.$$eval('a[href]', (links, projUrl, host) =>
+          links.map(link => link.href).filter(href => {
+            if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return false;
+            try {
+              const linkUrl = new URL(href, projUrl);
+              return linkUrl.hostname === host && linkUrl.href !== projUrl;
+            } catch {
+              return false;
+            }
+          })
+        , projectUrl, allowedHostname);
+
+        newLinks.forEach(newLink => {
+          if (!allLinks.has(newLink)) {
+            allLinks.add(newLink);
+          }
+        });
+
+        scrapedData.push({
+          url: link,
+          title,
+          content,
+          images: Object.entries(imageMap).map(([original_url, storage_path]) => ({
+            original_url,
+            storage_path,
+          })),
+        });
 
         } catch (e) {
           console.error(`Failed to scrape ${link}:`, e);
@@ -540,7 +551,7 @@ const handler = createMcpHandler(
 
         query = query.limit(limit);
 
-        const { data: pages, error } = await query as { data: ZeroHeightPage[] | null, error: Error | null };
+        const { data: pages, error } = await query;
 
         if (error) {
           console.error("Error querying data:", error);
