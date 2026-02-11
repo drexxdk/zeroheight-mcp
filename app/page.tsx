@@ -787,19 +787,13 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="px-8 py-4 border-t border-slate-700/50 bg-gradient-to-r from-slate-800 via-slate-800/95 to-slate-800 backdrop-blur-sm">
+      <footer className="px-8 py-4 border-t border-slate-700/50">
         <div className="flex items-center justify-center space-x-3 text-sm leading-relaxed font-medium text-slate-300">
-          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-600 shadow-lg">
-            <span className="text-xs font-bold text-white">ZH</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
+            <span className="text-sm font-bold text-white">ZH</span>
           </div>
           <span>
-            Built with{" "}
-            <span className="font-semibold text-cyan-400">Next.js</span>,{" "}
-            <span className="font-semibold text-blue-400">TypeScript</span>, and
-            the{" "}
-            <span className="font-semibold text-purple-400">
-              Model Context Protocol
-            </span>
+            © Zeroheight MCP {new Date().getFullYear()}. All rights reserved.
           </span>
         </div>
       </footer>
