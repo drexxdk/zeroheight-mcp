@@ -3,6 +3,25 @@ import puppeteer from 'puppeteer';
 import { getSupabaseClient, getSupabaseAdminClient, createErrorResponse, createSuccessResponse } from "../common";
 import { downloadImage, clearStorageBucket } from "../image-utils";
 
+interface PageData {
+  id: number;
+  title: string;
+  url: string;
+  content: string | null;
+  images: Array<{
+    original_url: string;
+    storage_path: string;
+  }> | null;
+}
+
+// Reusable progress bar function
+function createProgressBar(current: number, total: number, width: number = 20): string {
+  const filledBars = Math.round((current / total) * width);
+  const emptyBars = width - filledBars;
+  const progressBar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+  return `[${progressBar}]`;
+}
+
 async function scrapeZeroHeightProject(url: string, password?: string) {
   try {
     console.log("Starting ZeroHeight project scrape - clearing existing data first...");
@@ -195,7 +214,8 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
       if (processedLinks.has(link)) continue;
 
       processedCount++;
-      console.log(`Processing page ${processedCount}/${allLinks.size}: ${link}`);
+      const progressBar = createProgressBar(processedCount, allLinks.size);
+      console.log(`${progressBar} Processing page ${processedCount}/${allLinks.size}: ${link}`);
 
       try {
         await page.goto(link, { waitUntil: 'networkidle2', timeout: 30000 });
@@ -313,6 +333,9 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
       }> = [];
 
       // Process images for each inserted page
+      let totalImagesProcessed = 0;
+      const totalImages = pagesToInsert.reduce((sum, page) => sum + page.images.length, 0);
+
       for (let i = 0; i < pagesToInsert.length; i++) {
         const pageData = pagesToInsert[i];
         const insertedPage = insertedPages?.[i];
@@ -323,23 +346,22 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
         }
 
         const pageId = insertedPage.id;
-        console.log("Processing images for page " + pageData.url + " (ID: " + pageId + ")");
 
         // Process and upload images for this page
         for (const img of pageData.images) {
-          if (img.src && img.src.startsWith('http')) {
-            console.log("Processing image " + img.src + "...");
+          totalImagesProcessed++;
+          const progressBar = createProgressBar(totalImagesProcessed, totalImages);
+          console.log(`${progressBar} Processing image ${totalImagesProcessed}/${totalImages}: ${img.src.split('/').pop()}`);
 
+          if (img.src && img.src.startsWith('http')) {
             const filename = `page_${pageId}_img_${img.index}.jpg`;
             const processedFilename = `${Date.now()}_${filename}`;
 
             const base64Data = await downloadImage(img.src, filename);
             if (base64Data) {
-              console.log(`Downloaded image data length: ${base64Data.length}`);
               const file = Buffer.from(base64Data, 'base64');
-              console.log(`Buffer length: ${file.length}, first 10 bytes: ${file.slice(0, 10).toString('hex')}`);
 
-              // Ensure bucket exists
+              // Ensure bucket exists (only log errors)
               if (adminClient) {
                 const { data: buckets, error: bucketError } = await adminClient.storage.listBuckets();
                 if (bucketError) {
@@ -347,7 +369,6 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
                 } else {
                   const bucketExists = buckets?.some(bucket => bucket.name === 'zeroheight-images');
                   if (!bucketExists) {
-                    console.log("Creating zeroheight-images bucket...");
                     const { error: createError } = await adminClient.storage.createBucket('zeroheight-images', {
                       public: true,
                       allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
@@ -358,8 +379,6 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
                     }
                   }
                 }
-              } else {
-                console.log("Admin client not available, assuming bucket exists...");
               }
 
               // Upload using admin client if available, otherwise regular client
@@ -385,7 +404,7 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
               const { data, error } = uploadResult;
 
               if (error) {
-                console.error("Error uploading image:", error);
+                console.error(`Error uploading image ${img.src}:`, error);
               } else {
                 const storagePath = data.path;
 
@@ -397,10 +416,10 @@ async function scrapeZeroHeightProject(url: string, password?: string) {
                 });
               }
             } else {
-              console.log("Skipped image " + img.src + " (unsupported format or download failed)");
+              console.error(`Failed to download image: ${img.src}`);
             }
           } else {
-            console.log("Skipping image with invalid src: " + img.src);
+            console.error(`Invalid image source: ${img.src}`);
           }
         }
       }
@@ -480,40 +499,72 @@ export const queryZeroheightDataTool = {
     const effectiveIncludeImages = includeImages ?? true;
     const effectiveLimit = limit ?? 10;
 
-    let query = client.from("pages").select("id, title, url, content, images (original_url, storage_path)");
+    let pages: PageData[] = [];
 
     if (search) {
-      query = query.or("title.ilike.%" + search + "%,content.ilike.%" + search + "%");
+      // Use separate queries to avoid complex OR conditions that can cause parsing issues
+      const titleQuery = client.from("pages").select("id, title, url, content, images (original_url, storage_path)").ilike("title", `%${search}%`);
+      const contentQuery = client.from("pages").select("id, title, url, content, images (original_url, storage_path)").ilike("content", `%${search}%`);
+
+      const [titleResult, contentResult] = await Promise.all([titleQuery, contentQuery]);
+
+      if (titleResult.error) {
+        console.error("Error querying titles:", titleResult.error);
+        return createErrorResponse("Error querying data: " + titleResult.error.message);
+      }
+      if (contentResult.error) {
+        console.error("Error querying content:", contentResult.error);
+        return createErrorResponse("Error querying data: " + contentResult.error.message);
+      }
+
+      // Combine and deduplicate results
+      const allPages = [...(titleResult.data || []), ...(contentResult.data || [])];
+      pages = allPages.filter((page, index, self) =>
+        index === self.findIndex(p => p.id === page.id)
+      );
+    } else if (url) {
+      // Query by URL
+      const { data: urlPages, error: urlError } = await client
+        .from("pages")
+        .select("id, title, url, content, images (original_url, storage_path)")
+        .eq("url", url)
+        .limit(effectiveLimit);
+
+      if (urlError) {
+        console.error("Error querying by URL:", urlError);
+        return createErrorResponse("Error querying data: " + urlError.message);
+      }
+
+      pages = urlPages || [];
+    } else {
+      // Get all pages with limit
+      const { data: allPages, error: allError } = await client
+        .from("pages")
+        .select("id, title, url, content, images (original_url, storage_path)")
+        .limit(effectiveLimit);
+
+      if (allError) {
+        console.error("Error querying all pages:", allError);
+        return createErrorResponse("Error querying data: " + allError.message);
+      }
+
+      pages = allPages || [];
     }
 
-    if (url) {
-      query = query.eq("url", url);
-    }
-
-    query = query.limit(effectiveLimit);
-
-    const { data: pages, error } = await query;
-
-    if (error) {
-      console.error("Error querying data:", error);
-      return createErrorResponse("Error querying data: " + error.message);
-    }
-
-    const result =
-      pages?.map((page) => ({
-        url: page.url,
-        title: page.title,
-        content: page.content,
-        images:
-          effectiveIncludeImages && page.images
-            ? Object.fromEntries(
-                page.images.map((img) => [
-                  img.original_url,
-                  img.storage_path,
-                ]),
-              )
-            : {},
-      })) || [];
+    const result = pages.map((page) => ({
+      url: page.url,
+      title: page.title,
+      content: page.content,
+      images:
+        effectiveIncludeImages && page.images
+          ? Object.fromEntries(
+              page.images.map((img) => [
+                img.original_url,
+                img.storage_path,
+              ]),
+            )
+          : {},
+    }));
 
     return createSuccessResponse(result);
   }

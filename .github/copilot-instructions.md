@@ -32,6 +32,23 @@
 - **Rationale**: The development server should be managed by the user.
 - **If failures occur**: If operations fail due to the server not being started, inform the user to start it manually and retry when ready.
 
+### Never run the scraper after it has been run
+
+- **Priority**: Critical
+- **Action**: NEVER attempt to run the ZeroHeight scraper again after it has already been executed successfully in the current session.
+- **Check first**: Always check if data has already been scraped before attempting to run the scraper.
+- **Rationale**: The scraper performs destructive operations (clears existing data) and takes significant time. Running it multiple times wastes resources and can cause confusion.
+- **Instead**: If the user asks to "run the scraper", check the current state and inform them that data is already available, or ask what specific operation they want to perform.
+- **Verification**: Look for previous successful scraper execution in the conversation history before proceeding.
+
+### Stop after completing MCP actions
+
+- **Priority**: High
+- **Action**: After completing any MCP action (scraper execution, API calls, etc.), stop and wait for user prompt before taking further actions.
+- **Rationale**: Prevents automatic chaining of operations that may not be desired and gives users control over the workflow.
+- **Instead**: Complete the requested action, report the results, and wait for explicit user instruction for next steps.
+- **Examples**: After running scraper, don't automatically query data; after fixing code, don't automatically run tests.
+
 ### TypeScript Best Practices
 
 - Use specific types instead of `any`
