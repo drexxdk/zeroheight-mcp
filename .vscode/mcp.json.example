@@ -1,11 +1,8 @@
 {
-  "servers": {
+  "mcpServers": {
     "zeroheight-scraper": {
       "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://localhost:3000/api/mcp"
-      ]
+      "args": ["mcp-remote", "http://localhost:3000/api/mcp"]
     },
     "zeroheight-scraper-prod": {
       "command": "npx",
@@ -16,7 +13,7 @@
         "Authorization: Bearer ${MCP_API_KEY}"
       ],
       "env": {
-        "MCP_API_KEY": "your-api-key-here"
+        "MCP_API_KEY": "your-actual-api-key-here"
       }
     }
   }
