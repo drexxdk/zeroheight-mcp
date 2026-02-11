@@ -178,46 +178,187 @@ export default function Home() {
         {/* API Section */}
         <section id="api" className="mb-20">
           <h2 className="text-3xl font-bold text-center text-white mb-12">
-            API Endpoints
+            MCP Tools
           </h2>
-          <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-8">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-2">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Scrape Zeroheight Project */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-blue-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
                   Scrape Zeroheight Project
                 </h3>
-                <p className="text-slate-400 mb-3">
-                  Performs a fresh scrape of your configured Zeroheight design system.
-                </p>
-                <code className="block bg-slate-700 p-3 rounded text-sm text-slate-200">
-                  POST /api/mcp<br/>
-                  {"{"}<br/>
-                  {"  "}&quot;jsonrpc&quot;: &quot;2.0&quot;,<br/>
-                  {"  "}&quot;method&quot;: &quot;tools/call&quot;,<br/>
-                  {"  "}&quot;params&quot;: {"{"}&quot;name&quot;: &quot;Scrape Zeroheight Project&quot;{"}"}<br/>
-                  {"}"}
-                </code>
               </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                Performs a fresh scrape of your configured Zeroheight design system and caches all pages, components, and documentation.
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;Scrape Zeroheight Project&quot;&rbrace;
+              </code>
+            </div>
 
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-2">
+            {/* Query Zeroheight Data */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-green-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
                   Query Zeroheight Data
                 </h3>
-                <p className="text-slate-400 mb-3">
-                  Search and retrieve design system data with full-text search capabilities.
-                </p>
-                <code className="block bg-slate-700 p-3 rounded text-sm text-slate-200">
-                  POST /api/mcp<br/>
-                  {"{"}<br/>
-                  {"  "}&quot;jsonrpc&quot;: &quot;2.0&quot;,<br/>
-                  {"  "}&quot;method&quot;: &quot;tools/call&quot;,<br/>
-                  {"  "}&quot;params&quot;: {"{"}<br/>
-                  {"    "}&quot;name&quot;: &quot;Query Zeroheight Data&quot;,<br/>
-                  {"    "}&quot;arguments&quot;: {"{"}&quot;search&quot;: &quot;button component&quot;{"}"}<br/>
-                  {"  "}{"}"}<br/>
-                  {"}"}
-                </code>
               </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                Search and retrieve design system data with full-text search across titles, content, and URLs.
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;Query Zeroheight Data&quot;, &quot;arguments&quot;: &lbrace;&quot;search&quot;: &quot;...&quot;&rbrace;&rbrace;
+              </code>
+            </div>
+
+            {/* Execute SQL */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-yellow-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  Execute SQL
+                </h3>
+              </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                Execute raw SQL queries directly on the database for advanced data operations.
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;Execute SQL&quot;, &quot;arguments&quot;: &lbrace;&quot;query&quot;: &quot;SELECT ...&quot;&rbrace;&rbrace;
+              </code>
+            </div>
+
+            {/* Generate TypeScript Types */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-purple-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  Generate TypeScript Types
+                </h3>
+              </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                Generate TypeScript type definitions for your database schema.
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;Generate TypeScript Types&quot;&rbrace;
+              </code>
+            </div>
+
+            {/* Get Project URL */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-indigo-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  Get Project URL
+                </h3>
+              </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                Retrieve the API URL for your Supabase project.
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;Get Project URL&quot;&rbrace;
+              </code>
+            </div>
+
+            {/* Get Publishable API Keys */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-pink-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  Get Publishable API Keys
+                </h3>
+              </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                Get all publishable API keys for your project, including legacy anon keys and modern keys.
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;Get Publishable API Keys&quot;&rbrace;
+              </code>
+            </div>
+
+            {/* List Tables */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-cyan-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  List Tables
+                </h3>
+              </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                List all tables in one or more database schemas.
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;List Tables&quot;, &quot;arguments&quot;: &lbrace;&quot;schemas&quot;: [&quot;public&quot;]&rbrace;&rbrace;
+              </code>
+            </div>
+
+            {/* List Migrations */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-orange-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  List Migrations
+                </h3>
+              </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                List all database migrations in chronological order.
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;List Migrations&quot;&rbrace;
+              </code>
+            </div>
+
+            {/* Get Logs */}
+            <div className="bg-slate-800 rounded-xl shadow-sm border border-slate-700 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-red-900 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  Get Logs
+                </h3>
+              </div>
+              <p className="text-slate-400 mb-4 text-sm">
+                Retrieve logs for your Supabase project by service type (API, database, auth, etc.).
+              </p>
+              <code className="block bg-slate-700 p-2 rounded text-xs text-slate-200 font-mono">
+                &lbrace;&quot;name&quot;: &quot;Get Logs&quot;, &quot;arguments&quot;: &lbrace;&quot;service&quot;: &quot;api&quot;&rbrace;&rbrace;
+              </code>
             </div>
           </div>
         </section>
