@@ -56,7 +56,7 @@ export default function Home() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
                 <span className="text-sm font-bold text-white">ZH</span>
               </div>
-              <h1 className="text-xl font-bold text-white">ZeroHeight MCP</h1>
+              <h1 className="text-xl font-bold text-white">Zeroheight MCP</h1>
             </div>
             <nav className="hidden space-x-8 md:flex">
               <button
@@ -189,7 +189,7 @@ export default function Home() {
               </div>
               <p className="text-slate-400">
                 Automatically discovers and scrapes all pages, components, and
-                documentation from your ZeroHeight design system with smart link
+                documentation from your Zeroheight design system with smart link
                 following and content extraction.
               </p>
             </div>
@@ -695,12 +695,12 @@ export default function Home() {
           </h2>
           <div className="space-y-4 rounded-xl border border-slate-700 bg-slate-800/50 p-8 text-slate-300">
             <p>
-              This ZeroHeight MCP Server operates in full compliance with
+              This Zeroheight MCP Server operates in full compliance with
               applicable laws and regulations. All data scraping and processing
               activities respect user privacy and data protection requirements.
             </p>
             <p>
-              ZeroHeight&apos;s{" "}
+              Zeroheight&apos;s{" "}
               <a
                 href="https://terms.zeroheight.com/"
                 target="_blank"
@@ -762,7 +762,7 @@ export default function Home() {
               Ready to enhance your design system workflow?
             </h2>
             <p className="mx-auto mb-6 max-w-2xl text-slate-400">
-              Integrate ZeroHeight MCP Server into your development pipeline and
+              Integrate Zeroheight MCP Server into your development pipeline and
               give your team programmatic access to design system documentation,
               components, and guidelines.
             </p>
@@ -788,14 +788,9 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="px-8 py-4 border-t border-slate-700/50">
-        <div className="flex items-center justify-center space-x-3 text-sm leading-relaxed font-medium text-slate-300">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-            <span className="text-sm font-bold text-white">ZH</span>
-          </div>
-          <span>
-            © Zeroheight MCP {new Date().getFullYear()}. All rights reserved.
-          </span>
-        </div>
+        <p className="text-slate-300 text-center">
+          © Zeroheight MCP {new Date().getFullYear()}. All rights reserved.
+        </p>
       </footer>
     </div>
   );

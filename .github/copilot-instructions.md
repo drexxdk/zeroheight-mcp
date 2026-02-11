@@ -35,7 +35,7 @@
 ### Never run the scraper after it has been run
 
 - **Priority**: Critical
-- **Action**: NEVER attempt to run the ZeroHeight scraper again after it has already been executed successfully in the current session.
+- **Action**: NEVER attempt to run the Zeroheight scraper again after it has already been executed successfully in the current session.
 - **Check first**: Always check if data has already been scraped before attempting to run the scraper.
 - **Rationale**: The scraper performs destructive operations (clears existing data) and takes significant time. Running it multiple times wastes resources and can cause confusion.
 - **Instead**: If the user asks to "run the scraper", check the current state and inform them that data is already available, or ask what specific operation they want to perform.

@@ -20,7 +20,7 @@ import {
 const handler = createMcpHandler(
   (server) => {
     // Scraper tools
-    // Example: { "method": "tools/call", "params": { "name": "Scrape ZeroHeight Project", "arguments": {} } }
+    // Example: { "method": "tools/call", "params": { "name": "Scrape Zeroheight Project", "arguments": {} } }
     server.registerTool(
       scrapeZeroheightProjectTool.title,
       {
@@ -31,7 +31,7 @@ const handler = createMcpHandler(
       scrapeZeroheightProjectTool.handler,
     );
 
-    // Example: { "method": "tools/call", "params": { "name": "Query ZeroHeight Data", "arguments": { "search": "button", "includeImages": true, "limit": 10 } } }
+    // Example: { "method": "tools/call", "params": { "name": "Query Zeroheight Data", "arguments": { "search": "button", "includeImages": true, "limit": 10 } } }
     server.registerTool(
       queryZeroheightDataTool.title,
       {
