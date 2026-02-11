@@ -1,7 +1,6 @@
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer';
 import path from 'path';
 import { NextRequest } from 'next/server';
 import { createClient } from "@supabase/supabase-js";
@@ -123,9 +122,8 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
     const projectUrl = url.includes('/p/') ? url.split('/p/')[0] : url;
 
     const browser = await puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
       headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
     const page = await browser.newPage();
@@ -137,7 +135,19 @@ async function scrapeZeroHeightProject(url: string, password?: string): Promise<
       const passwordInput = await page.$('input[type="password"], [data-testid="password-input"]');
       if (passwordInput) {
         await passwordInput.type(password);
-        const submitButton = await page.$('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Enter")');
+        // Try to find submit button by type first, then by text content
+        let submitButton = await page.$('button[type="submit"], input[type="submit"]');
+        if (!submitButton) {
+          // Try to find button by text content
+          const buttons = await page.$$('button');
+          for (const button of buttons) {
+            const text = await page.evaluate(el => el.textContent?.toLowerCase(), button);
+            if (text && (text.includes('submit') || text.includes('enter') || text.includes('access') || text.includes('show password'))) {
+              submitButton = button;
+              break;
+            }
+          }
+        }
         if (submitButton) {
           await submitButton.click();
           await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
@@ -249,9 +259,11 @@ const handler = createMcpHandler(
       {
         title: "Scrape ZeroHeight Project",
         description: "Scrape the configured ZeroHeight design system project and return page data as JSON. Uses cached data when available.",
-        inputSchema: z.object({}),
+        inputSchema: z.object({
+          forceRefresh: z.boolean().optional().default(false).describe("Force a fresh scrape instead of using cached data"),
+        }),
       },
-      async ({}) => {
+      async ({ forceRefresh = false }) => {
         const url = process.env.ZEROHEIGHT_PROJECT_URL;
         const password = process.env.ZEROHEIGHT_PROJECT_PASSWORD;
         
@@ -279,7 +291,7 @@ const handler = createMcpHandler(
           console.error("Error checking cached data:", countError);
         }
 
-        if (pages && pages.length > 0) {
+        if (pages && pages.length > 0 && !forceRefresh) {
           // Return cached data
           const { data: cachedPages, error: fetchError } = await client.from(
             "pages",
