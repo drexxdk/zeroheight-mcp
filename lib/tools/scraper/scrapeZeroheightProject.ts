@@ -177,9 +177,6 @@ async function scrapeZeroheightProject(
     );
     console.log(`Sample ZH page links: ${zhPageLinks.slice(0, 5).join(", ")}`);
 
-    // Add these to the main links set
-    zhPageLinks.forEach((link) => allLinks.add(link));
-
     // Always include the current page in scraping
     const currentPageUrl = page.url();
     console.log(`Current page URL: ${currentPageUrl}`);
@@ -219,12 +216,14 @@ async function scrapeZeroheightProject(
       if (processedLinks.has(link)) continue;
 
       processedCount++;
+      const totalDisplay =
+        maxPages === Infinity ? allLinks.size + processedCount : maxPages;
       const progressBar = createProgressBar(
         processedCount,
         Math.min(maxPages, allLinks.size + processedCount),
       );
       console.log(
-        `${progressBar} Processing page ${processedCount}/${maxPages === Infinity ? "∞" : maxPages}: ${link}`,
+        `${progressBar} Processing page ${processedCount}/${totalDisplay}: ${link}`,
       );
 
       try {
@@ -275,7 +274,11 @@ async function scrapeZeroheightProject(
               }
             }),
         );
-        pageLinks.forEach((newLink) => allLinks.add(newLink));
+        pageLinks.forEach((newLink) => {
+          if (!allLinks.has(newLink) && !processedLinks.has(newLink)) {
+            allLinks.add(newLink);
+          }
+        });
 
         // Scroll to load lazy images
         await page.evaluate(() => {
@@ -337,7 +340,26 @@ async function scrapeZeroheightProject(
             }
           }
 
+          // For S3 URLs, remove query parameters to normalize signed URLs
+          if (
+            normalizedSrc.includes("s3.") ||
+            normalizedSrc.includes("amazonaws.com")
+          ) {
+            try {
+              const url = new URL(normalizedSrc);
+              normalizedSrc = `${url.protocol}//${url.hostname}${url.pathname}`;
+            } catch {
+              // If URL parsing fails, keep original
+            }
+          }
+
           return { ...img, src: normalizedSrc, originalSrc: img.src };
+        });
+
+        // Filter out unsupported image formats
+        const supportedImages = normalizedImages.filter((img) => {
+          const lowerSrc = img.src.toLowerCase();
+          return !lowerSrc.includes(".gif") && !lowerSrc.includes(".svg");
         });
 
         // Collect page data for bulk insertion
@@ -345,7 +367,7 @@ async function scrapeZeroheightProject(
           url: link,
           title,
           content,
-          images: normalizedImages,
+          images: supportedImages,
         });
 
         // Discover new links on this page
@@ -364,7 +386,11 @@ async function scrapeZeroheightProject(
                   return false;
                 try {
                   const linkUrl = new URL(href, projUrl);
-                  return linkUrl.hostname === host && linkUrl.href !== projUrl;
+                  return (
+                    linkUrl.hostname === host &&
+                    linkUrl.href !== projUrl &&
+                    linkUrl.href !== window.location.href
+                  );
                 } catch {
                   return false;
                 }
@@ -374,11 +400,9 @@ async function scrapeZeroheightProject(
         );
 
         newLinks.forEach((newLink) => {
-          if (!allLinks.has(newLink)) {
+          if (!allLinks.has(newLink) && !processedLinks.has(newLink)) {
             allLinks.add(newLink);
-            console.log(
-              `Discovered new link: ${newLink} (total links now: ${allLinks.size})`,
-            );
+            console.log(`Discovered new link: ${newLink}`);
           }
         });
       } catch (e) {
@@ -427,7 +451,18 @@ async function scrapeZeroheightProject(
         allExistingImages?.map((img) => {
           // Normalize the URL for comparison (same logic as used for new images)
           let normalizedUrl = img.original_url;
-          if (normalizedUrl.includes('cdn.zeroheight.com')) {
+          if (normalizedUrl.includes("cdn.zeroheight.com")) {
+            try {
+              const url = new URL(normalizedUrl);
+              normalizedUrl = `${url.protocol}//${url.hostname}${url.pathname}`;
+            } catch {
+              // If URL parsing fails, keep original
+            }
+          }
+          if (
+            normalizedUrl.includes("s3.") ||
+            normalizedUrl.includes("amazonaws.com")
+          ) {
             try {
               const url = new URL(normalizedUrl);
               normalizedUrl = `${url.protocol}//${url.hostname}${url.pathname}`;
@@ -446,12 +481,16 @@ async function scrapeZeroheightProject(
         storage_path: string;
       }> = [];
 
-      // Process images for each inserted page
+      // Calculate total unique images for progress tracking
+      const uniqueImageUrls = new Set<string>();
+      pagesToInsert.forEach((page) => {
+        page.images.forEach((img) => {
+          uniqueImageUrls.add(img.src);
+        });
+      });
+      const totalImages = uniqueImageUrls.size;
+
       let totalImagesProcessed = 0;
-      const totalImages = pagesToInsert.reduce(
-        (sum, page) => sum + page.images.length,
-        0,
-      );
 
       for (let i = 0; i < pagesToInsert.length; i++) {
         const pageData = pagesToInsert[i];
@@ -467,21 +506,20 @@ async function scrapeZeroheightProject(
 
         // Process and upload images for this page
         for (const img of pageData.images) {
-          totalImagesProcessed++;
-          const progressBar = createProgressBar(
-            totalImagesProcessed,
-            totalImages,
-          );
-          console.log(
-            `${progressBar} Processing image ${totalImagesProcessed}/${totalImages}: ${img.src.split("/").pop()}`,
-          );
-
           if (img.src && img.src.startsWith("http")) {
             // Check if this image has already been processed globally (using normalized URL)
             if (allExistingImageUrls.has(img.src)) {
-              console.log(`Image ${img.src} already exists globally, skipping`);
               continue;
             }
+
+            totalImagesProcessed++;
+            const progressBar = createProgressBar(
+              totalImagesProcessed,
+              totalImages,
+            );
+            console.log(
+              `${progressBar} Processing image ${totalImagesProcessed}/${totalImages}: ${img.src.split("/").pop()}`,
+            );
 
             // Create a consistent filename based on normalized image URL hash
             const crypto = await import("crypto");
@@ -562,6 +600,9 @@ async function scrapeZeroheightProject(
                   original_url: downloadUrl,
                   storage_path: storagePath,
                 });
+
+                // Mark this image as uploaded to prevent re-processing
+                allExistingImageUrls.add(img.src);
               }
             } else {
               console.error(`Failed to download image: ${downloadUrl}`);
@@ -637,6 +678,8 @@ export const scrapeZeroheightProjectTool = {
     }
 
     // Always perform a fresh scrape
-    return await scrapeZeroheightProject(url, password, limit);
+    const result = await scrapeZeroheightProject(url, password, limit);
+    console.log("Scraping completed successfully");
+    return result;
   },
 };

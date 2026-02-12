@@ -7,32 +7,22 @@ export async function downloadImage(
   _filename: string, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<string | null> {
   try {
-    console.log(`Downloading image from: ${url}`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
 
-    console.log(
-      `Response status: ${response.status}, content-type: ${response.headers.get("content-type")}`,
-    );
-
     if (!response.ok)
       throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
 
     const contentType = response.headers.get("content-type") || "";
-    console.log(`Content-Type: ${contentType}`);
 
     const buffer = await response.arrayBuffer();
-    console.log(`Downloaded buffer length: ${buffer.byteLength}`);
 
     // First try to validate with Sharp - this will tell us if it's actually a valid image
     let metadata;
     try {
       metadata = await sharp(Buffer.from(buffer)).metadata();
-      console.log(
-        `Image format: ${metadata.format}, size: ${metadata.width}x${metadata.height}`,
-      );
     } catch (error) {
       console.error(`Invalid image data or unsupported format: ${error}`);
       // If it's not a valid image according to Sharp, skip it
@@ -46,9 +36,6 @@ export async function downloadImage(
 
     // Skip SVG and GIF images - don't upload them to storage
     if (metadata.format === "svg" || metadata.format === "gif") {
-      console.log(
-        `Ignoring ${metadata.format} format - not uploading to storage bucket`,
-      );
       return null;
     }
 
@@ -59,7 +46,6 @@ export async function downloadImage(
       .jpeg({ quality: 80 })
       .toBuffer();
 
-    console.log(`Processed buffer length: ${processedBuffer.length}`);
     return processedBuffer.toString("base64");
   } catch (error) {
     console.error(`Error downloading image ${url}:`, error);
