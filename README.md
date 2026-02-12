@@ -16,7 +16,121 @@ A powerful Model Context Protocol (MCP) server that scrapes, indexes, and provid
 - **Secure Access**: Enterprise-grade authentication with API key validation
 - **High Performance**: Optimized for speed with bulk database operations and efficient caching
 
-## 🚀 Quick Start
+## �️ Image Management
+
+The scraper automatically handles image processing with intelligent filtering and optimization:
+
+### Supported Image Types
+
+- **Supported**: PNG, JPG/JPEG, WebP, GIF, SVG
+- **Filtered Out**: GIF and SVG formats are excluded from processing to focus on static design assets
+
+### Upload Process
+
+- Images are downloaded from Zeroheight and uploaded to Supabase Storage buckets
+- Each image gets a unique path based on MD5 hash for efficient deduplication
+- Query results include complete Supabase storage URLs for direct access
+
+### Duplicate Prevention
+
+- MD5 hashing ensures identical images are never uploaded twice
+- Existing images are detected and reused instead of re-uploading
+- Storage costs are minimized through intelligent deduplication
+
+### Image Optimization
+
+- **Format Conversion**: All images are converted to JPEG format for consistency
+- **Quality Reduction**: Image quality is reduced to 80% to balance file size and visual quality
+- **Resolution Limiting**: Images are resized to a maximum of 1920px on the longest side
+- **Aspect Ratio Preservation**: Original aspect ratios are maintained during resizing
+
+## 🔍 Page Discovery and Redirect Handling
+
+The scraper intelligently discovers and processes pages while preventing duplicate content:
+
+### Page Discovery
+
+- Starts with the configured Zeroheight project URL
+- Automatically finds all linked pages within the same domain
+- Discovers both direct page links (`/p/page-slug`) and navigation links
+- Continues discovering new links as it processes each page
+
+### Redirect Detection
+
+- After navigating to each URL, checks the final destination URL
+- Detects when URLs redirect to other pages (common in Zeroheight)
+- Uses the final URL for storage instead of the original redirecting URL
+
+### Duplicate Prevention
+
+- Maintains a set of processed URLs to avoid re-processing the same content
+- When a redirect leads to an already processed page, skips processing entirely
+- Progress counter only increments for actually processed unique pages
+- Database storage uses upsert operations to handle any remaining duplicates
+
+### Link Discovery Limits
+
+- When a page limit is set (e.g., `limit: 3`), stops discovering new links once the limit is reached
+- Prevents the processing queue from growing beyond the specified number of pages
+- Ensures predictable execution time and resource usage
+
+## 📋 Console Output Example
+
+Here's an example of the console output when running the scraper with a limit of 3 pages:
+
+```
+[dotenv@17.2.4] injecting env (5) from .env.local
+Starting Zeroheight project scrape...
+Navigating to https://designsystem.lruddannelse.dk...
+Password provided, checking for login form...
+Found password input field, entering password...
+Password entered, waiting for login to process...
+Current URL after password entry: https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system
+Password input no longer visible - login appears successful
+Found 23 navigation links after login attempt
+Final URL after loading: https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system
+Page title: Lindhardt og Ringhof Uddannelse Design System
+Content container found: true
+Body text length: 51103 characters
+Project URL: https://designsystem.lruddannelse.dk
+Allowed hostname: designsystem.lruddannelse.dk
+Found 29 total raw links on page
+Sample raw links: https://designsystem.lruddannelse.dk/10548dffa/p/10548dffa, https://designsystem.lruddannelse.dk/10548dffa/n/326d4d, ...
+Found 0 links on main page
+Found 0 Zeroheight page links (/p/ pattern)
+Sample ZH page links:
+Current page URL: https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system
+Total unique links to process: 1
+[████████████████████] Processing page 1/3: https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system
+Discovered new link: https://designsystem.lruddannelse.dk/10548dffa/p/10548dffa
+Discovered new link: https://designsystem.lruddannelse.dk/10548dffa/n/326d4d
+Discovered new link: https://designsystem.lruddannelse.dk/10548dffa/n/52db31
+... (more discovered links)
+Redirect detected: https://designsystem.lruddannelse.dk/10548dffa/p/10548dffa -> https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system
+Skipping https://designsystem.lruddannelse.dk/10548dffa/p/10548dffa - final URL https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system already processed
+Redirect detected: https://designsystem.lruddannelse.dk/10548dffa/n/326d4d -> https://designsystem.lruddannelse.dk/10548dffa/p/256325-introduktion-til-lindhardt-og-ringhof-uddannelse
+[█████████████░░░░░░░] Processing page 2/3: https://designsystem.lruddannelse.dk/10548dffa/p/256325-introduktion-til-lindhardt-og-ringhof-uddannelse
+... (more processing output)
+[████████████████████] Processing page 3/3: https://designsystem.lruddannelse.dk/10548dffa/p/321296-brandfortlling
+Collected 3 pages for bulk insertion
+Successfully inserted 3 pages
+[██░░░░░░░░░░░░░░░░░░] Processing image 1/13: ze9jax4wepR4ylr5_4944A.png
+[███░░░░░░░░░░░░░░░░░] Processing image 2/13: yoh8TcjKEP4TGKC6F3A9wQ.png
+... (image processing continues)
+Successfully inserted 2 images
+Scraping completed successfully
+```
+
+### Output Explanation
+
+- **Navigation & Authentication**: Shows login process and initial page loading
+- **Link Discovery**: Lists newly discovered links as they're found
+- **Redirect Detection**: Identifies when URLs redirect and skips duplicates
+- **Progress Tracking**: Visual progress bars showing page processing status
+- **Image Processing**: Individual progress for each image being optimized and uploaded
+- **Final Summary**: Reports total pages and images processed successfully
+
+## �🚀 Quick Start
 
 ### Prerequisites
 

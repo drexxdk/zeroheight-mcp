@@ -1,28 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+
+// Dynamically import the navigation menu to avoid SSR issues
+const NavigationMenu = dynamic(() => import("./navigation-menu"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-48 h-10 bg-slate-800 rounded-lg animate-pulse"></div>
+  ),
+});
+
+interface NavigationOption {
+  value: string;
+  label: string;
+}
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState("features");
 
-  const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      const headerOffset = 80; // Account for sticky header height
-      const elementPosition = element.offsetTop;
-      const offsetPosition = elementPosition - headerOffset;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth",
-      });
-    }
-  };
-
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ["features", "tools", "tech", "legal"];
+      const sections = [
+        "features",
+        "image-management",
+        "page-discovery",
+        "console-output",
+        "tools",
+        "tech",
+        "legal",
+      ];
       const scrollPosition = window.scrollY + 100; // Offset for header height
 
       for (const section of sections) {
@@ -46,8 +54,32 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  const navigationOptions: NavigationOption[] = [
+    { value: "features", label: "Features" },
+    { value: "image-management", label: "Images" },
+    { value: "page-discovery", label: "Discovery" },
+    { value: "console-output", label: "Output" },
+    { value: "tools", label: "Tools" },
+    { value: "tech", label: "Tech Stack" },
+    { value: "legal", label: "Legal" },
+  ];
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      const headerOffset = 80; // Account for sticky header height
+      const elementPosition = element.offsetTop;
+      const offsetPosition = elementPosition - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth",
+      });
+    }
+  };
+
   return (
-    <div className="min-h-screen scroll-smooth bg-slate-900">
+    <>
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-slate-700 bg-slate-900/95 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -58,7 +90,8 @@ export default function Home() {
               </div>
               <h1 className="text-xl font-bold text-white">Zeroheight MCP</h1>
             </div>
-            <nav className="hidden space-x-8 md:flex">
+            {/* Desktop Navigation - Horizontal on md to lg, Dropdown on xl+ */}
+            <nav className="hidden space-x-8 lg:flex">
               <button
                 onClick={() => scrollToSection("features")}
                 className={`relative transform transition-all duration-500 ease-in-out hover:scale-105 ${
@@ -69,6 +102,45 @@ export default function Home() {
               >
                 Features
                 {activeSection === "features" && (
+                  <div className="absolute -bottom-1 left-0 h-0.5 w-full animate-pulse bg-cyan-400"></div>
+                )}
+              </button>
+              <button
+                onClick={() => scrollToSection("image-management")}
+                className={`relative transform transition-all duration-500 ease-in-out hover:scale-105 ${
+                  activeSection === "image-management"
+                    ? "border-b-2 border-cyan-400 pb-1 text-cyan-400"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Images
+                {activeSection === "image-management" && (
+                  <div className="absolute -bottom-1 left-0 h-0.5 w-full animate-pulse bg-cyan-400"></div>
+                )}
+              </button>
+              <button
+                onClick={() => scrollToSection("page-discovery")}
+                className={`relative transform transition-all duration-500 ease-in-out hover:scale-105 ${
+                  activeSection === "page-discovery"
+                    ? "border-b-2 border-cyan-400 pb-1 text-cyan-400"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Discovery
+                {activeSection === "page-discovery" && (
+                  <div className="absolute -bottom-1 left-0 h-0.5 w-full animate-pulse bg-cyan-400"></div>
+                )}
+              </button>
+              <button
+                onClick={() => scrollToSection("console-output")}
+                className={`relative transform transition-all duration-500 ease-in-out hover:scale-105 ${
+                  activeSection === "console-output"
+                    ? "border-b-2 border-cyan-400 pb-1 text-cyan-400"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Output
+                {activeSection === "console-output" && (
                   <div className="absolute -bottom-1 left-0 h-0.5 w-full animate-pulse bg-cyan-400"></div>
                 )}
               </button>
@@ -112,6 +184,16 @@ export default function Home() {
                 )}
               </button>
             </nav>
+
+            {/* Dropdown Menu for Large Screens */}
+            <div className="lg:hidden w-48">
+              <NavigationMenu
+                activeSection={activeSection}
+                navigationOptions={navigationOptions}
+                onSectionChange={setActiveSection}
+                onScrollToSection={scrollToSection}
+              />
+            </div>
           </div>
         </div>
       </header>
@@ -332,7 +414,386 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Tools Section */}
+        {/* Image Management Section */}
+        <section id="image-management" className="grid gap-6 py-8">
+          <h2 className="text-center text-3xl font-bold text-white">
+            🖼️ Image Management
+          </h2>
+          <div className="grid gap-8 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+              <h3 className="mb-4 text-xl font-semibold text-white">
+                Supported Image Types
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <h4 className="mb-2 font-medium text-green-400">
+                    ✅ Supported
+                  </h4>
+                  <ul className="space-y-1 text-sm text-slate-400">
+                    <li>• PNG - Portable Network Graphics</li>
+                    <li>• JPG/JPEG - Joint Photographic Experts Group</li>
+                    <li>• WebP - Modern web image format</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="mb-2 font-medium text-red-400">
+                    ❌ Filtered Out
+                  </h4>
+                  <ul className="space-y-1 text-sm text-slate-400">
+                    <li>• GIF - Graphics Interchange Format</li>
+                    <li>• SVG - Scalable Vector Graphics</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+              <h3 className="mb-4 text-xl font-semibold text-white">
+                Upload Process
+              </h3>
+              <p className="mb-4 text-slate-400">
+                Images are automatically downloaded from Zeroheight and uploaded
+                to Supabase Storage buckets with intelligent deduplication.
+              </p>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                  <span>
+                    Each image gets a unique path based on MD5 hash for
+                    efficient deduplication
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                  <span>
+                    Query results include complete Supabase storage URLs for
+                    direct access
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+              <h3 className="mb-4 text-xl font-semibold text-white">
+                Duplicate Prevention
+              </h3>
+              <p className="mb-4 text-slate-400">
+                MD5 hashing ensures identical images are never uploaded twice,
+                minimizing storage costs.
+              </p>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                  <span>
+                    Existing images are detected and reused instead of
+                    re-uploading
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                  <span>
+                    Storage costs are minimized through intelligent
+                    deduplication
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+              <h3 className="mb-4 text-xl font-semibold text-white">
+                Image Optimization
+              </h3>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="text-center">
+                  <div className="mb-2 text-2xl">📸</div>
+                  <h4 className="mb-1 font-medium text-cyan-400">
+                    Format Conversion
+                  </h4>
+                  <p className="text-sm text-slate-400">
+                    All images converted to JPEG format
+                  </p>
+                </div>
+                <div className="text-center">
+                  <div className="mb-2 text-2xl">⚡</div>
+                  <h4 className="mb-1 font-medium text-cyan-400">
+                    Quality Reduction
+                  </h4>
+                  <p className="text-sm text-slate-400">
+                    Reduced to 80% quality
+                  </p>
+                </div>
+                <div className="text-center">
+                  <div className="mb-2 text-2xl">📐</div>
+                  <h4 className="mb-1 font-medium text-cyan-400">
+                    Resolution Limiting
+                  </h4>
+                  <p className="text-sm text-slate-400">
+                    Max 1920px on longest side
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Page Discovery Section */}
+        <section id="page-discovery" className="grid gap-6 py-8">
+          <h2 className="text-center text-3xl font-bold text-white">
+            🔍 Page Discovery and Redirect Handling
+          </h2>
+          <div className="grid gap-8 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+              <h3 className="mb-4 text-xl font-semibold text-white">
+                Page Discovery
+              </h3>
+              <p className="mb-4 text-slate-400">
+                The scraper intelligently discovers and processes pages while
+                maintaining efficiency.
+              </p>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                  <span>Starts with the configured Zeroheight project URL</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                  <span>
+                    Automatically finds all linked pages within the same domain
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                  <span>
+                    Discovers both direct page links and navigation links
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                  <span>
+                    Continues discovering new links as it processes each page
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+              <h3 className="mb-4 text-xl font-semibold text-white">
+                Redirect Detection
+              </h3>
+              <p className="mb-4 text-slate-400">
+                After navigating to each URL, the scraper detects redirects and
+                normalizes URLs.
+              </p>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
+                  <span>
+                    Checks the final destination URL after each navigation
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
+                  <span>
+                    Detects when URLs redirect to other pages (common in
+                    Zeroheight)
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
+                  <span>
+                    Uses the final URL for storage instead of the original
+                    redirecting URL
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+              <h3 className="mb-4 text-xl font-semibold text-white">
+                Duplicate Prevention
+              </h3>
+              <p className="mb-4 text-slate-400">
+                Maintains a set of processed URLs to avoid re-processing the
+                same content multiple times.
+              </p>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                  <span>
+                    Maintains a set of processed URLs to avoid re-processing the
+                    same content
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                  <span>
+                    When a redirect leads to an already processed page, skips
+                    processing entirely
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                  <span>
+                    Progress counter only increments for actually processed
+                    unique pages
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                  <span>
+                    Database storage uses upsert operations to handle any
+                    remaining duplicates
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+              <h3 className="mb-4 text-xl font-semibold text-white">
+                Link Discovery Limits
+              </h3>
+              <p className="mb-4 text-slate-400">
+                When a page limit is set, the scraper stops discovering new
+                links once the limit is reached.
+              </p>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                  <span>
+                    When a page limit is set (e.g., limit: 3), stops discovering
+                    new links once the limit is reached
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                  <span>
+                    Prevents the processing queue from growing beyond the
+                    specified number of pages
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                  <span>
+                    Ensures predictable execution time and resource usage
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* Console Output Example Section */}
+        <section id="console-output" className="grid gap-6 py-8">
+          <h2 className="text-center text-3xl font-bold text-white">
+            📋 Console Output Example
+          </h2>
+          <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+            <p className="mb-6 text-slate-400">
+              Here&apos;s an example of the console output when running the
+              scraper with a limit of 3 pages:
+            </p>
+            <div className="w-full overflow-x-auto">
+              <div className="grid">
+                <pre className="overflow-auto whitespace-pre text-slate-200 text-sm font-mono bg-slate-900 p-4 rounded-lg break-all">{`[dotenv@17.2.4] injecting env (5) from .env.local
+Starting Zeroheight project scrape...
+Navigating to https://example-design-system.zeroheight.com...
+Password provided, checking for login form...
+Found password input field, entering password...
+Password entered, waiting for login to process...
+Current URL after password entry: https://example-design-system.zeroheight.com/abc123def/p/example-project-home
+Password input no longer visible - login appears successful
+Found 23 navigation links after login attempt
+Final URL after loading: https://example-design-system.zeroheight.com/abc123def/p/example-project-home
+Page title: Example Design System
+Content container found: true
+Body text length: 51103 characters
+Project URL: https://example-design-system.zeroheight.com
+Allowed hostname: example-design-system.zeroheight.com
+Found 29 total raw links on page
+Sample raw links: https://example-design-system.zeroheight.com/abc123def/p/project-home, https://example-design-system.zeroheight.com/abc123def/n/components, ...
+Found 0 links on main page
+Found 0 Zeroheight page links (/p/ pattern)
+Sample ZH page links:
+Current page URL: https://example-design-system.zeroheight.com/abc123def/p/example-project-home
+Total unique links to process: 1
+[████████████████████] Processing page 1/3: https://example-design-system.zeroheight.com/abc123def/p/example-project-home
+Discovered new link: https://example-design-system.zeroheight.com/abc123def/p/project-home
+Discovered new link: https://example-design-system.zeroheight.com/abc123def/n/components
+Discovered new link: https://example-design-system.zeroheight.com/abc123def/n/patterns
+... (more discovered links)
+Redirect detected: https://example-design-system.zeroheight.com/abc123def/p/project-home -> https://example-design-system.zeroheight.com/abc123def/p/example-project-home
+Skipping https://example-design-system.zeroheight.com/abc123def/p/project-home - final URL https://example-design-system.zeroheight.com/abc123def/p/example-project-home already processed
+Redirect detected: https://example-design-system.zeroheight.com/abc123def/n/components -> https://example-design-system.zeroheight.com/abc123def/p/component-library
+[█████████████░░░░░░░] Processing page 2/3: https://example-design-system.zeroheight.com/abc123def/p/component-library
+... (more processing output)
+[████████████████████] Processing page 3/3: https://example-design-system.zeroheight.com/abc123def/p/design-tokens
+Collected 3 pages for bulk insertion
+Successfully inserted 3 pages
+[██░░░░░░░░░░░░░░░░░░] Processing image 1/13: component-mockup-1.png
+[███░░░░░░░░░░░░░░░░░] Processing image 2/13: design-token-example.png
+... (image processing continues)
+Successfully inserted 2 images
+Scraping completed successfully`}</pre>
+              </div>
+            </div>
+            <div className="mt-6 space-y-4">
+              <h4 className="text-lg font-semibold text-white">
+                Output Explanation
+              </h4>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <h5 className="mb-2 font-medium text-cyan-400">
+                    🔐 Navigation & Authentication
+                  </h5>
+                  <p className="text-sm text-slate-400">
+                    Shows login process and initial page loading
+                  </p>
+                </div>
+                <div>
+                  <h5 className="mb-2 font-medium text-cyan-400">
+                    🔗 Link Discovery
+                  </h5>
+                  <p className="text-sm text-slate-400">
+                    Lists newly discovered links as they&apos;re found
+                  </p>
+                </div>
+                <div>
+                  <h5 className="mb-2 font-medium text-cyan-400">
+                    ↪️ Redirect Detection
+                  </h5>
+                  <p className="text-sm text-slate-400">
+                    Identifies when URLs redirect and skips duplicates
+                  </p>
+                </div>
+                <div>
+                  <h5 className="mb-2 font-medium text-cyan-400">
+                    📊 Progress Tracking
+                  </h5>
+                  <p className="text-sm text-slate-400">
+                    Visual progress bars showing page processing status
+                  </p>
+                </div>
+                <div>
+                  <h5 className="mb-2 font-medium text-cyan-400">
+                    🖼️ Image Processing
+                  </h5>
+                  <p className="text-sm text-slate-400">
+                    Individual progress for each image being optimized and
+                    uploaded
+                  </p>
+                </div>
+                <div>
+                  <h5 className="mb-2 font-medium text-cyan-400">
+                    ✅ Final Summary
+                  </h5>
+                  <p className="text-sm text-slate-400">
+                    Reports total pages and images processed successfully
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
         <section id="tools" className="grid gap-6 py-8">
           <h2 className="text-center text-3xl font-bold text-white">
             MCP Tools
@@ -844,6 +1305,6 @@ export default function Home() {
           © Zeroheight MCP {new Date().getFullYear()}
         </p>
       </footer>
-    </div>
+    </>
   );
 }

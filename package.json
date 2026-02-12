@@ -16,6 +16,7 @@
     "generate-database-types": "npx tsx scripts/generate-database-types.ts"
   },
   "dependencies": {
+    "@base-ui/react": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@sparticuz/chromium": "^143.0.4",
     "@supabase/supabase-js": "^2.39.3",
@@ -38,7 +39,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5"
   }
