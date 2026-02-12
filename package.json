@@ -12,7 +12,7 @@
     "mcp-call": "npx tsx scripts/mcp-call.ts",
     "supabase-login": "npx -y supabase@2.72.8 login",
     "generate-database-schema": "npx -y supabase@2.72.8 gen types typescript --project-id qyoexslrsblaphbcvjdk --schema public > lib/database.schema.ts",
-    "generate-database-types": "npx tsx scripts/generate-schemas.ts"
+    "generate-database-types": "npx tsx scripts/generate-database-types.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",

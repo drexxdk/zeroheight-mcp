@@ -82,6 +82,7 @@
   - User asks "run List Tables" → use `npm run mcp-call -- "List Tables"`
   - User asks "test the scraper" → use `npm run mcp-call -- "Scrape Zeroheight Project"`
   - User asks "query data" → use `npm run mcp-call -- "Query Zeroheight Data" '{"search": "button"}'`
+  - User asks "get database types" → use `npm run mcp-call -- "Database Types"`
 
 ### TypeScript Best Practices
 

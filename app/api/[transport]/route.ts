@@ -8,9 +8,10 @@ import {
   getLogsTool,
 } from "../../../lib/tools/database";
 import {
-  generateTypescriptTypesTool,
+  getDatabaseSchemaTool,
   getProjectUrlTool,
   getPublishableKeysTool,
+  getDatabaseTypesTool,
 } from "../../../lib/tools/development";
 import {
   scrapeZeroheightProjectTool,
@@ -100,15 +101,15 @@ const handler = createMcpHandler(
     );
 
     // Development & Deployment Tools
-    // Example: { "method": "tools/call", "params": { "name": "Generate TypeScript Types", "arguments": {} } }
+    // Example: { "method": "tools/call", "params": { "name": "Get Database Schema", "arguments": {} } }
     server.registerTool(
-      generateTypescriptTypesTool.title,
+      getDatabaseSchemaTool.title,
       {
-        title: generateTypescriptTypesTool.title,
-        description: generateTypescriptTypesTool.description,
-        inputSchema: generateTypescriptTypesTool.inputSchema,
+        title: getDatabaseSchemaTool.title,
+        description: getDatabaseSchemaTool.description,
+        inputSchema: getDatabaseSchemaTool.inputSchema,
       },
-      generateTypescriptTypesTool.handler,
+      getDatabaseSchemaTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "Get Project URL", "arguments": {} } }
@@ -131,6 +132,17 @@ const handler = createMcpHandler(
         inputSchema: getPublishableKeysTool.inputSchema,
       },
       getPublishableKeysTool.handler,
+    );
+
+    // Example: { "method": "tools/call", "params": { "name": "Get Database Types", "arguments": {} } }
+    server.registerTool(
+      getDatabaseTypesTool.title,
+      {
+        title: getDatabaseTypesTool.title,
+        description: getDatabaseTypesTool.description,
+        inputSchema: getDatabaseTypesTool.inputSchema,
+      },
+      getDatabaseTypesTool.handler,
     );
   },
   {},

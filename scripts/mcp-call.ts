@@ -177,6 +177,7 @@ Available tools:
   • Generate TypeScript Types
   • Get Project URL
   • Get Publishable API Keys
+  • Database Types
 
 Examples:
   npm run mcp-call -- "List Tables"

@@ -5,17 +5,12 @@ import type { Database } from './database.schema';
 
 export const publicImagesSchema = z.object({
   id: z.number(),
-  original_url: z.string(),
-  page_id: z.number().nullable(),
-  storage_path: z.string(),
+  // Could not parse table schema
 });
 
 export const publicPagesSchema = z.object({
-  content: z.string().nullable(),
   id: z.number(),
-  scraped_at: z.string().nullable(),
-  title: z.string(),
-  url: z.string(),
+  // Could not parse table schema
 });
 
 // Export inferred types
