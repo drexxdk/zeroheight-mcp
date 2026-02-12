@@ -417,7 +417,7 @@ export default function Home() {
         {/* Image Management Section */}
         <section id="image-management" className="grid gap-6 py-8">
           <h2 className="text-center text-3xl font-bold text-white">
-            🖼️ Image Management
+            Image Management
           </h2>
           <div className="grid gap-8 md:grid-cols-2">
             <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
@@ -539,7 +539,7 @@ export default function Home() {
         {/* Page Discovery Section */}
         <section id="page-discovery" className="grid gap-6 py-8">
           <h2 className="text-center text-3xl font-bold text-white">
-            🔍 Page Discovery and Redirect Handling
+            Page Discovery and Redirect Handling
           </h2>
           <div className="grid gap-8 md:grid-cols-2">
             <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
@@ -685,7 +685,7 @@ export default function Home() {
         {/* Console Output Example Section */}
         <section id="console-output" className="grid gap-6 py-8">
           <h2 className="text-center text-3xl font-bold text-white">
-            📋 Console Output Example
+            Console Output Example
           </h2>
           <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
             <p className="mb-6 text-slate-400">
