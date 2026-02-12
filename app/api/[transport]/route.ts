@@ -15,6 +15,7 @@ import {
 import {
   scrapeZeroheightProjectTool,
   queryZeroheightDataTool,
+  clearZeroheightDataTool,
 } from "../../../lib/tools/scraper";
 
 const handler = createMcpHandler(
@@ -40,6 +41,17 @@ const handler = createMcpHandler(
         inputSchema: queryZeroheightDataTool.inputSchema,
       },
       queryZeroheightDataTool.handler,
+    );
+
+    // Example: { "method": "tools/call", "params": { "name": "Clear Zeroheight Data", "arguments": { "apiKey": "your-mcp-api-key" } } }
+    server.registerTool(
+      clearZeroheightDataTool.title,
+      {
+        title: clearZeroheightDataTool.title,
+        description: clearZeroheightDataTool.description,
+        inputSchema: clearZeroheightDataTool.inputSchema,
+      },
+      clearZeroheightDataTool.handler,
     );
 
     // Database Inspection & Management Tools
