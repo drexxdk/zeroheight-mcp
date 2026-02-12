@@ -6,10 +6,20 @@ import {
 } from "../../common";
 import { PageData } from "./shared";
 
+// Get the Supabase project URL for constructing storage URLs
+const getSupabaseProjectUrl = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) {
+    console.warn("NEXT_PUBLIC_SUPABASE_URL not found, using fallback");
+    return "https://qyoexslrsblaphbcvjdk.supabase.co";
+  }
+  return supabaseUrl;
+};
+
 export const queryZeroheightDataTool = {
   title: "query-zeroheight-data",
   description:
-    "Query the cached Zeroheight design system data from the database. Supports searching by title, content, or URL, and can include image data.",
+    "Query the cached Zeroheight design system data from the database. Supports searching by title, content, or URL, and can include image data with full Supabase storage URLs.",
   inputSchema: z.object({
     search: z
       .string()
@@ -116,17 +126,23 @@ export const queryZeroheightDataTool = {
       pages = allPages || [];
     }
 
-    const result = pages.map((page) => ({
-      url: page.url,
-      title: page.title,
-      content: page.content,
-      images:
-        effectiveIncludeImages && page.images
-          ? Object.fromEntries(
-              page.images.map((img) => [img.original_url, img.storage_path]),
-            )
-          : {},
-    }));
+    const result = pages.map((page) => {
+      const supabaseUrl = getSupabaseProjectUrl();
+      return {
+        url: page.url,
+        title: page.title,
+        content: page.content,
+        images:
+          effectiveIncludeImages && page.images
+            ? Object.fromEntries(
+                page.images.map((img) => [
+                  img.original_url,
+                  `${supabaseUrl}/storage/v1/object/public/zeroheight-images/${img.storage_path}`,
+                ]),
+              )
+            : {},
+      };
+    });
 
     return createSuccessResponse(result);
   },
