@@ -3,6 +3,29 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { motion } from "motion/react";
+import { SectionHeader, FeatureCard, ToolCard, InfoCard } from "./components";
+import {
+  FaBolt,
+  FaMagnifyingGlass,
+  FaDatabase,
+  FaImage,
+  FaLock,
+  FaGlobe,
+  FaTrash,
+  FaFileLines,
+  FaBook,
+  FaLink,
+  FaKey,
+  FaList,
+  FaTerminal,
+  FaCamera,
+  FaRuler,
+  FaArrowRight,
+  FaChartBar,
+  FaCheck,
+  FaGithub,
+} from "react-icons/fa6";
 
 // Dynamically import the navigation menu to avoid SSR issues
 const NavigationMenu = dynamic(() => import("./navigation-menu"), {
@@ -19,6 +42,7 @@ interface NavigationOption {
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState("features");
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -46,6 +70,11 @@ export default function Home() {
           }
         }
       }
+
+      // Calculate scroll progress
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = (window.scrollY / totalHeight) * 100;
+      setScrollProgress(progress);
     };
 
     window.addEventListener("scroll", handleScroll);
@@ -82,6 +111,13 @@ export default function Home() {
     <>
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-slate-700 bg-slate-900/95 backdrop-blur-sm">
+        {/* Scroll Progress Bar */}
+        <motion.div
+          className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500 origin-left"
+          style={{ scaleX: scrollProgress / 100 }}
+          transition={{ duration: 0.1 }}
+        />
+        
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-6">
             <div className="flex items-center space-x-3">
@@ -199,495 +235,606 @@ export default function Home() {
       </header>
 
       {/* Hero Section - Full Width */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900/30 to-purple-900/40"></div>
+      <motion.section 
+        className="relative overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
+      >
+        <motion.div 
+          className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900/30 to-purple-900/40"
+          animate={{ 
+            backgroundPosition: ["0% 0%", "100% 100%"] 
+          }}
+          transition={{ 
+            duration: 20, 
+            repeat: Infinity, 
+            repeatType: "reverse" 
+          }}
+        ></motion.div>
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-purple-600/10"></div>
-        <div className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl"></div>
-        <div className="absolute right-1/4 bottom-0 h-96 w-96 rounded-full bg-purple-500/20 blur-3xl"></div>
+        <motion.div 
+          className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl"
+          animate={{ 
+            scale: [1, 1.2, 1],
+            opacity: [0.2, 0.4, 0.2] 
+          }}
+          transition={{ 
+            duration: 8, 
+            repeat: Infinity, 
+            repeatType: "reverse" 
+          }}
+        ></motion.div>
+        <motion.div 
+          className="absolute right-1/4 bottom-0 h-96 w-96 rounded-full bg-purple-500/20 blur-3xl"
+          animate={{ 
+            scale: [1.2, 1, 1.2],
+            opacity: [0.3, 0.1, 0.3] 
+          }}
+          transition={{ 
+            duration: 10, 
+            repeat: Infinity, 
+            repeatType: "reverse" 
+          }}
+        ></motion.div>
 
         <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 md:py-32 lg:px-8">
           <div className="text-center">
-            <h1 className="mb-6 text-5xl leading-tight font-bold text-white md:text-7xl">
+            <motion.h1 
+              className="mb-6 text-5xl leading-tight font-bold text-white md:text-7xl"
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
               Zeroheight Design System
-              <span className="block animate-pulse bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+              <motion.span 
+                className="block bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent"
+                animate={{ 
+                  backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] 
+                }}
+                transition={{ 
+                  duration: 3, 
+                  repeat: Infinity, 
+                  ease: "linear" 
+                }}
+              >
                 MCP Server
-              </span>
-            </h1>
-            <p className="mx-auto mb-12 max-w-4xl text-xl leading-relaxed text-slate-300 md:text-2xl">
+              </motion.span>
+            </motion.h1>
+            <motion.p 
+              className="mx-auto mb-12 max-w-4xl text-xl leading-relaxed text-slate-300 md:text-2xl"
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
               A powerful Model Context Protocol server that scrapes, indexes,
               and provides intelligent querying capabilities for Zeroheight
               design system documentation. Built for design systems teams who
               need programmatic access to their component libraries and design
               guidelines.
-            </p>
-            <div className="flex flex-col justify-center gap-6 sm:flex-row">
-              <Link
-                href="#tools"
-                className="transform rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-10 py-4 text-lg font-semibold text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:from-cyan-600 hover:to-blue-700 hover:shadow-cyan-500/25"
+            </motion.p>
+            <motion.div 
+              className="flex flex-col justify-center gap-6 sm:flex-row"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                Get Started
-              </Link>
-              <a
-                href="https://github.com/drexxdk/zeroheight-mcp"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl border-2 border-slate-400 bg-slate-800/30 px-10 py-4 text-lg font-semibold text-slate-300 backdrop-blur-sm transition-all duration-300 hover:border-cyan-400 hover:bg-slate-700/50 hover:text-white"
+                <Link
+                  href="#tools"
+                  className="transform rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-10 py-4 text-lg font-semibold text-white shadow-2xl transition-all duration-300 hover:from-cyan-600 hover:to-blue-700 hover:shadow-cyan-500/25 flex items-center"
+                >
+                  Get Started
+                </Link>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                View on GitHub
-              </a>
-            </div>
+                <a
+                  href="https://github.com/drexxdk/zeroheight-mcp"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border-2 border-slate-400 bg-slate-800/30 px-10 py-4 text-lg font-semibold text-slate-300 backdrop-blur-sm transition-all duration-300 hover:border-cyan-400 hover:bg-slate-700/50 hover:text-white flex items-center gap-2"
+                >
+                  <FaGithub className="h-5 w-5" />
+                  View on GitHub
+                </a>
+              </motion.div>
+            </motion.div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Main Content */}
       <main className="mx-auto flex max-w-7xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         {/* Features Section */}
-        <section id="features" className="grid gap-6 py-8">
-          <h2 className="text-center text-3xl font-bold text-white">
-            Key Features
-          </h2>
-          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-900">
-                  <svg
-                    className="h-6 w-6 text-green-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-white">
-                  Intelligent Scraping
-                </h3>
-              </div>
-              <p className="text-slate-400">
-                Automatically discovers and scrapes all pages, components, and
-                documentation from your Zeroheight design system with smart link
-                following and content extraction.
-              </p>
-            </div>
+        <motion.section 
+          id="features" 
+          className="grid gap-6 py-8"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          viewport={{ once: true }}
+        >
+          <SectionHeader>Key Features</SectionHeader>
+          <motion.div 
+            className="grid gap-8 md:grid-cols-2 lg:grid-cols-3"
+            variants={{
+              hidden: { opacity: 0 },
+              show: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.05
+                }
+              }
+            }}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+          >
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                show: { opacity: 1, y: 0 }
+              }}
+              className="h-full"
+            >
+              <FeatureCard
+                icon={<FaBolt />}
+                title="Intelligent Scraping"
+                description="Automatically discovers and scrapes all pages, components, and documentation from your Zeroheight design system with smart link following and content extraction."
+                iconColor="green"
+                className="h-full"
+              />
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-900">
-                  <svg
-                    className="h-6 w-6 text-blue-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-white">
-                  Powerful Search
-                </h3>
-              </div>
-              <p className="text-slate-400">
-                Query your design system data with full-text search across
-                titles, content, and URLs. Find components, patterns, and
-                guidelines instantly.
-              </p>
-            </div>
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                show: { opacity: 1, y: 0 }
+              }}
+              className="h-full"
+            >
+              <FeatureCard
+                icon={<FaMagnifyingGlass />}
+                title="Powerful Search"
+                description="Query your design system data with full-text search across titles, content, and URLs. Find components, patterns, and guidelines instantly."
+                iconColor="blue"
+                className="h-full"
+              />
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-900">
-                  <svg
-                    className="h-6 w-6 text-purple-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-white">
-                  MCP Integration
-                </h3>
-              </div>
-              <p className="text-slate-400">
-                Built on the Model Context Protocol for seamless integration
-                with AI assistants, design tools, and development workflows.
-              </p>
-            </div>
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                show: { opacity: 1, y: 0 }
+              }}
+              className="h-full"
+            >
+              <FeatureCard
+                icon={<FaDatabase />}
+                title="MCP Integration"
+                description="Built on the Model Context Protocol for seamless integration with AI assistants, design tools, and development workflows."
+                iconColor="purple"
+                className="h-full"
+              />
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-orange-900">
-                  <svg
-                    className="h-6 w-6 text-orange-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-white">
-                  Image Management
-                </h3>
-              </div>
-              <p className="text-slate-400">
-                Automatically downloads, processes, and stores design system
-                images and assets with optimized storage and fast retrieval.
-              </p>
-            </div>
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                show: { opacity: 1, y: 0 }
+              }}
+              className="h-full"
+            >
+              <FeatureCard
+                icon={<FaImage />}
+                title="Image Management"
+                description="Automatically downloads, processes, and stores design system images and assets with optimized storage and fast retrieval."
+                iconColor="orange"
+                className="h-full"
+              />
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-red-900">
-                  <svg
-                    className="h-6 w-6 text-red-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-white">
-                  Secure Access
-                </h3>
-              </div>
-              <p className="text-slate-400">
-                Enterprise-grade authentication with API key validation and
-                secure access controls for your design system data.
-              </p>
-            </div>
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                show: { opacity: 1, y: 0 }
+              }}
+              className="h-full"
+            >
+              <FeatureCard
+                icon={<FaLock />}
+                title="Secure Access"
+                description="Enterprise-grade authentication with API key validation and secure access controls for your design system data."
+                iconColor="red"
+                className="h-full"
+              />
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-900">
-                  <svg
-                    className="h-6 w-6 text-indigo-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-white">
-                  High Performance
-                </h3>
-              </div>
-              <p className="text-slate-400">
-                Optimized for speed with bulk database operations, progress
-                tracking, and efficient caching for large design systems.
-              </p>
-            </div>
-          </div>
-        </section>
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                show: { opacity: 1, y: 0 }
+              }}
+              className="h-full"
+            >
+              <FeatureCard
+                icon={<FaBolt />}
+                title="High Performance"
+                description="Optimized for speed with bulk database operations, progress tracking, and efficient caching for large design systems."
+                iconColor="indigo"
+                className="h-full"
+              />
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* Image Management Section */}
-        <section id="image-management" className="grid gap-6 py-8">
-          <h2 className="text-center text-3xl font-bold text-white">
-            Image Management
-          </h2>
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
-              <h3 className="mb-4 text-xl font-semibold text-white">
-                Supported Image Types
-              </h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <h4 className="mb-2 font-medium text-green-400">
-                    ✅ Supported
-                  </h4>
-                  <ul className="space-y-1 text-sm text-slate-400">
-                    <li>• PNG - Portable Network Graphics</li>
-                    <li>• JPG/JPEG - Joint Photographic Experts Group</li>
-                    <li>• WebP - Modern web image format</li>
-                  </ul>
+        <motion.section 
+          id="image-management" 
+          className="grid gap-6 py-8"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          viewport={{ once: true }}
+        >
+          <SectionHeader>Image Management</SectionHeader>
+          <motion.div 
+            className="grid gap-8 md:grid-cols-2"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            viewport={{ once: true }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.05 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <InfoCard title="Supported Image Types" className="h-full">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <h4 className="mb-2 font-medium text-green-400 flex items-center gap-2">
+                      <FaCheck className="text-green-400" />
+                      Supported
+                    </h4>
+                    <ul className="space-y-1 text-sm text-slate-400">
+                      <li>• PNG - Portable Network Graphics</li>
+                      <li>• JPG/JPEG - Joint Photographic Experts Group</li>
+                      <li>• WebP - Modern web image format</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="mb-2 font-medium text-red-400 flex items-center gap-2">
+                      <FaTrash className="text-red-400" />
+                      Filtered Out
+                    </h4>
+                    <ul className="space-y-1 text-sm text-slate-400">
+                      <li>• GIF - Graphics Interchange Format</li>
+                      <li>• SVG - Scalable Vector Graphics</li>
+                    </ul>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="mb-2 font-medium text-red-400">
-                    ❌ Filtered Out
-                  </h4>
-                  <ul className="space-y-1 text-sm text-slate-400">
-                    <li>• GIF - Graphics Interchange Format</li>
-                    <li>• SVG - Scalable Vector Graphics</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+              </InfoCard>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
-              <h3 className="mb-4 text-xl font-semibold text-white">
-                Upload Process
-              </h3>
-              <p className="mb-4 text-slate-400">
-                Images are automatically downloaded from Zeroheight and uploaded
-                to Supabase Storage buckets with intelligent deduplication.
-              </p>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                  <span>
-                    Each image gets a unique path based on MD5 hash for
-                    efficient deduplication
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                  <span>
-                    Query results include complete Supabase storage URLs for
-                    direct access
-                  </span>
-                </li>
-              </ul>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <InfoCard title="Upload Process" className="h-full">
+                <p className="mb-4 text-slate-400">
+                  Images are automatically downloaded from Zeroheight and uploaded
+                  to Supabase Storage buckets with intelligent deduplication.
+                </p>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    <span>
+                      Each image gets a unique path based on MD5 hash for
+                      efficient deduplication
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    <span>
+                      Query results include complete Supabase storage URLs for
+                      direct access
+                    </span>
+                  </li>
+                </ul>
+              </InfoCard>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
-              <h3 className="mb-4 text-xl font-semibold text-white">
-                Duplicate Prevention
-              </h3>
-              <p className="mb-4 text-slate-400">
-                MD5 hashing ensures identical images are never uploaded twice,
-                minimizing storage costs.
-              </p>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
-                  <span>
-                    Existing images are detected and reused instead of
-                    re-uploading
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
-                  <span>
-                    Storage costs are minimized through intelligent
-                    deduplication
-                  </span>
-                </li>
-              </ul>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <InfoCard title="Duplicate Prevention" className="h-full">
+                <p className="mb-4 text-slate-400">
+                  MD5 hashing ensures identical images are never uploaded twice,
+                  minimizing storage costs.
+                </p>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                    <span>
+                      Existing images are detected and reused instead of
+                      re-uploading
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                    <span>
+                      Storage costs are minimized through intelligent
+                      deduplication
+                    </span>
+                  </li>
+                </ul>
+              </InfoCard>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
-              <h3 className="mb-4 text-xl font-semibold text-white">
-                Image Optimization
-              </h3>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="text-center">
-                  <div className="mb-2 text-2xl">📸</div>
-                  <h4 className="mb-1 font-medium text-cyan-400">
-                    Format Conversion
-                  </h4>
-                  <p className="text-sm text-slate-400">
-                    All images converted to JPEG format
-                  </p>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <InfoCard title="Image Optimization" className="h-full">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="text-center">
+                    <div className="mb-2 flex justify-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-600">
+                        <FaCamera className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <h4 className="mb-1 font-medium text-cyan-400">
+                      Format Conversion
+                    </h4>
+                    <p className="text-sm text-slate-400">
+                      All images converted to JPEG format
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="mb-2 flex justify-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-600">
+                        <FaBolt className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <h4 className="mb-1 font-medium text-cyan-400">
+                      Quality Reduction
+                    </h4>
+                    <p className="text-sm text-slate-400">
+                      Reduced to 80% quality
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="mb-2 flex justify-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-600">
+                        <FaRuler className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <h4 className="mb-1 font-medium text-cyan-400">
+                      Resolution Limiting
+                    </h4>
+                    <p className="text-sm text-slate-400">
+                      Max 1920px on longest side
+                    </p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="mb-2 text-2xl">⚡</div>
-                  <h4 className="mb-1 font-medium text-cyan-400">
-                    Quality Reduction
-                  </h4>
-                  <p className="text-sm text-slate-400">
-                    Reduced to 80% quality
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="mb-2 text-2xl">📐</div>
-                  <h4 className="mb-1 font-medium text-cyan-400">
-                    Resolution Limiting
-                  </h4>
-                  <p className="text-sm text-slate-400">
-                    Max 1920px on longest side
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+              </InfoCard>
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* Page Discovery Section */}
-        <section id="page-discovery" className="grid gap-6 py-8">
-          <h2 className="text-center text-3xl font-bold text-white">
-            Page Discovery and Redirect Handling
-          </h2>
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
-              <h3 className="mb-4 text-xl font-semibold text-white">
-                Page Discovery
-              </h3>
-              <p className="mb-4 text-slate-400">
-                The scraper intelligently discovers and processes pages while
-                maintaining efficiency.
-              </p>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                  <span>Starts with the configured Zeroheight project URL</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                  <span>
-                    Automatically finds all linked pages within the same domain
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                  <span>
-                    Discovers both direct page links and navigation links
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                  <span>
-                    Continues discovering new links as it processes each page
-                  </span>
-                </li>
-              </ul>
-            </div>
+        <motion.section 
+          id="page-discovery" 
+          className="grid gap-6 py-8"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          viewport={{ once: true }}
+        >
+          <SectionHeader>Page Discovery and Redirect Handling</SectionHeader>
+          <motion.div 
+            className="grid gap-8 md:grid-cols-2"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            viewport={{ once: true }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.05 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <InfoCard title="Page Discovery" className="h-full">
+                <p className="mb-4 text-slate-400">
+                  The scraper intelligently discovers and processes pages while
+                  maintaining efficiency.
+                </p>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    <span>Starts with the configured Zeroheight project URL</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    <span>
+                      Automatically finds all linked pages within the same domain
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    <span>
+                      Discovers both direct page links and navigation links
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    <span>
+                      Continues discovering new links as it processes each page
+                    </span>
+                  </li>
+                </ul>
+              </InfoCard>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
-              <h3 className="mb-4 text-xl font-semibold text-white">
-                Redirect Detection
-              </h3>
-              <p className="mb-4 text-slate-400">
-                After navigating to each URL, the scraper detects redirects and
-                normalizes URLs.
-              </p>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
-                  <span>
-                    Checks the final destination URL after each navigation
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
-                  <span>
-                    Detects when URLs redirect to other pages (common in
-                    Zeroheight)
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
-                  <span>
-                    Uses the final URL for storage instead of the original
-                    redirecting URL
-                  </span>
-                </li>
-              </ul>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <InfoCard title="Redirect Detection" className="h-full">
+                <p className="mb-4 text-slate-400">
+                  After navigating to each URL, the scraper detects redirects and
+                  normalizes URLs.
+                </p>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
+                    <span>
+                      Checks the final destination URL after each navigation
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
+                    <span>
+                      Detects when URLs redirect to other pages (common in
+                      Zeroheight)
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-yellow-500"></span>
+                    <span>
+                      Uses the final URL for storage instead of the original
+                      redirecting URL
+                    </span>
+                  </li>
+                </ul>
+              </InfoCard>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
-              <h3 className="mb-4 text-xl font-semibold text-white">
-                Duplicate Prevention
-              </h3>
-              <p className="mb-4 text-slate-400">
-                Maintains a set of processed URLs to avoid re-processing the
-                same content multiple times.
-              </p>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
-                  <span>
-                    Maintains a set of processed URLs to avoid re-processing the
-                    same content
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
-                  <span>
-                    When a redirect leads to an already processed page, skips
-                    processing entirely
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
-                  <span>
-                    Progress counter only increments for actually processed
-                    unique pages
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
-                  <span>
-                    Database storage uses upsert operations to handle any
-                    remaining duplicates
-                  </span>
-                </li>
-              </ul>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.15 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <InfoCard title="Duplicate Prevention" className="h-full">
+                <p className="mb-4 text-slate-400">
+                  Maintains a set of processed URLs to avoid re-processing the
+                  same content multiple times.
+                </p>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                    <span>
+                      Maintains a set of processed URLs to avoid re-processing the
+                      same content
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                    <span>
+                      When a redirect leads to an already processed page, skips
+                      processing entirely
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                    <span>
+                      Progress counter only increments for actually processed
+                      unique pages
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                    <span>
+                      Database storage uses upsert operations to handle any
+                      remaining duplicates
+                    </span>
+                  </li>
+                </ul>
+              </InfoCard>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
-              <h3 className="mb-4 text-xl font-semibold text-white">
-                Link Discovery Limits
-              </h3>
-              <p className="mb-4 text-slate-400">
-                When a page limit is set, the scraper stops discovering new
-                links once the limit is reached.
-              </p>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
-                  <span>
-                    When a page limit is set (e.g., limit: 3), stops discovering
-                    new links once the limit is reached
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
-                  <span>
-                    Prevents the processing queue from growing beyond the
-                    specified number of pages
-                  </span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
-                  <span>
-                    Ensures predictable execution time and resource usage
-                  </span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </section>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <InfoCard title="Link Discovery Limits" className="h-full">
+                <p className="mb-4 text-slate-400">
+                  When a page limit is set, the scraper stops discovering new
+                  links once the limit is reached.
+                </p>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                    <span>
+                      When a page limit is set (e.g., limit: 3), stops discovering
+                      new links once the limit is reached
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                    <span>
+                      Prevents the processing queue from growing beyond the
+                      specified number of pages
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                    <span>
+                      Ensures predictable execution time and resource usage
+                    </span>
+                  </li>
+                </ul>
+              </InfoCard>
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* Console Output Example Section */}
-        <section id="console-output" className="grid gap-6 py-8">
-          <h2 className="text-center text-3xl font-bold text-white">
-            Console Output Example
-          </h2>
-          <div className="rounded-xl border border-slate-700 bg-slate-800 p-6">
+        <motion.section 
+          id="console-output" 
+          className="grid gap-6 py-8"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          viewport={{ once: true }}
+        >
+          <SectionHeader>Console Output Example</SectionHeader>
+          <motion.div 
+            className="rounded-xl border border-slate-700 bg-slate-800 p-6"
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            viewport={{ once: true }}
+          >
             <p className="mb-6 text-slate-400">
               Here&apos;s an example of the console output when running the
               scraper with a limit of 3 pages:
@@ -736,414 +883,341 @@ Successfully inserted 2 images
 Scraping completed successfully`}</pre>
               </div>
             </div>
-            <div className="mt-6 space-y-4">
+            <motion.div 
+              className="mt-6 space-y-4"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              viewport={{ once: true }}
+            >
               <h4 className="text-lg font-semibold text-white">
                 Output Explanation
               </h4>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <h5 className="mb-2 font-medium text-cyan-400">
-                    🔐 Navigation & Authentication
+              <motion.div 
+                className="grid gap-3 md:grid-cols-2"
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.6 }}
+                viewport={{ once: true }}
+              >
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                  viewport={{ once: true }}
+                >
+                  <h5 className="mb-2 font-medium text-cyan-400 flex items-center gap-2">
+                    <FaLock className="text-cyan-400" />
+                    Navigation & Authentication
                   </h5>
                   <p className="text-sm text-slate-400">
                     Shows login process and initial page loading
                   </p>
-                </div>
-                <div>
-                  <h5 className="mb-2 font-medium text-cyan-400">
-                    🔗 Link Discovery
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                  viewport={{ once: true }}
+                >
+                  <h5 className="mb-2 font-medium text-cyan-400 flex items-center gap-2">
+                    <FaLink className="text-cyan-400" />
+                    Link Discovery
                   </h5>
                   <p className="text-sm text-slate-400">
                     Lists newly discovered links as they&apos;re found
                   </p>
-                </div>
-                <div>
-                  <h5 className="mb-2 font-medium text-cyan-400">
-                    ↪️ Redirect Detection
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                  viewport={{ once: true }}
+                >
+                  <h5 className="mb-2 font-medium text-cyan-400 flex items-center gap-2">
+                    <FaArrowRight className="text-cyan-400" />
+                    Redirect Detection
                   </h5>
                   <p className="text-sm text-slate-400">
                     Identifies when URLs redirect and skips duplicates
                   </p>
-                </div>
-                <div>
-                  <h5 className="mb-2 font-medium text-cyan-400">
-                    📊 Progress Tracking
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.4 }}
+                  viewport={{ once: true }}
+                >
+                  <h5 className="mb-2 font-medium text-cyan-400 flex items-center gap-2">
+                    <FaChartBar className="text-cyan-400" />
+                    Progress Tracking
                   </h5>
                   <p className="text-sm text-slate-400">
                     Visual progress bars showing page processing status
                   </p>
-                </div>
-                <div>
-                  <h5 className="mb-2 font-medium text-cyan-400">
-                    🖼️ Image Processing
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.5 }}
+                  viewport={{ once: true }}
+                >
+                  <h5 className="mb-2 font-medium text-cyan-400 flex items-center gap-2">
+                    <FaImage className="text-cyan-400" />
+                    Image Processing
                   </h5>
                   <p className="text-sm text-slate-400">
                     Individual progress for each image being optimized and
                     uploaded
                   </p>
-                </div>
-                <div>
-                  <h5 className="mb-2 font-medium text-cyan-400">
-                    ✅ Final Summary
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.6 }}
+                  viewport={{ once: true }}
+                >
+                  <h5 className="mb-2 font-medium text-cyan-400 flex items-center gap-2">
+                    <FaCheck className="text-cyan-400" />
+                    Final Summary
                   </h5>
                   <p className="text-sm text-slate-400">
                     Reports total pages and images processed successfully
                   </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-        <section id="tools" className="grid gap-6 py-8">
-          <h2 className="text-center text-3xl font-bold text-white">
-            MCP Tools
-          </h2>
-          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {/* Scrape Zeroheight Project */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-900">
-                  <svg
-                    className="h-6 w-6 text-blue-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Scrape Zeroheight Project
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Automatically discovers and scrapes all pages from your
-                Zeroheight design system, including content and images. Uses
-                upsert logic for safe re-running.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Scrape the Zeroheight design system&quot;
-              </code>
-            </div>
+                </motion.div>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        </motion.section>
+        <motion.section 
+          id="tools" 
+          className="grid gap-6 py-8"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          viewport={{ once: true }}
+        >
+          <SectionHeader>MCP Tools</SectionHeader>
+          <motion.div 
+            className="grid gap-8 md:grid-cols-2 lg:grid-cols-3"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            viewport={{ once: true }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.05 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaGlobe />}
+                title="Scrape Zeroheight Project"
+                description="Automatically discovers and scrapes all pages from your Zeroheight design system, including content and images. Uses upsert logic for safe re-running."
+                codeExample='"Scrape the Zeroheight design system"'
+                iconColor="blue"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* Query Zeroheight Data */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-900">
-                  <svg
-                    className="h-6 w-6 text-green-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Query Zeroheight Data
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Search and retrieve cached design system data with full-text
-                search. Returns complete Supabase storage URLs for images.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Find pages about buttons&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.07 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaMagnifyingGlass />}
+                title="Query Zeroheight Data"
+                description="Search and retrieve cached design system data with full-text search. Returns complete Supabase storage URLs for images."
+                codeExample='"Find pages about buttons"'
+                iconColor="green"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* Clear Zeroheight Data */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-red-900">
-                  <svg
-                    className="h-6 w-6 text-red-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Clear Zeroheight Data
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Remove all cached Zeroheight data and images from the database.
-                Requires explicit API key confirmation for safety.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Clear all cached Zeroheight data&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.09 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaTrash />}
+                title="Clear Zeroheight Data"
+                description="Remove all cached Zeroheight data and images from the database. Requires explicit API key confirmation for safety."
+                codeExample='"Clear all cached Zeroheight data"'
+                iconColor="red"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* Execute SQL */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-900">
-                  <svg
-                    className="h-6 w-6 text-yellow-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Execute SQL
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Execute raw SQL queries directly on the Supabase database for
-                advanced data operations and analysis.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Run SQL query: SELECT COUNT(*) FROM pages&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.11 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaFileLines />}
+                title="Execute SQL"
+                description="Execute raw SQL queries directly on the Supabase database for advanced data operations and analysis."
+                codeExample='"Run SQL query: SELECT COUNT(*) FROM pages"'
+                iconColor="yellow"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* List Tables */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-900">
-                  <svg
-                    className="h-6 w-6 text-cyan-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  List Tables
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                List all tables in the database schemas to understand the data
-                structure.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Show me all database tables&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.13 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaDatabase />}
+                title="List Tables"
+                description="List all tables in the database schemas to understand the data structure."
+                codeExample='"Show me all database tables"'
+                iconColor="cyan"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* Get Database Schema */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-900">
-                  <svg
-                    className="h-6 w-6 text-purple-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Get Database Schema
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Retrieve TypeScript type definitions for the complete database
-                schema.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Get the database schema types&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.15 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaBook />}
+                title="Get Database Schema"
+                description="Retrieve TypeScript type definitions for the complete database schema."
+                codeExample='"Get the database schema types"'
+                iconColor="purple"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* Get Project URL */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-900">
-                  <svg
-                    className="h-6 w-6 text-indigo-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Get Project URL
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Retrieve the API URL for your Supabase project.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;What&apos;s the Supabase project URL?&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.17 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaLink />}
+                title="Get Project URL"
+                description="Retrieve the API URL for your Supabase project."
+                codeExample='"What&apos;s the Supabase project URL?"'
+                iconColor="indigo"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* Get Publishable API Keys */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-pink-900">
-                  <svg
-                    className="h-6 w-6 text-pink-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Get Publishable API Keys
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Get all publishable API keys for your project, including legacy
-                anon keys and modern keys.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Show me the API keys&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.19 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaKey />}
+                title="Get Publishable API Keys"
+                description="Get all publishable API keys for your project, including legacy anon keys and modern keys."
+                codeExample='"Show me the API keys"'
+                iconColor="pink"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* List Migrations */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-orange-900">
-                  <svg
-                    className="h-6 w-6 text-orange-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  List Migrations
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                List all database migrations in chronological order.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;List all database migrations&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.21 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaList />}
+                title="List Migrations"
+                description="List all database migrations in chronological order."
+                codeExample='"List all database migrations"'
+                iconColor="orange"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* Get Logs */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-teal-900">
-                  <svg
-                    className="h-6 w-6 text-teal-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">Get Logs</h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Retrieve recent logs from the Supabase project database.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Show me the recent logs&quot;
-              </code>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.23 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaTerminal />}
+                title="Get Logs"
+                description="Retrieve recent logs from the Supabase project database."
+                codeExample='"Show me the recent logs"'
+                iconColor="teal"
+                className="h-full"
+              />
+            </motion.div>
 
-            {/* Get Database Types */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-violet-900">
-                  <svg
-                    className="h-6 w-6 text-violet-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Get Database Types
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                Retrieve TypeScript type definitions for the database schema.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &quot;Get the database type definitions&quot;
-              </code>
-            </div>
-          </div>
-        </section>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.25 }}
+              viewport={{ once: true }}
+              className="h-full"
+            >
+              <ToolCard
+                icon={<FaBook />}
+                title="Get Database Types"
+                description="Retrieve TypeScript type definitions for the database schema."
+                codeExample='"Get the database type definitions"'
+                iconColor="violet"
+                className="h-full"
+              />
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* Tech Stack Section */}
-        <section id="tech" className="grid gap-6 py-8">
-          <h2 className="text-center text-3xl font-bold text-white">
-            Technology Stack
-          </h2>
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
+        <motion.section 
+          id="tech" 
+          className="grid gap-6 py-8"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          viewport={{ once: true }}
+        >
+          <SectionHeader>Technology Stack</SectionHeader>
+          <motion.div 
+            className="grid gap-8 md:grid-cols-2"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            viewport={{ once: true }}
+          >
+            <motion.div 
+              className="h-full rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm"
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+              viewport={{ once: true }}
+            >
               <h3 className="mb-4 text-xl font-semibold text-white">
                 Backend & Infrastructure
               </h3>
@@ -1169,9 +1243,15 @@ Scraping completed successfully`}</pre>
                   MCP (Model Context Protocol)
                 </li>
               </ul>
-            </div>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
+            <motion.div 
+              className="h-full rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm"
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              viewport={{ once: true }}
+            >
               <h3 className="mb-4 text-xl font-semibold text-white">
                 Scraping & Processing
               </h3>
@@ -1197,16 +1277,27 @@ Scraping completed successfully`}</pre>
                   Image processing & storage
                 </li>
               </ul>
-            </div>
-          </div>
-        </section>
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* Legal Compliance Section */}
-        <section id="legal" className="grid gap-6 py-8">
-          <h2 className="text-center text-3xl font-bold text-white">
-            Terms & Conditions
-          </h2>
-          <div className="space-y-4 rounded-xl border border-slate-700 bg-slate-800/50 p-8 text-slate-300">
+        <motion.section 
+          id="legal" 
+          className="grid gap-6 py-8"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          viewport={{ once: true }}
+        >
+          <SectionHeader>Terms & Conditions</SectionHeader>
+          <motion.div 
+            className="space-y-4 rounded-xl border border-slate-700 bg-slate-800/50 p-8 text-slate-300"
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            viewport={{ once: true }}
+          >
             <p>
               This Zeroheight MCP Server operates in full compliance with
               applicable laws and regulations. All data scraping and processing
@@ -1226,78 +1317,166 @@ Scraping completed successfully`}</pre>
               authentication and access permissions. This tool operates solely
               within the bounds of authorized access that you already possess.
             </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-lg bg-slate-700/50 p-4">
-                <h4 className="mb-2 font-semibold text-white">
-                  ✅ Authorized Access Only
+            <motion.div 
+              className="grid gap-4 md:grid-cols-2"
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
+              <motion.div 
+                className="rounded-lg bg-slate-700/50 p-4"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.05 }}
+                viewport={{ once: true }}
+              >
+                <h4 className="mb-2 font-semibold text-white flex items-center gap-2">
+                  <FaCheck className="text-green-400" />
+                  Authorized Access Only
                 </h4>
                 <p className="text-sm">
                   All operations require valid authentication and respect
                   existing access permissions.
                 </p>
-              </div>
-              <div className="rounded-lg bg-slate-700/50 p-4">
-                <h4 className="mb-2 font-semibold text-white">
-                  ✅ Data Privacy
+              </motion.div>
+              <motion.div 
+                className="rounded-lg bg-slate-700/50 p-4"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                viewport={{ once: true }}
+              >
+                <h4 className="mb-2 font-semibold text-white flex items-center gap-2">
+                  <FaCheck className="text-green-400" />
+                  Data Privacy
                 </h4>
                 <p className="text-sm">
                   No personal data collection or unauthorized data sharing
                   occurs.
                 </p>
-              </div>
-              <div className="rounded-lg bg-slate-700/50 p-4">
-                <h4 className="mb-2 font-semibold text-white">
-                  ✅ Rate Limiting
+              </motion.div>
+              <motion.div 
+                className="rounded-lg bg-slate-700/50 p-4"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.15 }}
+                viewport={{ once: true }}
+              >
+                <h4 className="mb-2 font-semibold text-white flex items-center gap-2">
+                  <FaCheck className="text-green-400" />
+                  Rate Limiting
                 </h4>
                 <p className="text-sm">
                   Built-in rate limiting prevents excessive API calls and server
                   strain.
                 </p>
-              </div>
-              <div className="rounded-lg bg-slate-700/50 p-4">
-                <h4 className="mb-2 font-semibold text-white">
-                  ✅ Audit Trail
+              </motion.div>
+              <motion.div 
+                className="rounded-lg bg-slate-700/50 p-4"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.2 }}
+                viewport={{ once: true }}
+              >
+                <h4 className="mb-2 font-semibold text-white flex items-center gap-2">
+                  <FaCheck className="text-green-400" />
+                  Audit Trail
                 </h4>
                 <p className="text-sm">
                   All operations are logged for transparency and debugging
                   purposes.
                 </p>
-              </div>
-            </div>
-          </div>
-        </section>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* CTA Section */}
 
-        <section className="py-8">
-          <div className="rounded-xl border border-slate-700 bg-slate-800 p-8 text-center shadow-sm">
-            <h2 className="mb-4 text-2xl font-bold text-white">
+        <motion.section 
+          className="py-8"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          viewport={{ once: true }}
+        >
+          <motion.div 
+            className="rounded-xl border border-slate-700 bg-slate-800 p-8 text-center shadow-sm"
+            whileHover={{ scale: 1.02 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.h2 
+              className="mb-4 text-2xl font-bold text-white"
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              viewport={{ once: true }}
+            >
               Ready to enhance your design system workflow?
-            </h2>
-            <p className="mx-auto mb-6 max-w-2xl text-slate-400">
+            </motion.h2>
+            <motion.p 
+              className="mx-auto mb-6 max-w-2xl text-slate-400"
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
               Integrate Zeroheight MCP Server into your development pipeline and
               give your team programmatic access to design system documentation,
               components, and guidelines.
-            </p>
-            <div className="flex flex-col justify-center gap-4 sm:flex-row">
-              <Link
-                href="/api/mcp"
-                className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition-colors hover:bg-blue-700"
+            </motion.p>
+            <motion.div 
+              className="flex flex-col justify-center gap-4 sm:flex-row"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+              viewport={{ once: true }}
+            >
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                Try the API
-              </Link>
-              <a
-                href="https://modelcontextprotocol.io"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg border border-slate-600 px-8 py-3 font-medium text-slate-300 transition-colors hover:border-slate-500"
+                <Link
+                  href="/api/mcp"
+                  className="rounded-lg bg-blue-600 px-8 py-3 font-medium text-white transition-colors hover:bg-blue-700 flex items-center"
+                >
+                  Try the API
+                </Link>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                Learn about MCP
-              </a>
-            </div>
-          </div>
-        </section>
+                <a
+                  href="https://modelcontextprotocol.io"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-slate-600 px-8 py-3 font-medium text-slate-300 transition-colors hover:border-slate-500 flex items-center"
+                >
+                  Learn about MCP
+                </a>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        </motion.section>
       </main>
+
+      {/* Back to Top Button */}
+      <motion.button
+        className="fixed bottom-8 right-8 z-40 rounded-full bg-cyan-600 p-3 text-white shadow-lg transition-colors hover:bg-cyan-700"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        initial={{ opacity: 0, scale: 0 }}
+        animate={{ 
+          opacity: scrollProgress > 20 ? 1 : 0,
+          scale: scrollProgress > 20 ? 1 : 0
+        }}
+        transition={{ duration: 0.3 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <FaArrowRight className="h-5 w-5 rotate-[-90deg]" />
+      </motion.button>
 
       {/* Footer */}
       <footer className="px-8 py-4 border-t border-slate-700/50">
