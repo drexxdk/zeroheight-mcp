@@ -1,5 +1,5 @@
 {
-  "mcpServers": {
+  "servers": {
     "zeroheight-scraper": {
       "command": "npx",
       "args": [
