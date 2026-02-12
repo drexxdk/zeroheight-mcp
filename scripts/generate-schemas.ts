@@ -168,9 +168,9 @@ export type SupabaseDatabase = Database;
 `;
 
 // Write to lib/schemas.ts
-const outputPath = join(process.cwd(), "lib", "schemas.ts");
+const outputPath = join(process.cwd(), "lib", "database.types.ts");
 writeFileSync(outputPath, schemasContent, "utf-8");
 
 console.log(
-  "Schemas and types generated dynamically from database.schema.ts! Written to lib/schemas.ts",
+  "Schemas and types generated dynamically from database.schema.ts! Written to lib/database.types.ts",
 );
