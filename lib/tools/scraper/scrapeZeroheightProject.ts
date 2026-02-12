@@ -88,8 +88,6 @@ async function scrapeZeroheightProject(
 
         if (errorText) {
           console.log(`ERROR: ${errorText} - login likely failed`);
-        } else {
-          console.log("No obvious error messages found");
         }
 
         // Check for navigation elements that indicate successful login
@@ -97,7 +95,9 @@ async function scrapeZeroheightProject(
           "nav a, .navigation a, .menu a",
           (links) => links.length,
         );
-        console.log(`Found ${navLinks} navigation links after login attempt`);
+        if (navLinks) {
+          console.log(`Found ${navLinks} navigation links after login attempt`);
+        }
       } else {
         console.log("No password input field found on the page");
       }
@@ -133,8 +133,10 @@ async function scrapeZeroheightProject(
     const allRawLinks = await page.$$eval("a[href]", (links) =>
       links.map((link) => link.href),
     );
-    console.log(`Found ${allRawLinks.length} total raw links on page`);
-    console.log(`Sample raw links: ${allRawLinks.slice(0, 5).join(", ")}`);
+    if (allRawLinks.length) {
+      console.log(`Found ${allRawLinks.length} total raw links on page`);
+      console.log(`Sample raw links: ${allRawLinks.slice(0, 5).join(", ")}`);
+    }
 
     const allLinksOnPage = await page.$$eval("a[href]", (links) =>
       links
@@ -157,7 +159,9 @@ async function scrapeZeroheightProject(
         }),
     );
 
-    console.log(`Found ${allLinksOnPage.length} links on main page`);
+    if (allLinksOnPage.length) {
+      console.log(`Found ${allLinksOnPage.length} links on main page`);
+    }
 
     // Also check for Zeroheight-specific page links
     const zhPageLinks = await page.$$eval('a[href*="/p/"]', (links) =>
@@ -172,10 +176,14 @@ async function scrapeZeroheightProject(
           }
         }),
     );
-    console.log(
-      `Found ${zhPageLinks.length} Zeroheight page links (/p/ pattern)`,
-    );
-    console.log(`Sample ZH page links: ${zhPageLinks.slice(0, 5).join(", ")}`);
+    if (zhPageLinks.length) {
+      console.log(
+        `Found ${zhPageLinks.length} Zeroheight page links (/p/ pattern)`,
+      );
+      console.log(
+        `Sample ZH page links: ${zhPageLinks.slice(0, 5).join(", ")}`,
+      );
+    }
 
     // Always include the current page in scraping
     const currentPageUrl = page.url();
@@ -209,26 +217,39 @@ async function scrapeZeroheightProject(
     // Process links, discovering more as we go, until we hit the limit
     while (processedCount < maxPages) {
       // Get the next link to process (remove it from the set)
-      const link = allLinks.values().next().value;
+      let link = allLinks.values().next().value;
       if (!link) break; // No more links to process
       allLinks.delete(link);
 
       if (processedLinks.has(link)) continue;
 
-      processedCount++;
-      const totalDisplay =
-        maxPages === Infinity ? allLinks.size + processedCount : maxPages;
-      const progressBar = createProgressBar(
-        processedCount,
-        Math.min(maxPages, allLinks.size + processedCount),
-      );
-      console.log(
-        `${progressBar} Processing page ${processedCount}/${totalDisplay}: ${link}`,
-      );
-
       try {
         await page.goto(link, { waitUntil: "networkidle2", timeout: 30000 });
+        
+        // Check for redirects and normalize URL
+        const finalUrl = page.url();
+        if (finalUrl !== link) {
+          console.log(`Redirect detected: ${link} -> ${finalUrl}`);
+          if (processedLinks.has(finalUrl)) {
+            console.log(`Skipping ${link} - final URL ${finalUrl} already processed`);
+            continue;
+          }
+          // Use the final URL for processing instead of the original link
+          link = finalUrl;
+        }
+        
         processedLinks.add(link);
+
+        processedCount++;
+        const totalDisplay =
+          maxPages === Infinity ? allLinks.size + processedCount : maxPages;
+        const progressBar = createProgressBar(
+          processedCount,
+          Math.min(maxPages, allLinks.size + processedCount),
+        );
+        console.log(
+          `${progressBar} Processing page ${processedCount}/${totalDisplay}: ${link}`,
+        );
 
         const title: string = await page.title();
         const content: string = await page
@@ -275,7 +296,11 @@ async function scrapeZeroheightProject(
             }),
         );
         pageLinks.forEach((newLink) => {
-          if (!allLinks.has(newLink) && !processedLinks.has(newLink)) {
+          if (
+            !allLinks.has(newLink) &&
+            !processedLinks.has(newLink) &&
+            processedCount < maxPages
+          ) {
             allLinks.add(newLink);
           }
         });
@@ -400,7 +425,11 @@ async function scrapeZeroheightProject(
         );
 
         newLinks.forEach((newLink) => {
-          if (!allLinks.has(newLink) && !processedLinks.has(newLink)) {
+          if (
+            !allLinks.has(newLink) &&
+            !processedLinks.has(newLink) &&
+            processedCount < maxPages
+          ) {
             allLinks.add(newLink);
             console.log(`Discovered new link: ${newLink}`);
           }
