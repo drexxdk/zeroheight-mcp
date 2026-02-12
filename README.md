@@ -192,6 +192,52 @@ Queries the cached Zeroheight data with flexible search options.
 }
 ```
 
+## 🖥️ CLI Tool
+
+A convenient command-line interface for testing and interacting with MCP tools directly.
+
+### Usage
+
+```bash
+# Show help and available tools
+npm run mcp-call -- --help
+
+# Call a tool without arguments
+npm run mcp-call -- "List Tables"
+
+# Call a tool with JSON arguments
+npm run mcp-call -- "Query Zeroheight Data" '{"search": "button", "limit": 5}'
+
+# Or use directly with tsx
+npx tsx scripts/mcp-call.ts "List Tables"
+```
+
+### Available Tools
+
+- **Scrape Zeroheight Project**: Scrapes and caches design system data
+- **Query Zeroheight Data**: Searches cached design system content
+- **Clear Zeroheight Data**: Removes cached data (requires API key)
+- **List Tables**: Shows database table names
+- **Execute SQL**: Runs SQL queries (limited support)
+- **List Migrations**: Shows database migration history
+- **Get Logs**: Retrieves system logs
+- **Generate TypeScript Types**: Creates TypeScript definitions
+- **Get Project URL**: Returns Supabase project URL
+- **Get Publishable API Keys**: Shows API key configuration
+
+### Examples
+
+```bash
+# List all database tables
+node mcp-call.js "List Tables"
+
+# Search for design system content
+node mcp-call.js "Query Zeroheight Data" '{"search": "color palette"}'
+
+# Get project information
+node mcp-call.js "Get Project URL"
+```
+
 ## 🧪 Testing
 
 ### HTTP API Testing

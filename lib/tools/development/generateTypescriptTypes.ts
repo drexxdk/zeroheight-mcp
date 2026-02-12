@@ -4,10 +4,9 @@ import {
   createErrorResponse,
   createSuccessResponse,
 } from "../../common";
-import { mapSqlTypeToTs } from "../../common";
 
 // Map JavaScript values to TypeScript types
-function mapJsTypeToTs(value: any): string {
+function mapJsTypeToTs(value: unknown): string {
   if (value === null || value === undefined) {
     return "null";
   }
@@ -56,7 +55,10 @@ export const generateTypescriptTypesTool = {
             .limit(1);
 
           if (sampleError) {
-            console.warn(`Could not get sample data for ${tableName}:`, sampleError);
+            console.warn(
+              `Could not get sample data for ${tableName}:`,
+              sampleError,
+            );
             continue;
           }
 
@@ -71,19 +73,22 @@ export const generateTypescriptTypesTool = {
 
           types += `      ${tableName}: {\n        Row: {\n`;
           for (const col of columns) {
-            const value = (sampleRow as any)[col];
+            const value = (sampleRow as Record<string, unknown>)[col];
             const tsType = mapJsTypeToTs(value);
             types += `          ${col}: ${tsType};\n`;
           }
           types += `        }\n        Insert: {\n`;
           for (const col of columns) {
-            const value = (sampleRow as any)[col];
-            const tsType = col === 'id' ? mapJsTypeToTs(value) + " | undefined" : mapJsTypeToTs(value);
+            const value = (sampleRow as Record<string, unknown>)[col];
+            const tsType =
+              col === "id"
+                ? mapJsTypeToTs(value) + " | undefined"
+                : mapJsTypeToTs(value);
             types += `          ${col}: ${tsType};\n`;
           }
           types += `        }\n        Update: {\n`;
           for (const col of columns) {
-            const value = (sampleRow as any)[col];
+            const value = (sampleRow as Record<string, unknown>)[col];
             const tsType = mapJsTypeToTs(value) + " | undefined";
             types += `          ${col}: ${tsType};\n`;
           }

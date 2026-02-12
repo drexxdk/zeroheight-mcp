@@ -25,6 +25,28 @@
   - Remove unused imports and variables
   - Follow consistent naming conventions
 
+### Always create TypeScript files instead of JavaScript
+
+- **Priority**: High
+- **Action**: When creating new script files, always use `.ts` extension and TypeScript syntax instead of `.js` and JavaScript
+- **Rationale**: TypeScript provides compile-time type checking, better IDE support, and helps catch errors early in development
+- **When to apply**: Creating new utility scripts, CLI tools, configuration files, or any code that would benefit from type safety
+- **Examples**:
+  - Use `script.ts` instead of `script.js`
+  - Add proper type annotations to function parameters and return types
+  - Use interfaces for object structures
+  - Leverage TypeScript's advanced features like union types and generics
+
+### Always validate code changes with build and lint
+
+- **Priority**: Critical
+- **Action**: After making any code changes, always run both `npm run build` and `npm run lint` to validate the changes. Only consider the task complete when both commands succeed without errors.
+- **Rationale**: Ensures code quality, prevents build failures, and catches linting issues before they reach production or CI/CD pipelines.
+- **When to apply**: After any code modification, refactoring, or new feature implementation.
+- **Completion criteria**: Both build and lint must pass successfully before declaring the task done.
+- **Reporting**: Show the successful outcomes of both commands when the task is complete.
+- **If failures occur**: Fix all build and lint errors before considering the task complete. Do not proceed until both validations pass.
+
 ### Never run npm run dev
 
 - **Priority**: High
@@ -48,6 +70,18 @@
 - **Rationale**: Prevents automatic chaining of operations that may not be desired and gives users control over the workflow.
 - **Instead**: Complete the requested action, report the results, and wait for explicit user instruction for next steps.
 - **Examples**: After running scraper, don't automatically query data; after fixing code, don't automatically run tests.
+
+### Use mcp-call for MCP tool execution
+
+- **Priority**: High
+- **Action**: When the user asks you to run or test an MCP tool, always use the `mcp-call` script instead of making direct API calls or using other methods.
+- **Rationale**: The `mcp-call` script provides standardized, reliable MCP API interaction with proper headers, error handling, and response formatting.
+- **When to apply**: When user requests involve running, testing, or calling any MCP tools (Scrape Zeroheight Project, Query Zeroheight Data, List Tables, etc.)
+- **How to use**: Run `npm run mcp-call -- "<tool-name>"` or `npx tsx scripts/mcp-call.ts "<tool-name>"` with appropriate arguments
+- **Examples**:
+  - User asks "run List Tables" → use `npm run mcp-call -- "List Tables"`
+  - User asks "test the scraper" → use `npm run mcp-call -- "Scrape Zeroheight Project"`
+  - User asks "query data" → use `npm run mcp-call -- "Query Zeroheight Data" '{"search": "button"}'`
 
 ### TypeScript Best Practices
 
