@@ -196,7 +196,12 @@ async function scrapeZeroheightProject(
       url: string;
       title: string;
       content: string;
-      images: Array<{ src: string; alt: string; index: number }>;
+      images: Array<{
+        src: string;
+        alt: string;
+        index: number;
+        originalSrc?: string;
+      }>;
     }> = [];
 
     console.log(`Total unique links to process: ${allLinks.size}`);
@@ -205,9 +210,10 @@ async function scrapeZeroheightProject(
     const maxPages = limit || Infinity;
 
     // Process links, discovering more as we go, until we hit the limit
-    while (allLinks.size > 0 && processedCount < maxPages) {
+    while (processedCount < maxPages) {
       // Get the next link to process (remove it from the set)
-      const link = allLinks.values().next().value!;
+      const link = allLinks.values().next().value;
+      if (!link) break; // No more links to process
       allLinks.delete(link);
 
       if (processedLinks.has(link)) continue;
@@ -316,12 +322,30 @@ async function scrapeZeroheightProject(
             Boolean(img),
         );
 
+        // Normalize image URLs to prevent duplicates from signed URLs
+        const normalizedImages = allImages.map((img) => {
+          let normalizedSrc = img.src;
+
+          // For Zeroheight CDN URLs, remove query parameters to normalize
+          if (normalizedSrc.includes("cdn.zeroheight.com")) {
+            try {
+              const url = new URL(normalizedSrc);
+              // Keep only the pathname for zeroheight CDN images
+              normalizedSrc = `${url.protocol}//${url.hostname}${url.pathname}`;
+            } catch {
+              // If URL parsing fails, keep original
+            }
+          }
+
+          return { ...img, src: normalizedSrc, originalSrc: img.src };
+        });
+
         // Collect page data for bulk insertion
         pagesToInsert.push({
           url: link,
           title,
           content,
-          images: allImages,
+          images: normalizedImages,
         });
 
         // Discover new links on this page
@@ -388,6 +412,33 @@ async function scrapeZeroheightProject(
 
       console.log(`Successfully inserted ${insertedPages?.length || 0} pages`);
 
+      // Get all existing image URLs globally to prevent duplicates
+      const { data: allExistingImages, error: allExistingImagesError } =
+        await client!.from("images").select("original_url");
+
+      if (allExistingImagesError) {
+        console.error(
+          `Error fetching all existing images:`,
+          allExistingImagesError,
+        );
+      }
+
+      const allExistingImageUrls = new Set(
+        allExistingImages?.map((img) => {
+          // Normalize the URL for comparison (same logic as used for new images)
+          let normalizedUrl = img.original_url;
+          if (normalizedUrl.includes('cdn.zeroheight.com')) {
+            try {
+              const url = new URL(normalizedUrl);
+              normalizedUrl = `${url.protocol}//${url.hostname}${url.pathname}`;
+            } catch {
+              // If URL parsing fails, keep original
+            }
+          }
+          return normalizedUrl;
+        }) || [],
+      );
+
       // Collect all images for bulk insertion
       const imagesToInsert: Array<{
         page_id: number;
@@ -404,7 +455,8 @@ async function scrapeZeroheightProject(
 
       for (let i = 0; i < pagesToInsert.length; i++) {
         const pageData = pagesToInsert[i];
-        const insertedPage = insertedPages?.[i];
+        // Find the inserted page by URL instead of assuming order
+        const insertedPage = insertedPages?.find((p) => p.url === pageData.url);
 
         if (!insertedPage?.id) {
           console.error(`No ID returned for page ${pageData.url}`);
@@ -412,25 +464,6 @@ async function scrapeZeroheightProject(
         }
 
         const pageId = insertedPage.id;
-
-        // Get all existing images for this page in one query
-        const { data: existingImages, error: existingImagesError } =
-          await client!
-            .from("images")
-            .select("original_url")
-            .eq("page_id", pageId);
-
-        if (existingImagesError) {
-          console.error(
-            `Error fetching existing images for page ${pageId}:`,
-            existingImagesError,
-          );
-        }
-
-        // Create a set of existing image URLs for fast lookup
-        const existingImageUrls = new Set(
-          existingImages?.map((img) => img.original_url) || [],
-        );
 
         // Process and upload images for this page
         for (const img of pageData.images) {
@@ -444,18 +477,24 @@ async function scrapeZeroheightProject(
           );
 
           if (img.src && img.src.startsWith("http")) {
-            // Check if this image has already been processed for this page
-            if (existingImageUrls.has(img.src)) {
-              console.log(
-                `Image ${img.src} already exists for this page, skipping`,
-              );
+            // Check if this image has already been processed globally (using normalized URL)
+            if (allExistingImageUrls.has(img.src)) {
+              console.log(`Image ${img.src} already exists globally, skipping`);
               continue;
             }
 
-            const filename = `page_${pageId}_img_${img.index}.jpg`;
-            const processedFilename = `${Date.now()}_${filename}`;
+            // Create a consistent filename based on normalized image URL hash
+            const crypto = await import("crypto");
+            const urlHash = crypto.default
+              .createHash("md5")
+              .update(img.src)
+              .digest("hex")
+              .substring(0, 8);
+            const filename = `${urlHash}.jpg`;
 
-            const base64Data = await downloadImage(img.src, filename);
+            // Use original URL for downloading, normalized URL for deduplication
+            const downloadUrl = img.originalSrc || img.src;
+            const base64Data = await downloadImage(downloadUrl, filename);
             if (base64Data) {
               const file = Buffer.from(base64Data, "base64");
 
@@ -495,7 +534,7 @@ async function scrapeZeroheightProject(
               if (adminClient) {
                 uploadResult = await adminClient.storage
                   .from("zeroheight-images")
-                  .upload(processedFilename, file, {
+                  .upload(filename, file, {
                     cacheControl: "3600",
                     upsert: true,
                     contentType: "image/jpeg",
@@ -503,7 +542,7 @@ async function scrapeZeroheightProject(
               } else {
                 uploadResult = await client!.storage
                   .from("zeroheight-images")
-                  .upload(processedFilename, file, {
+                  .upload(filename, file, {
                     cacheControl: "3600",
                     upsert: true,
                     contentType: "image/jpeg",
@@ -513,19 +552,19 @@ async function scrapeZeroheightProject(
               const { data, error } = uploadResult;
 
               if (error) {
-                console.error(`Error uploading image ${img.src}:`, error);
+                console.error(`Error uploading image ${downloadUrl}:`, error);
               } else {
                 const storagePath = data.path;
 
-                // Collect image data for bulk insertion
+                // Collect image data for bulk insertion (use original URL)
                 imagesToInsert.push({
                   page_id: pageId,
-                  original_url: img.src,
+                  original_url: downloadUrl,
                   storage_path: storagePath,
                 });
               }
             } else {
-              console.error(`Failed to download image: ${img.src}`);
+              console.error(`Failed to download image: ${downloadUrl}`);
             }
           } else {
             console.error(`Invalid image source: ${img.src}`);
@@ -561,11 +600,11 @@ async function scrapeZeroheightProject(
 
     return createSuccessResponse({
       debugInfo: finalDebugInfo,
-      scrapedPages: pagesToInsert.map(({ url, title, content }) => ({
+      scrapedPages: pagesToInsert.map(({ url, title, content, images }) => ({
         url,
         title,
         content,
-        images: [],
+        images: images.map((img) => ({ src: img.src, alt: img.alt })),
       })),
     });
   } catch (error) {
@@ -578,7 +617,7 @@ async function scrapeZeroheightProject(
 }
 
 export const scrapeZeroheightProjectTool = {
-  title: "Scrape Zeroheight Project",
+  title: "scrape-zeroheight-project",
   description:
     "Scrape the configured Zeroheight design system project and add/update page data in the database. Does not clear existing data first.",
   inputSchema: z.object({

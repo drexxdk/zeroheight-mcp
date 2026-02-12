@@ -56,12 +56,11 @@
 
 ### Never run the scraper after it has been run
 
-- **Priority**: High (changed from Critical)
-- **Action**: Check if data has already been scraped before running the scraper. The scraper can be run multiple times as it adds/updates data without clearing existing content.
-- **Check first**: Always verify the current data state before running the scraper.
-- **Rationale**: The scraper now performs additive operations (adds/updates existing data) rather than destructive operations. However, it still takes significant time, so avoid unnecessary re-runs.
-- **Instead**: If the user asks to "run the scraper", check the current state. If fresh data is needed, the scraper can be run again as it will update existing pages and add new ones.
-- **Verification**: Check if the requested data is already available before proceeding with scraping.
+- **Priority**: Low (changed from High)
+- **Action**: The scraper can be run multiple times safely as it uses upsert logic to handle duplicates. It will update existing data and images without creating duplicates.
+- **Rationale**: The scraper now performs safe upsert operations that add new data and update existing data without clearing content. The database handles duplicates automatically.
+- **When to run**: Run the scraper whenever requested - it will safely update existing pages and add new ones.
+- **No verification needed**: Do not check current data state before running - just execute when asked.
 
 ### Stop after completing MCP actions
 
@@ -76,13 +75,13 @@
 - **Priority**: High
 - **Action**: When the user asks you to run or test an MCP tool, always use the `mcp-call` script instead of making direct API calls or using other methods.
 - **Rationale**: The `mcp-call` script provides standardized, reliable MCP API interaction with proper headers, error handling, and response formatting.
-- **When to apply**: When user requests involve running, testing, or calling any MCP tools (Scrape Zeroheight Project, Query Zeroheight Data, List Tables, etc.)
+- **When to apply**: When user requests involve running, testing, or calling any MCP tools (scrape-zeroheight-project, query-zeroheight-data, list-tables, etc.)
 - **How to use**: Run `npm run mcp-call -- "<tool-name>"` or `npx tsx scripts/mcp-call.ts "<tool-name>"` with appropriate arguments
 - **Examples**:
-  - User asks "run List Tables" → use `npm run mcp-call -- "List Tables"`
-  - User asks "test the scraper" → use `npm run mcp-call -- "Scrape Zeroheight Project"`
-  - User asks "query data" → use `npm run mcp-call -- "Query Zeroheight Data" '{"search": "button"}'`
-  - User asks "get database types" → use `npm run mcp-call -- "Database Types"`
+  - User asks "run List Tables" → use `npm run mcp-call -- "list-tables"`
+  - User asks "test the scraper" → use `npm run mcp-call -- "scrape-zeroheight-project"`
+  - User asks "query data" → use `npm run mcp-call -- "query-zeroheight-data" '{"search": "button"}'`
+  - User asks "get database types" → use `npm run mcp-call -- "get-database-types"`
 
 ### TypeScript Best Practices
 

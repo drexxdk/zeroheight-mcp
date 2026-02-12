@@ -6,7 +6,7 @@ import {
 } from "../../common";
 
 export const listTablesTool = {
-  title: "List Tables",
+  title: "list-tables",
   description: "List all tables in the database.",
   inputSchema: z.object({}),
   handler: async () => {

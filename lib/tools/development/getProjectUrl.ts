@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createErrorResponse, createSuccessResponse } from "../../common";
 
 export const getProjectUrlTool = {
-  title: "Get Project URL",
+  title: "get-project-url",
   description: "Gets the API URL for the Supabase project.",
   inputSchema: z.object({}),
   handler: async () => {

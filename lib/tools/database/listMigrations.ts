@@ -6,7 +6,7 @@ import {
 } from "../../common";
 
 export const listMigrationsTool = {
-  title: "List Migrations",
+  title: "list-migrations",
   description: "List all database migrations.",
   inputSchema: z.object({}),
   handler: async () => {

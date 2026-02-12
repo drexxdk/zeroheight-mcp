@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createErrorResponse } from "../../common";
 
 export const getPublishableKeysTool = {
-  title: "Get Publishable API Keys",
+  title: "get-publishable-api-keys",
   description: "Gets all publishable API keys for the project.",
   inputSchema: z.object({}),
   handler: async () => {

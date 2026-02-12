@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getSupabaseClient, createErrorResponse } from "../../common";
 
 export const executeSqlTool = {
-  title: "Execute SQL",
+  title: "execute-sql",
   description: "Execute a SQL query on the database.",
   inputSchema: z.object({
     query: z.string().describe("The SQL query to execute"),

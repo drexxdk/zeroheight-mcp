@@ -71,7 +71,7 @@ async function clearZeroheightData() {
 import { z } from "zod";
 
 export const clearZeroheightDataTool = {
-  title: "Clear Zeroheight Data",
+  title: "clear-zeroheight-data",
   description:
     "Clear all Zeroheight design system data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
   inputSchema: z.object({

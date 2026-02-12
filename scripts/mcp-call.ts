@@ -211,8 +211,23 @@ Note: Arguments should be valid JSON strings for tools that require parameters.
       try {
         toolArgs = JSON.parse(arg);
       } catch {
-        // If not valid JSON, treat as single argument
-        toolArgs = { query: arg }; // Default to query for SQL-like tools
+        // If not valid JSON and not key=value, treat as single argument
+        // For backward compatibility, try to parse simple object notation like {limit: 3}
+        if (arg.startsWith("{") && arg.endsWith("}")) {
+          try {
+            // Convert {limit: 3} to {"limit": 3}
+            const jsonStr = arg
+              .replace(/(\w+):/g, '"$1":') // Add quotes around keys
+              .replace(/: (true|false|null)/g, ": $1") // Keep boolean/null values as is
+              .replace(/: (\d+(?:\.\d+)?)/g, ": $1") // Keep number values as is
+              .replace(/: ([^,\}\s]+)/g, ': "$1"'); // Add quotes around other values (strings)
+            toolArgs = JSON.parse(jsonStr);
+          } catch {
+            toolArgs = { query: arg }; // Default fallback
+          }
+        } else {
+          toolArgs = { query: arg }; // Default fallback for SQL-like tools
+        }
       }
     }
   } else if (args.length > 1) {

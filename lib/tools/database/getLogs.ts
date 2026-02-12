@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getSupabaseClient, createErrorResponse } from "../../common";
 
 export const getLogsTool = {
-  title: "Get Logs",
+  title: "get-logs",
   description: "Get recent logs from the database.",
   inputSchema: z.object({}),
   handler: async () => {

@@ -4,7 +4,7 @@ import { join } from "path";
 import { createErrorResponse, createSuccessResponse } from "../../common";
 
 export const generateTypescriptTypesTool = {
-  title: "Get Database Schema",
+  title: "get-database-schema",
   description:
     "Returns the TypeScript database schema types from the database.schema.ts file.",
   inputSchema: z.object({}),

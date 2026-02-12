@@ -4,7 +4,7 @@ import { join } from "path";
 import { createErrorResponse, createSuccessResponse } from "../../common";
 
 export const databaseTypesTool = {
-  title: "Get Database Types",
+  title: "get-database-types",
   description:
     "Returns the TypeScript database schema types from the database.schema.ts file.",
   inputSchema: z.object({}),

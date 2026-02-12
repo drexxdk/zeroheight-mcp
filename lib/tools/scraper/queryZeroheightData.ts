@@ -7,7 +7,7 @@ import {
 import { PageData } from "./shared";
 
 export const queryZeroheightDataTool = {
-  title: "Query Zeroheight Data",
+  title: "query-zeroheight-data",
   description:
     "Query the cached Zeroheight design system data from the database. Supports searching by title, content, or URL, and can include image data.",
   inputSchema: z.object({
