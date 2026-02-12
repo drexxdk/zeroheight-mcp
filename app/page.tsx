@@ -361,12 +361,12 @@ export default function Home() {
                 </h3>
               </div>
               <p className="mb-4 text-sm text-slate-400">
-                Performs a fresh scrape of your configured Zeroheight design
-                system and caches all pages, components, and documentation.
+                Automatically discovers and scrapes all pages from your
+                Zeroheight design system, including content and images. Uses
+                upsert logic for safe re-running.
               </p>
               <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;Scrape Zeroheight
-                Project&quot;&rbrace;
+                &quot;Scrape the Zeroheight design system&quot;
               </code>
             </div>
 
@@ -393,13 +393,42 @@ export default function Home() {
                 </h3>
               </div>
               <p className="mb-4 text-sm text-slate-400">
-                Search and retrieve design system data with full-text search
-                across titles, content, and URLs.
+                Search and retrieve cached design system data with full-text
+                search. Returns complete Supabase storage URLs for images.
               </p>
               <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;Query Zeroheight Data&quot;,
-                &quot;arguments&quot;: &lbrace;&quot;search&quot;:
-                &quot;...&quot;&rbrace;&rbrace;
+                &quot;Find pages about buttons&quot;
+              </code>
+            </div>
+
+            {/* Clear Zeroheight Data */}
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
+              <div className="mb-4 flex items-center">
+                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-red-900">
+                  <svg
+                    className="h-6 w-6 text-red-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  Clear Zeroheight Data
+                </h3>
+              </div>
+              <p className="mb-4 text-sm text-slate-400">
+                Remove all cached Zeroheight data and images from the database.
+                Requires explicit API key confirmation for safety.
+              </p>
+              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
+                &quot;Clear all cached Zeroheight data&quot;
               </code>
             </div>
 
@@ -426,17 +455,46 @@ export default function Home() {
                 </h3>
               </div>
               <p className="mb-4 text-sm text-slate-400">
-                Execute raw SQL queries directly on the database for advanced
-                data operations.
+                Execute raw SQL queries directly on the Supabase database for
+                advanced data operations and analysis.
               </p>
               <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;Execute SQL&quot;,
-                &quot;arguments&quot;: &lbrace;&quot;query&quot;: &quot;SELECT
-                ...&quot;&rbrace;&rbrace;
+                &quot;Run SQL query: SELECT COUNT(*) FROM pages&quot;
               </code>
             </div>
 
-            {/* Generate TypeScript Types */}
+            {/* List Tables */}
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
+              <div className="mb-4 flex items-center">
+                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-900">
+                  <svg
+                    className="h-6 w-6 text-cyan-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  List Tables
+                </h3>
+              </div>
+              <p className="mb-4 text-sm text-slate-400">
+                List all tables in the database schemas to understand the data
+                structure.
+              </p>
+              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
+                &quot;Show me all database tables&quot;
+              </code>
+            </div>
+
+            {/* Get Database Schema */}
             <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
               <div className="mb-4 flex items-center">
                 <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-900">
@@ -455,15 +513,15 @@ export default function Home() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">
-                  Generate TypeScript Types
+                  Get Database Schema
                 </h3>
               </div>
               <p className="mb-4 text-sm text-slate-400">
-                Generate TypeScript type definitions for your database schema.
+                Retrieve TypeScript type definitions for the complete database
+                schema.
               </p>
               <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;Generate TypeScript
-                Types&quot;&rbrace;
+                &quot;Get the database schema types&quot;
               </code>
             </div>
 
@@ -493,7 +551,7 @@ export default function Home() {
                 Retrieve the API URL for your Supabase project.
               </p>
               <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;Get Project URL&quot;&rbrace;
+                &quot;What&apos;s the Supabase project URL?&quot;
               </code>
             </div>
 
@@ -524,40 +582,7 @@ export default function Home() {
                 anon keys and modern keys.
               </p>
               <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;Get Publishable API
-                Keys&quot;&rbrace;
-              </code>
-            </div>
-
-            {/* List Tables */}
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
-              <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-900">
-                  <svg
-                    className="h-6 w-6 text-cyan-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  List Tables
-                </h3>
-              </div>
-              <p className="mb-4 text-sm text-slate-400">
-                List all tables in one or more database schemas.
-              </p>
-              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;List Tables&quot;,
-                &quot;arguments&quot;: &lbrace;&quot;schemas&quot;:
-                [&quot;public&quot;]&rbrace;&rbrace;
+                &quot;Show me the API keys&quot;
               </code>
             </div>
 
@@ -587,16 +612,16 @@ export default function Home() {
                 List all database migrations in chronological order.
               </p>
               <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;List Migrations&quot;&rbrace;
+                &quot;List all database migrations&quot;
               </code>
             </div>
 
             {/* Get Logs */}
             <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
               <div className="mb-4 flex items-center">
-                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-red-900">
+                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-teal-900">
                   <svg
-                    className="h-6 w-6 text-red-400"
+                    className="h-6 w-6 text-teal-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -612,13 +637,40 @@ export default function Home() {
                 <h3 className="text-lg font-semibold text-white">Get Logs</h3>
               </div>
               <p className="mb-4 text-sm text-slate-400">
-                Retrieve logs for your Supabase project by service type (API,
-                database, auth, etc.).
+                Retrieve recent logs from the Supabase project database.
               </p>
               <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
-                &lbrace;&quot;name&quot;: &quot;Get Logs&quot;,
-                &quot;arguments&quot;: &lbrace;&quot;service&quot;:
-                &quot;api&quot;&rbrace;&rbrace;
+                &quot;Show me the recent logs&quot;
+              </code>
+            </div>
+
+            {/* Get Database Types */}
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm">
+              <div className="mb-4 flex items-center">
+                <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-violet-900">
+                  <svg
+                    className="h-6 w-6 text-violet-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  Get Database Types
+                </h3>
+              </div>
+              <p className="mb-4 text-sm text-slate-400">
+                Retrieve TypeScript type definitions for the database schema.
+              </p>
+              <code className="block rounded bg-slate-700 p-2 font-mono text-xs text-slate-200">
+                &quot;Get the database type definitions&quot;
               </code>
             </div>
           </div>
@@ -789,7 +841,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="px-8 py-4 border-t border-slate-700/50">
         <p className="text-slate-300 text-center">
-          © Zeroheight MCP {new Date().getFullYear()}. All rights reserved.
+          © Zeroheight MCP {new Date().getFullYear()}
         </p>
       </footer>
     </div>

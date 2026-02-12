@@ -8,10 +8,11 @@ A powerful Model Context Protocol (MCP) server that scrapes, indexes, and provid
 
 ## ✨ Features
 
-- **Intelligent Scraping**: Automatically discovers and scrapes all pages, components, and documentation from Zeroheight design systems
-- **Powerful Search**: Full-text search across titles, content, and URLs with flexible query options
+- **Intelligent Scraping**: Automatically discovers and scrapes all pages, components, and documentation from Zeroheight design systems with image processing and deduplication
+- **Powerful Search**: Full-text search across titles, content, and URLs with flexible query options and complete Supabase storage URLs for images
 - **MCP Integration**: Built on the Model Context Protocol for seamless integration with AI assistants and design tools
-- **Image Management**: Automatically downloads, processes, and stores design system images and assets
+- **Image Management**: Automatically downloads, processes, and stores design system images with MD5-based deduplication
+- **Database Tools**: Complete database inspection and management with SQL execution, schema inspection, and migration tracking
 - **Secure Access**: Enterprise-grade authentication with API key validation
 - **High Performance**: Optimized for speed with bulk database operations and efficient caching
 
@@ -120,7 +121,7 @@ Copy the MCP configuration for your preferred setup:
 
 #### 1. Scrape Zeroheight Project
 
-Scrapes a Zeroheight design system project and caches the data in the database.
+Automatically discovers and scrapes all pages from your configured Zeroheight design system, including content and images with deduplication.
 
 **Parameters:** None (uses environment variables)
 
@@ -132,7 +133,7 @@ Scrapes a Zeroheight design system project and caches the data in the database.
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "Scrape Zeroheight Project",
+    "name": "scrape-zeroheight-project",
     "arguments": {}
   }
 }
@@ -140,13 +141,13 @@ Scrapes a Zeroheight design system project and caches the data in the database.
 
 #### 2. Query Zeroheight Data
 
-Queries the cached Zeroheight data with flexible search options.
+Queries the cached Zeroheight data with flexible search options. Returns complete Supabase storage URLs for images.
 
 **Parameters:**
 
 - `search` (optional): Search term for titles or content
 - `url` (optional): Specific page URL to retrieve
-- `includeImages` (optional, default: false): Include image data
+- `includeImages` (optional, default: true): Include image data with full storage URLs
 - `limit` (optional, default: 10): Maximum results
 
 **Examples:**
@@ -158,7 +159,7 @@ Queries the cached Zeroheight data with flexible search options.
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "Query Zeroheight Data",
+    "name": "query-zeroheight-data",
     "arguments": {}
   }
 }
@@ -169,7 +170,7 @@ Queries the cached Zeroheight data with flexible search options.
   "id": 3,
   "method": "tools/call",
   "params": {
-    "name": "Query Zeroheight Data",
+    "name": "query-zeroheight-data",
     "arguments": {
       "search": "brand",
       "includeImages": true
@@ -183,7 +184,7 @@ Queries the cached Zeroheight data with flexible search options.
   "id": 4,
   "method": "tools/call",
   "params": {
-    "name": "Query Zeroheight Data",
+    "name": "query-zeroheight-data",
     "arguments": {
       "url": "https://example.zeroheight.com/p/project/page-slug",
       "includeImages": true
@@ -214,28 +215,41 @@ npx tsx scripts/mcp-call.ts "List Tables"
 
 ### Available Tools
 
-- **Scrape Zeroheight Project**: Scrapes and caches design system data
-- **Query Zeroheight Data**: Searches cached design system content
-- **Clear Zeroheight Data**: Removes cached data (requires API key)
-- **List Tables**: Shows database table names
-- **Execute SQL**: Runs SQL queries (limited support)
-- **List Migrations**: Shows database migration history
-- **Get Logs**: Retrieves system logs
-- **Generate TypeScript Types**: Creates TypeScript definitions
-- **Get Project URL**: Returns Supabase project URL
-- **Get Publishable API Keys**: Shows API key configuration
+- **scrape-zeroheight-project**: Automatically discovers and scrapes all pages from Zeroheight design systems with image processing
+- **query-zeroheight-data**: Searches cached design system data with full-text search, returns complete Supabase storage URLs for images
+- **clear-zeroheight-data**: Removes all cached Zeroheight data and images (requires explicit API key confirmation)
+- **execute-sql**: Executes raw SQL queries directly on the Supabase database
+- **list-tables**: Lists all tables in the database schemas
+- **get-database-schema**: Retrieves TypeScript type definitions for the complete database schema
+- **get-project-url**: Returns the Supabase project API URL
+- **get-publishable-api-keys**: Shows all publishable API keys for the project
+- **list-migrations**: Lists all database migrations in chronological order
+- **get-logs**: Retrieves recent logs from the Supabase project database
+- **get-database-types**: Retrieves TypeScript type definitions for the database schema
 
 ### Examples
 
 ```bash
+# Scrape Zeroheight design system (discovers all pages automatically)
+npm run mcp-call -- "scrape-zeroheight-project"
+
+# Query for specific content with images
+npm run mcp-call -- "query-zeroheight-data" '{"search": "color palette", "includeImages": true}'
+
+# Get a specific page by URL
+npm run mcp-call -- "query-zeroheight-data" '{"url": "https://example.zeroheight.com/p/project/page-slug"}'
+
 # List all database tables
-node mcp-call.js "List Tables"
+npm run mcp-call -- "list-tables"
 
-# Search for design system content
-node mcp-call.js "Query Zeroheight Data" '{"search": "color palette"}'
+# Execute SQL queries
+npm run mcp-call -- "execute-sql" '{"query": "SELECT COUNT(*) FROM pages;"}'
 
-# Get project information
-node mcp-call.js "Get Project URL"
+# Get database schema types
+npm run mcp-call -- "get-database-schema"
+
+# Clear all cached data (requires API key)
+npm run mcp-call -- "clear-zeroheight-data" '{"apiKey": "your-mcp-api-key"}'
 ```
 
 ## 🧪 Testing
@@ -249,7 +263,7 @@ curl -X POST http://localhost:3000/api/mcp \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Scrape Zeroheight Project","arguments":{}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scrape-zeroheight-project","arguments":{}}}'
 ```
 
 **Query Data:**
@@ -259,7 +273,17 @@ curl -X POST http://localhost:3000/api/mcp \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Query Zeroheight Data","arguments":{"search":"color"}}}'
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-zeroheight-data","arguments":{"search":"color"}}}'
+```
+
+**Execute SQL:**
+
+```bash
+curl -X POST http://localhost:3000/api/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute-sql","arguments":{"query":"SELECT COUNT(*) FROM pages;"}}}'
 ```
 
 ### PowerShell Testing
@@ -271,12 +295,17 @@ $env:MCP_API_KEY = "your-api-key-here"
 # Scrape project
 Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
   -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
-  -Body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Scrape Zeroheight Project","arguments":{}}}' | Format-List
+  -Body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scrape-zeroheight-project","arguments":{}}}' | Format-List
 
 # Query data
 Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
   -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
-  -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Query Zeroheight Data","arguments":{"search":"color"}}}' | Format-List
+  -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-zeroheight-data","arguments":{"search":"color"}}}' | Format-List
+
+# Execute SQL
+Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
+  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
+  -Body '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute-sql","arguments":{"query":"SELECT COUNT(*) FROM pages;"}}}' | Format-List
 ```
 
 ### Automated Testing
