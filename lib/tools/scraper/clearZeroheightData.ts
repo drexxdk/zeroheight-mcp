@@ -73,9 +73,13 @@ import { z } from "zod";
 export const clearZeroheightDataTool = {
   title: "Clear Zeroheight Data",
   description:
-    "Clear all Zeroheight design system data from the database and storage bucket. This removes all pages and images. Requires MCP_API_KEY for authentication.",
+    "Clear all Zeroheight design system data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
   inputSchema: z.object({
-    apiKey: z.string().describe("MCP API key for authentication"),
+    apiKey: z
+      .string()
+      .describe(
+        "MCP API key for authentication - required to confirm destructive action",
+      ),
   }),
   handler: async ({ apiKey }: { apiKey: string }) => {
     // Validate API key

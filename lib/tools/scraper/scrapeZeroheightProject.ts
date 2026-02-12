@@ -9,7 +9,11 @@ import {
 import { downloadImage } from "../../image-utils";
 import { createProgressBar } from "./shared";
 
-async function scrapeZeroheightProject(url: string, password?: string) {
+async function scrapeZeroheightProject(
+  url: string,
+  password?: string,
+  limit?: number,
+) {
   try {
     console.log("Starting Zeroheight project scrape...");
 
@@ -198,15 +202,23 @@ async function scrapeZeroheightProject(url: string, password?: string) {
     console.log(`Total unique links to process: ${allLinks.size}`);
 
     let processedCount = 0;
+    const maxPages = limit || Infinity;
 
-    // Process each link
-    for (const link of allLinks) {
+    // Process links, discovering more as we go, until we hit the limit
+    while (allLinks.size > 0 && processedCount < maxPages) {
+      // Get the next link to process (remove it from the set)
+      const link = allLinks.values().next().value!;
+      allLinks.delete(link);
+
       if (processedLinks.has(link)) continue;
 
       processedCount++;
-      const progressBar = createProgressBar(processedCount, allLinks.size);
+      const progressBar = createProgressBar(
+        processedCount,
+        Math.min(maxPages, allLinks.size + processedCount),
+      );
       console.log(
-        `${progressBar} Processing page ${processedCount}/${allLinks.size}: ${link}`,
+        `${progressBar} Processing page ${processedCount}/${maxPages === Infinity ? "∞" : maxPages}: ${link}`,
       );
 
       try {
@@ -216,10 +228,31 @@ async function scrapeZeroheightProject(url: string, password?: string) {
         const title: string = await page.title();
         const content: string = await page
           .$eval(
-            ".content, .zh-content, main",
+            ".zh-content, .content, main .content, [data-testid='page-content'], .page-content",
             (el: Element) => el.textContent?.trim() || "",
           )
-          .catch(() => "");
+          .catch(() => {
+            // Fallback: try to get content from the main content area excluding navigation
+            return page.$eval("body", (body) => {
+              // Remove navigation and header elements
+              const clone = body.cloneNode(true) as HTMLElement;
+              const navs = clone.querySelectorAll(
+                "nav, header, .navigation, .header, .sidebar",
+              );
+              navs.forEach((nav) => nav.remove());
+
+              // Try to find the main content area
+              const mainContent = clone.querySelector(
+                "main, .main, .content, .zh-content, [role='main']",
+              );
+              if (mainContent) {
+                return mainContent.textContent?.trim() || "";
+              }
+
+              // Last resort: get all text but limit it
+              return clone.textContent?.trim().substring(0, 10000) || "";
+            });
+          });
 
         // Discover additional links on this page
         const pageLinks = await page.$$eval('a[href*="/p/"]', (links) =>
@@ -335,12 +368,14 @@ async function scrapeZeroheightProject(url: string, password?: string) {
     if (pagesToInsert.length > 0) {
       const { data: insertedPages, error: bulkError } = await client!
         .from("pages")
-        .insert(
+        .upsert(
           pagesToInsert.map(({ url, title, content }) => ({
             url,
             title,
             content,
+            scraped_at: new Date().toISOString(),
           })),
+          { onConflict: "url" },
         )
         .select();
 
@@ -378,6 +413,25 @@ async function scrapeZeroheightProject(url: string, password?: string) {
 
         const pageId = insertedPage.id;
 
+        // Get all existing images for this page in one query
+        const { data: existingImages, error: existingImagesError } =
+          await client!
+            .from("images")
+            .select("original_url")
+            .eq("page_id", pageId);
+
+        if (existingImagesError) {
+          console.error(
+            `Error fetching existing images for page ${pageId}:`,
+            existingImagesError,
+          );
+        }
+
+        // Create a set of existing image URLs for fast lookup
+        const existingImageUrls = new Set(
+          existingImages?.map((img) => img.original_url) || [],
+        );
+
         // Process and upload images for this page
         for (const img of pageData.images) {
           totalImagesProcessed++;
@@ -390,6 +444,14 @@ async function scrapeZeroheightProject(url: string, password?: string) {
           );
 
           if (img.src && img.src.startsWith("http")) {
+            // Check if this image has already been processed for this page
+            if (existingImageUrls.has(img.src)) {
+              console.log(
+                `Image ${img.src} already exists for this page, skipping`,
+              );
+              continue;
+            }
+
             const filename = `page_${pageId}_img_${img.index}.jpg`;
             const processedFilename = `${Date.now()}_${filename}`;
 
@@ -435,7 +497,7 @@ async function scrapeZeroheightProject(url: string, password?: string) {
                   .from("zeroheight-images")
                   .upload(processedFilename, file, {
                     cacheControl: "3600",
-                    upsert: false,
+                    upsert: true,
                     contentType: "image/jpeg",
                   });
               } else {
@@ -443,7 +505,7 @@ async function scrapeZeroheightProject(url: string, password?: string) {
                   .from("zeroheight-images")
                   .upload(processedFilename, file, {
                     cacheControl: "3600",
-                    upsert: false,
+                    upsert: true,
                     contentType: "image/jpeg",
                   });
               }
@@ -519,8 +581,13 @@ export const scrapeZeroheightProjectTool = {
   title: "Scrape Zeroheight Project",
   description:
     "Scrape the configured Zeroheight design system project and add/update page data in the database. Does not clear existing data first.",
-  inputSchema: z.object({}),
-  handler: async () => {
+  inputSchema: z.object({
+    limit: z
+      .number()
+      .optional()
+      .describe("Maximum number of pages to scrape (for testing)"),
+  }),
+  handler: async ({ limit }: { limit?: number }) => {
     const url = process.env.ZEROHEIGHT_PROJECT_URL;
     const password = process.env.ZEROHEIGHT_PROJECT_PASSWORD;
 
@@ -531,6 +598,6 @@ export const scrapeZeroheightProjectTool = {
     }
 
     // Always perform a fresh scrape
-    return await scrapeZeroheightProject(url, password);
+    return await scrapeZeroheightProject(url, password, limit);
   },
 };

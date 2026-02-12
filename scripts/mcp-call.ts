@@ -195,11 +195,25 @@ Note: Arguments should be valid JSON strings for tools that require parameters.
   // Parse arguments - try to parse as JSON first, otherwise use simple key=value
   let toolArgs: Record<string, unknown> = {};
   if (args.length === 1) {
-    try {
-      toolArgs = JSON.parse(args[0]);
-    } catch {
-      // If not valid JSON, treat as single argument
-      toolArgs = { query: args[0] }; // Default to query for SQL-like tools
+    const arg = args[0];
+    // Check if it's key=value format
+    if (arg.includes("=")) {
+      const [key, value] = arg.split("=");
+      if (value === undefined) {
+        toolArgs[key] = true; // Boolean flag
+      } else if (!isNaN(Number(value))) {
+        toolArgs[key] = Number(value); // Number
+      } else {
+        toolArgs[key] = value; // String
+      }
+    } else {
+      // Try to parse as JSON
+      try {
+        toolArgs = JSON.parse(arg);
+      } catch {
+        // If not valid JSON, treat as single argument
+        toolArgs = { query: arg }; // Default to query for SQL-like tools
+      }
     }
   } else if (args.length > 1) {
     // Parse key=value pairs

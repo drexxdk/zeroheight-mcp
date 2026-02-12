@@ -56,12 +56,12 @@
 
 ### Never run the scraper after it has been run
 
-- **Priority**: Critical
-- **Action**: NEVER attempt to run the Zeroheight scraper again after it has already been executed successfully in the current session.
-- **Check first**: Always check if data has already been scraped before attempting to run the scraper.
-- **Rationale**: The scraper performs destructive operations (clears existing data) and takes significant time. Running it multiple times wastes resources and can cause confusion.
-- **Instead**: If the user asks to "run the scraper", check the current state and inform them that data is already available, or ask what specific operation they want to perform.
-- **Verification**: Look for previous successful scraper execution in the conversation history before proceeding.
+- **Priority**: High (changed from Critical)
+- **Action**: Check if data has already been scraped before running the scraper. The scraper can be run multiple times as it adds/updates data without clearing existing content.
+- **Check first**: Always verify the current data state before running the scraper.
+- **Rationale**: The scraper now performs additive operations (adds/updates existing data) rather than destructive operations. However, it still takes significant time, so avoid unnecessary re-runs.
+- **Instead**: If the user asks to "run the scraper", check the current state. If fresh data is needed, the scraper can be run again as it will update existing pages and add new ones.
+- **Verification**: Check if the requested data is already available before proceeding with scraping.
 
 ### Stop after completing MCP actions
 
@@ -97,3 +97,8 @@
 - Maintain consistent formatting and structure
 - Use meaningful variable and function names
 - Add comments for complex logic
+
+### Interaction Guidelines
+
+- **Don't suggest follow-up commands**: Only suggest or execute follow-up commands when explicitly asked, or when it's necessary to complete the current task
+- **Focus on requested actions**: Complete the user's specific request without adding unsolicited suggestions for next steps
