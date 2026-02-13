@@ -68,15 +68,9 @@ The scraper intelligently discovers and processes pages while preventing duplica
 - Progress counter only increments for actually processed unique pages
 - Database storage uses upsert operations to handle any remaining duplicates
 
-### Link Discovery Limits
-
-- When a page limit is set (e.g., `limit: 3`), stops discovering new links once the limit is reached
-- Prevents the processing queue from growing beyond the specified number of pages
-- Ensures predictable execution time and resource usage
-
 ## 📋 Console Output Example
 
-Here's an example of the console output when running the scraper with a limit of 3 pages:
+Here's an example of the console output when running the scraper:
 
 ```
 [dotenv@17.2.4] injecting env (5) from .env.local

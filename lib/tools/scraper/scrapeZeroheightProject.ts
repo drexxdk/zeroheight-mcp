@@ -199,7 +199,6 @@ async function processPageAndImages(
 export async function scrapeZeroheightProject(
   url: string,
   password?: string,
-  limit?: number,
   pageUrls?: string[],
 ) {
   try {
@@ -783,7 +782,7 @@ export const scrapeZeroheightProjectTool = {
     }
 
     // Always perform a fresh scrape
-    await scrapeZeroheightProject(projectUrl, password, undefined, pageUrls);
+    await scrapeZeroheightProject(projectUrl, password, pageUrls);
     console.log("Scraping completed successfully");
     return createSuccessResponse("Scraping completed successfully");
   },

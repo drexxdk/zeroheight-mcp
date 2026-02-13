@@ -1,52 +1,9 @@
+import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import path from "path";
-import { readFileSync } from "fs";
 
-// Load environment variables from .env.local
-function loadEnv() {
-  try {
-    const envContent = readFileSync(".env.local", "utf8");
-    const envVars = envContent.split("\n").reduce(
-      (acc, line) => {
-        const [key, ...valueParts] = line.split("=");
-        if (key && valueParts.length > 0) {
-          acc[key.trim()] = valueParts
-            .join("=")
-            .trim()
-            .replace(/^["']|["']$/g, "");
-        }
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
-
-    Object.assign(process.env, envVars);
-    console.log("Loaded environment variables:");
-    console.log(
-      "- NEXT_PUBLIC_SUPABASE_URL:",
-      process.env.NEXT_PUBLIC_SUPABASE_URL ? "Set" : "Not set",
-    );
-    console.log(
-      "- SUPABASE_ACCESS_TOKEN:",
-      process.env.SUPABASE_ACCESS_TOKEN
-        ? "Set (length: " + process.env.SUPABASE_ACCESS_TOKEN!.length + ")"
-        : "Not set",
-    );
-    console.log(
-      "- SUPABASE_SERVICE_ROLE_KEY:",
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-        ? "Set (length: " + process.env.SUPABASE_SERVICE_ROLE_KEY!.length + ")"
-        : "Not set",
-    );
-  } catch (error) {
-    console.log(
-      "Could not load .env.local file, using existing environment variables:",
-      error instanceof Error ? error.message : error,
-    );
-  }
-}
-
-loadEnv();
+// Load environment variables
+config({ path: ".env.local" });
 
 // Use the same Supabase client setup as the main app
 function getSupabaseClient() {

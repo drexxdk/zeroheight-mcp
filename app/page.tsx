@@ -842,7 +842,7 @@ export default function Home() {
           >
             <p className="mb-6 text-slate-400">
               Here&apos;s an example of the console output when running the
-              scraper with a limit of 3 pages:
+              scraper:
             </p>
             <div className="w-full overflow-x-auto">
               <div className="grid">

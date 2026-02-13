@@ -9,9 +9,11 @@
     "start": "next start",
     "lint": "eslint",
     "test-api": "npx tsx scripts/test-api.ts",
+    "test-console-log": "npx tsx scripts/test-console-log.ts",
+    "test-image-upload": "npx tsx scripts/test-image-upload.ts",
+    "test-scrape-all": "npx tsx scripts/test-scrape-all.ts",
+    "test-scrape-specific-pages": "npx tsx scripts/test-scrape-specific-pages.ts",
     "mcp-call": "npx tsx scripts/mcp-call.ts",
-    "scrape-pages": "npx tsx scripts/scrape-pages.ts",
-    "scrape-zeroheight": "npx tsx scripts/scrape-zeroheight.ts",
     "supabase-login": "npx -y supabase@2.72.8 login",
     "generate-database-schema": "npx -y supabase@2.72.8 gen types typescript --project-id qyoexslrsblaphbcvjdk --schema public > lib/database.schema.ts",
     "generate-database-types": "npx tsx scripts/generate-database-types.ts"
