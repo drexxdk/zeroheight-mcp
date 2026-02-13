@@ -1,9 +1,6 @@
 import { z } from "zod";
-import {
-  getSupabaseClient,
-  createErrorResponse,
-  createSuccessResponse,
-} from "../../common";
+import { createErrorResponse, createSuccessResponse } from "../../common";
+import { getClient } from "../../common/supabaseClients";
 import { PageData } from "./shared";
 
 // Get the Supabase project URL for constructing storage URLs
@@ -48,7 +45,7 @@ export const queryZeroheightDataTool = {
     includeImages?: boolean;
     limit?: number;
   }) => {
-    const client = getSupabaseClient();
+    const { client } = getClient();
     if (!client) {
       return createErrorResponse("Error: Supabase client not configured");
     }

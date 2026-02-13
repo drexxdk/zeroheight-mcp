@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { getSupabaseClient, createErrorResponse } from "../../common";
+import { createErrorResponse } from "../../common";
+import { getClient } from "../../common/supabaseClients";
 
 export const getLogsTool = {
   title: "get-logs",
   description: "Retrieve recent logs from the Supabase project database.",
   inputSchema: z.object({}),
   handler: async () => {
-    const client = getSupabaseClient();
+    const { client } = getClient();
     if (!client) {
       return createErrorResponse("Error: Supabase client not configured");
     }

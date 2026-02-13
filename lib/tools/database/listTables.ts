@@ -1,9 +1,6 @@
 import { z } from "zod";
-import {
-  getSupabaseClient,
-  createErrorResponse,
-  createSuccessResponse,
-} from "../../common";
+import { createErrorResponse, createSuccessResponse } from "../../common";
+import { getClient } from "../../common/supabaseClients";
 
 export const listTablesTool = {
   title: "list-tables",
@@ -11,7 +8,7 @@ export const listTablesTool = {
     "List all tables in the database schemas to understand the data structure.",
   inputSchema: z.object({}),
   handler: async () => {
-    const client = getSupabaseClient();
+    const { client } = getClient();
     if (!client) {
       return createErrorResponse("Error: Supabase client not configured");
     }

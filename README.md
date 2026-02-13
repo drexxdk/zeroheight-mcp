@@ -223,6 +223,21 @@ Copy the MCP configuration for your preferred setup:
 }
 ```
 
+### Supabase client wrapper
+
+This codebase exposes a single helper wrapper to access Supabase clients from tools: `getClient()` (in `lib/common/supabaseClients.ts`). Use it like:
+
+```ts
+import { getClient } from "./lib/common/supabaseClients";
+
+const { client, storage } = getClient();
+// `client` is the regular Supabase client for DB operations
+// `storage` is a helper that prefers admin-capable storage methods when available
+await storage.upload("file.jpg", buffer);
+```
+
+Using the wrapper keeps code simple and centralizes admin-capability checks for storage operations.
+
 ## 📚 API Reference
 
 ### Tools

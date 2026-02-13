@@ -8,15 +8,8 @@ export interface PageData {
     storage_path: string;
   }> | null;
 }
-
-// Reusable progress bar function
-export function createProgressBar(
-  current: number,
-  total: number,
-  width: number = 20,
-): string {
-  const filledBars = Math.min(Math.round((current / total) * width), width);
-  const emptyBars = width - filledBars;
-  const progressBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
-  return `[${progressBar}]`;
-}
+export {
+  createProgressBar,
+  createProgressHelpers,
+} from "../../common/progress";
+export type { Progress } from "../../common/progress";

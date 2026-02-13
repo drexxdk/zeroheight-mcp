@@ -83,6 +83,14 @@
   - User asks "query data" → use `npm run mcp-call -- "query-zeroheight-data" '{"search": "button"}'`
   - User asks "get database types" → use `npm run mcp-call -- "get-database-types"`
 
+- **Testing the scraper locally**: When you want to run a focused scraper test against specific pages, use the provided script `scripts/test-scrape-specific-pages.ts`. Run it with:
+
+  ```bash
+  npx tsx scripts/test-scrape-specific-pages.ts
+  ```
+
+  This runs `scrapeZeroheightProject` with a curated list of test URLs and is the recommended local test harness for the scraper.
+
 ### TypeScript Best Practices
 
 - Use specific types instead of `any`

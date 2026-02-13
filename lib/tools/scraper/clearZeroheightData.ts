@@ -1,22 +1,17 @@
-import {
-  getSupabaseClient,
-  getSupabaseAdminClient,
-  createErrorResponse,
-  createSuccessResponse,
-} from "../../common";
+import { createErrorResponse, createSuccessResponse } from "../../common";
+import { getClient } from "../../common/supabaseClients";
 import { clearStorageBucket } from "../../image-utils";
 
 async function clearZeroheightData() {
   try {
     console.log("Clearing existing Zeroheight data...");
 
-    const client = getSupabaseClient();
-    const adminClient = getSupabaseAdminClient();
+    const { client, storage } = getClient();
 
     console.log("Client available:", !!client);
-    console.log("Admin client available:", !!adminClient);
+    console.log("Admin-capable storage available:", !!storage.listBuckets);
 
-    if (client && adminClient) {
+    if (client) {
       // Clear images table
       console.log("Clearing images table...");
       const { error: imagesError } = await client
@@ -51,7 +46,7 @@ async function clearZeroheightData() {
 
       // Clear storage bucket
       console.log("Clearing zeroheight-images storage bucket...");
-      await clearStorageBucket(adminClient || client);
+      await clearStorageBucket(client);
 
       console.log("All Zeroheight data cleared successfully");
       return createSuccessResponse("Zeroheight data cleared successfully");

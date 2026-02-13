@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { getSupabaseClient, createErrorResponse } from "../../common";
+import { createErrorResponse } from "../../common";
+import { getClient } from "../../common/supabaseClients";
 
 export const executeSqlTool = {
   title: "execute-sql",
@@ -9,7 +10,7 @@ export const executeSqlTool = {
     query: z.string().describe("The SQL query to execute"),
   }),
   handler: async () => {
-    const client = getSupabaseClient();
+    const { client } = getClient();
     if (!client) {
       return createErrorResponse("Error: Supabase client not configured");
     }

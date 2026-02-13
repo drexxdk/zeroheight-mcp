@@ -4,7 +4,7 @@ import { scrapeZeroheightProject } from "../lib/tools/scraper/scrapeZeroheightPr
 // Load environment variables
 config({ path: ".env.local" });
 
-async function testScrapeAll() {
+async function scrapeAll() {
   console.log("Scraping all Zeroheight pages...");
 
   await scrapeZeroheightProject(
@@ -15,4 +15,4 @@ async function testScrapeAll() {
   console.log("Scraping completed!");
 }
 
-testScrapeAll().catch(console.error);
+scrapeAll().catch(console.error);
