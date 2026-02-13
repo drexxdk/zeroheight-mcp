@@ -204,38 +204,88 @@ Copy the MCP configuration for your preferred setup:
 
 **Production (Vercel):**
 
-```json
+````json
 {
   "mcpServers": {
     "zeroheight-scraper": {
       "command": "npx",
+
+Note: for PowerShell users, quoting JSON args can be tricky. Example usages:
+
+PowerShell (prompting for key):
+
+```powershell
+$k = Read-Host -AsSecureString "Enter MCP API key" | ConvertFrom-SecureString
       "args": [
+$env:MCP_API_KEY = (ConvertTo-SecureString $k -AsPlainText -Force)
+npm run mcp:clear
+````
+
+PowerShell (inline JSON argument):
+
+```powershell
         "mcp-remote",
+$k = $env:MCP_API_KEY
+npx tsx scripts/mcp-call.ts clear-zeroheight-data "{\"apiKey\":\"$k\"}"
+```
+
+              "args": ["mcp-remote", "http://localhost:3000/api/mcp"]
+
+````
+
         "https://zeroheight-mcp.vercel.app/api/mcp",
         "--header",
-        "Authorization: Bearer ${MCP_API_KEY}"
-      ],
-      "env": {
-        "MCP_API_KEY": "your-actual-api-key-here"
-      }
-    }
-  }
-}
-```
+        Direct calls (server-first)
 
-### Supabase client wrapper
+        You can call MCP tools directly without the wrapper. Use an Authorization header or `X-API-Key` header matching the server's `MCP_API_KEY`.
 
-This codebase exposes a single helper wrapper to access Supabase clients from tools: `getClient()` (in `lib/common/supabaseClients.ts`). Use it like:
+        List tools (Node):
 
-```ts
-import { getClient } from "./lib/common/supabaseClients";
+        ```bash
+        node -e "const k=process.env.MCP_API_KEY; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})});console.log(await res.text());}catch(e){console.error(e);} })()"
+        ```
 
-const { client, storage } = getClient();
-// `client` is the regular Supabase client for DB operations
-// `storage` is a helper that prefers admin-capable storage methods when available
-await storage.upload("file.jpg", buffer);
-```
+        Call a tool (Node) — `clear-zeroheight-data` example (destructive):
 
+        ```bash
+        node -e "const k=process.env.MCP_API_KEY; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'clear-zeroheight-data',arguments:{apiKey:k}}})});console.log(await res.text());}catch(e){console.error(e);} })()"
+        ```
+
+        PowerShell example (prompt before destructive action):
+
+        ```powershell
+        $k = Read-Host -AsSecureString "Enter MCP API key" | ConvertFrom-SecureString
+        # convert back to plain (only do this locally and carefully)
+        $plain = ConvertTo-SecureString $k -AsPlainText -Force
+        # call with header
+        Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/mcp -Headers @{ Authorization = "Bearer $plain" } -Body (@{ jsonrpc = '2.0'; id = 1; method = 'tools/call'; params = @{ name = 'clear-zeroheight-data'; arguments = @{ apiKey = $plain } } } | ConvertTo-Json -Depth 10)
+        ```
+
+        Using `mcp-remote` (if available) is also supported by many editors and tools — just configure it to call the same MCP endpoint and supply the `MCP_API_KEY` via your environment or secure editor secrets.
+
+        Using the safe script
+
+        We provide a small helper script `scripts/mcp-call-safe.ts` that prompts for the API key (hidden) if `MCP_API_KEY` is not set, JSON-stringifies arguments, and sends the correct headers.
+
+        List tools (safe script):
+
+        ```powershell
+        $env:MCP_API_KEY = 'your_api_key_here' # optional, or you'll be prompted
+        npx tsx scripts/mcp-call-safe.ts list
+        ```
+
+        Call a tool (safe script) — `clear-zeroheight-data` example (destructive):
+
+        ```powershell
+        $env:MCP_API_KEY = 'your_api_key_here' # optional, or you'll be prompted
+        npx tsx scripts/mcp-call-safe.ts clear-zeroheight-data '{"apiKey":"your_api_key_here"}'
+        ```
+
+        Security note
+
+        - **Do not store** your `MCP_API_KEY` in repository-tracked files such as `.vscode/mcp.json`. If the key is committed or shared, it can be used to run destructive MCP tools.
+        - Store the key in an environment file (e.g., `.env.local` added to `.gitignore`), your OS keychain, or the editor/CI secret store.
+        - Prefer using `scripts/mcp-call-safe.ts` or prompting at runtime so secrets are not kept in plaintext in the project.
 Using the wrapper keeps code simple and centralizes admin-capability checks for storage operations.
 
 ## 📚 API Reference
@@ -260,7 +310,7 @@ Automatically discovers and scrapes all pages from your configured Zeroheight de
     "arguments": {}
   }
 }
-```
+````
 
 #### 2. Query Zeroheight Data
 

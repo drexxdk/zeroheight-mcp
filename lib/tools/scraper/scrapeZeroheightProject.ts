@@ -44,44 +44,17 @@ export async function scrapeZeroheightProject(
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 1024 });
 
-    // Set timeout for navigation
-    page.setDefaultTimeout(30000);
-
-    console.log(`Navigating to ${url}...`);
-    await page.goto(url, { waitUntil: "networkidle0" });
-
-    // Handle password if provided (lightweight helper)
+    // Navigate to the project URL and try to login if a password is provided
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
     if (password) {
-      console.log("Password provided, attempting login...");
+      console.log("Password provided, checking for login form...");
       await tryLogin(page, password);
-    } else {
-      console.log("No password provided, proceeding without login");
+      console.log("Login attempt complete, continuing...");
     }
-
-    // Wait for content to load
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    console.log(`Final URL after loading: ${page.url()}`);
-    console.log(`Page title: ${await page.title()}`);
-
-    // Final check for protected content indicators
-    const hasContent = await page.$(
-      '.content, .zh-content, main, [data-testid*="content"], .page-content',
-    );
-    console.log(`Content container found: ${!!hasContent}`);
-
-    const bodyTextLength = await page.$eval(
-      "body",
-      (body) => (body.textContent || "").length,
-    );
-    console.log(`Body text length: ${bodyTextLength} characters`);
 
     const allowedHostname = new URL(url).hostname;
 
-    console.log(`Project URL: ${getUrlPath(url)}`);
-    console.log(`Allowed hostname: ${allowedHostname}`);
-
-    let allLinks: Set<string>;
+    let allLinks: Set<string> = new Set();
     const processedLinks = new Set<string>();
 
     let allLinksOnPage: string[] = [];

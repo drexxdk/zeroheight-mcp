@@ -91,6 +91,16 @@
 
   This runs `scrapeZeroheightProject` with a curated list of test URLs and is the recommended local test harness for the scraper.
 
+### Prefer MCP tools defined in the app API
+
+- **Priority**: High
+- **Action**: When asked to perform actions that interact with the MCP (clear data, run scrapers, query stored data, or other project-level tasks), use the MCP tools exposed by the project API rather than calling services or endpoints directly.
+- **Where the tools are defined**: The available MCP tools and their server-side implementations are declared in `app/api/[transport]/route.ts` — consult this file to discover which tools exist and how they are named.
+- **Discovery-first approach**: Use the `tools/list` tool (the MCP tool that lists available tools) as the starting point to discover tool names and accepted arguments before invoking a tool.
+- **How to call**: Use the `mcp-call` script (`npm run mcp-call -- "<tool-name>"`) or `npx tsx scripts/mcp-call.ts "<tool-name>"` and pass validated arguments (for destructive actions, include the required `apiKey` or confirmation token). Prefer PowerShell/CLI-friendly invocation formats (see `scripts/mcp-call.ts` for accepted argument formats).
+- **Rationale**: This centralizes access control, logging, and validation on the server side and prevents accidental direct modifications to the database or storage from local scripts.
+- **Safety**: For destructive actions (clear, delete), require the explicit `MCP_API_KEY` confirmation parameter and never attempt destructive operations without it.
+
 ### TypeScript Best Practices
 
 - Use specific types instead of `any`
