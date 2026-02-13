@@ -1,29 +1,11 @@
 import { config } from "dotenv";
-import { createClient } from "@supabase/supabase-js";
 import path from "path";
+import { getSupabaseClient, getSupabaseAdminClient } from "../lib/common";
 
 // Load environment variables
 config({ path: ".env.local" });
 
-// Use the same Supabase client setup as the main app
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ACCESS_TOKEN; // Use anon key for regular operations
-  if (supabaseUrl && supabaseKey) {
-    return createClient(supabaseUrl, supabaseKey);
-  }
-  return null;
-}
-
-function getSupabaseAdminClient() {
-  // Use service role key only for admin operations like creating buckets
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (supabaseUrl && supabaseKey) {
-    return createClient(supabaseUrl, supabaseKey);
-  }
-  return null;
-}
+// Use shared Supabase client helpers from `lib/common`
 
 async function downloadImage(
   url: string,
