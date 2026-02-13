@@ -224,16 +224,10 @@ npm run mcp:clear
 PowerShell (inline JSON argument):
 
 ```powershell
-        "mcp-remote",
-$k = $env:MCP_API_KEY
-npx tsx scripts/mcp-call.ts clear-zeroheight-data "{\"apiKey\":\"$k\"}"
+  "mcp-remote",
+  # Use your editor's MCP integration or call the MCP API directly with appropriate headers and JSON-RPC body
+  # Example: POST to https://zeroheight-mcp.vercel.app/api/mcp with Authorization header and Accept: application/json, text/event-stream
 ```
-
-              "args": ["mcp-remote", "http://localhost:3000/api/mcp"]
-
-````
-
-        "https://zeroheight-mcp.vercel.app/api/mcp",
         "--header",
         Direct calls (server-first)
 
@@ -263,30 +257,10 @@ npx tsx scripts/mcp-call.ts clear-zeroheight-data "{\"apiKey\":\"$k\"}"
 
         Using `mcp-remote` (if available) is also supported by many editors and tools — just configure it to call the same MCP endpoint and supply the `MCP_API_KEY` via your environment or secure editor secrets.
 
-        Using the safe script
-
-        We provide a small helper script `scripts/mcp-call-safe.ts` that prompts for the API key (hidden) if `MCP_API_KEY` is not set, JSON-stringifies arguments, and sends the correct headers.
-
-        List tools (safe script):
-
-        ```powershell
-        $env:MCP_API_KEY = 'your_api_key_here' # optional, or you'll be prompted
-        npx tsx scripts/mcp-call-safe.ts list
-        ```
-
-        Call a tool (safe script) — `clear-zeroheight-data` example (destructive):
-
-        ```powershell
-        $env:MCP_API_KEY = 'your_api_key_here' # optional, or you'll be prompted
-        npx tsx scripts/mcp-call-safe.ts clear-zeroheight-data '{"apiKey":"your_api_key_here"}'
-        ```
-
         Security note
 
         - **Do not store** your `MCP_API_KEY` in repository-tracked files such as `.vscode/mcp.json`. If the key is committed or shared, it can be used to run destructive MCP tools.
         - Store the key in an environment file (e.g., `.env.local` added to `.gitignore`), your OS keychain, or the editor/CI secret store.
-        - Prefer using `scripts/mcp-call-safe.ts` or prompting at runtime so secrets are not kept in plaintext in the project.
-Using the wrapper keeps code simple and centralizes admin-capability checks for storage operations.
 
 ## 📚 API Reference
 
@@ -368,62 +342,7 @@ Queries the cached Zeroheight data with flexible search options. Returns complet
 
 ## 🖥️ CLI Tool
 
-A convenient command-line interface for testing and interacting with MCP tools directly.
-
-### Usage
-
-```bash
-# Show help and available tools
-npm run mcp-call -- --help
-
-# Call a tool without arguments
-npm run mcp-call -- "List Tables"
-
-# Call a tool with JSON arguments
-npm run mcp-call -- "Query Zeroheight Data" '{"search": "button", "limit": 5}'
-
-# Or use directly with tsx
-npx tsx scripts/mcp-call.ts "List Tables"
-```
-
-### Available Tools
-
-- **scrape-zeroheight-project**: Automatically discovers and scrapes all pages from Zeroheight design systems with image processing. Uses upsert logic for safe re-running without clearing existing data.
-- **query-zeroheight-data**: Searches cached design system data with full-text search, returns complete Supabase storage URLs for images
-- **clear-zeroheight-data**: Removes all cached Zeroheight data and images (requires explicit API key confirmation)
-- **execute-sql**: Executes raw SQL queries directly on the Supabase database
-- **list-tables**: Lists all tables in the database schemas
-- **get-database-schema**: Retrieves TypeScript type definitions for the complete database schema
-- **get-project-url**: Returns the Supabase project API URL
-- **get-publishable-api-keys**: Shows all publishable API keys for the project
-- **list-migrations**: Lists all database migrations in chronological order
-- **get-logs**: Retrieves recent logs from the Supabase project database
-- **get-database-types**: Retrieves TypeScript type definitions for the database schema
-
-### Examples
-
-```bash
-# Scrape Zeroheight design system (discovers all pages automatically)
-npm run mcp-call -- "scrape-zeroheight-project"
-
-# Query for specific content with images
-npm run mcp-call -- "query-zeroheight-data" '{"search": "color palette", "includeImages": true}'
-
-# Get a specific page by URL
-npm run mcp-call -- "query-zeroheight-data" '{"url": "https://example.zeroheight.com/p/project/page-slug"}'
-
-# List all database tables
-npm run mcp-call -- "list-tables"
-
-# Execute SQL queries
-npm run mcp-call -- "execute-sql" '{"query": "SELECT COUNT(*) FROM pages;"}'
-
-# Get database schema types
-npm run mcp-call -- "get-database-schema"
-
-# Clear all cached data (requires API key)
-npm run mcp-call -- "clear-zeroheight-data" '{"apiKey": "your-mcp-api-key"}'
-```
+This project exposes MCP tools via the server API; you can call them directly with standard HTTP requests (include `Authorization: Bearer <MCP_API_KEY>` and `Accept: application/json, text/event-stream`) or use your editor's MCP integration. Examples for HTTP calls are provided in the "Testing" section below.
 
 ## 🧪 Testing
 

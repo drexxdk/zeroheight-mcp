@@ -14,6 +14,8 @@
   - Use `unknown` for truly unknown values that need type checking before use
   - Leverage TypeScript's built-in utility types (`Record<string, unknown>`, `Partial<T>`, etc.)
 
+- **Note to Copilot (agent-specific)**: You are the repository assistant. When editing or generating TypeScript code in this project, never emit the `any` type. Prefer concrete types, generated DB types (`lib/database.schema.ts` / `lib/database.types.ts`), `unknown` with runtime checks, or explicit unions. If you cannot determine an appropriate type, ask the user instead of using `any`.
+
 ### Always fix ESLint errors
 
 - **Priority**: High
@@ -70,18 +72,13 @@
 - **Instead**: Complete the requested action, report the results, and wait for explicit user instruction for next steps.
 - **Examples**: After running scraper, don't automatically query data; after fixing code, don't automatically run tests.
 
-### Use mcp-call for MCP tool execution
+### Invoke MCP tools via the server API
 
 - **Priority**: High
-- **Action**: When the user asks you to run or test an MCP tool, always use the `mcp-call` script instead of making direct API calls or using other methods.
-- **Rationale**: The `mcp-call` script provides standardized, reliable MCP API interaction with proper headers, error handling, and response formatting.
+- **Action**: When the user asks you to run or test an MCP tool, call the MCP tool via the server API endpoint. Include the `Authorization: Bearer <MCP_API_KEY>` header and `Accept: application/json, text/event-stream` when making requests.
+- **Rationale**: Direct API calls are explicit and portable across environments; many editors also provide MCP integrations that can be configured to call the same endpoint.
 - **When to apply**: When user requests involve running, testing, or calling any MCP tools (scrape-zeroheight-project, query-zeroheight-data, list-tables, etc.)
-- **How to use**: Run `npm run mcp-call -- "<tool-name>"` or `npx tsx scripts/mcp-call.ts "<tool-name>"` with appropriate arguments
-- **Examples**:
-  - User asks "run List Tables" → use `npm run mcp-call -- "list-tables"`
-  - User asks "test the scraper" → use `npm run mcp-call -- "scrape-zeroheight-project"`
-  - User asks "query data" → use `npm run mcp-call -- "query-zeroheight-data" '{"search": "button"}'`
-  - User asks "get database types" → use `npm run mcp-call -- "get-database-types"`
+**Examples**: Use the `tools/list` RPC to discover tool names and call `tools/call` with the tool name and arguments.
 
 - **Testing the scraper locally**: When you want to run a focused scraper test against specific pages, use the provided script `scripts/test-scrape-specific-pages.ts`. Run it with:
 
@@ -97,7 +94,7 @@
 - **Action**: When asked to perform actions that interact with the MCP (clear data, run scrapers, query stored data, or other project-level tasks), use the MCP tools exposed by the project API rather than calling services or endpoints directly.
 - **Where the tools are defined**: The available MCP tools and their server-side implementations are declared in `app/api/[transport]/route.ts` — consult this file to discover which tools exist and how they are named.
 - **Discovery-first approach**: Use the `tools/list` tool (the MCP tool that lists available tools) as the starting point to discover tool names and accepted arguments before invoking a tool.
-- **How to call**: Use the `mcp-call` script (`npm run mcp-call -- "<tool-name>"`) or `npx tsx scripts/mcp-call.ts "<tool-name>"` and pass validated arguments (for destructive actions, include the required `apiKey` or confirmation token). Prefer PowerShell/CLI-friendly invocation formats (see `scripts/mcp-call.ts` for accepted argument formats).
+ - **How to call**: Call the MCP server API directly (e.g., `tools/list` and `tools/call`) or use your editor's MCP integration. Ensure requests include `Authorization: Bearer <MCP_API_KEY>` and `Accept: application/json, text/event-stream`.
 - **Rationale**: This centralizes access control, logging, and validation on the server side and prevents accidental direct modifications to the database or storage from local scripts.
 - **Safety**: For destructive actions (clear, delete), require the explicit `MCP_API_KEY` confirmation parameter and never attempt destructive operations without it.
 

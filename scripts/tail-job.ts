@@ -49,13 +49,22 @@ async function fetchOnce() {
     return { finished: true };
   }
 
+  type JobRow = {
+    id: string;
+    status: string;
+    logs: string | null;
+    started_at: string | null;
+    finished_at: string | null;
+    error: string | null;
+  };
+
   const {
     status,
     logs = "",
     started_at,
     finished_at,
     error: err,
-  } = data as any;
+  } = data as JobRow;
 
   if (logs !== lastLogs) {
     const newPart = logs.startsWith(lastLogs)

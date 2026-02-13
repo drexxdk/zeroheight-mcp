@@ -53,7 +53,9 @@ async function run() {
     process.exit(2);
   }
 
-  const pageIds = (pages || []).map((p: any) => p.id);
+  type PageRow = { id: number };
+  const pageRows = (pages as PageRow[] | null) ?? [];
+  const pageIds = pageRows.map((p) => p.id);
   console.log(`Pages inserted in window: ${pageIds.length}`);
 
   if (pageIds.length === 0) {
@@ -61,18 +63,18 @@ async function run() {
     return;
   }
 
-  const { count, error: imgErr } = await supabase
+  const imagesRes = await supabase
     .from("images")
     .select("id", { count: "exact", head: false })
     .in("page_id", pageIds);
 
-  if (imgErr) {
-    console.error("Failed to fetch images:", imgErr.message || imgErr);
+  if (imagesRes.error) {
+    console.error("Failed to fetch images:", imagesRes.error.message || imagesRes.error);
     process.exit(2);
   }
 
-  // Supabase returns data array; length is count
-  console.log(`Images linked to those pages: ${(count as number) ?? (Array.isArray((count as any)) ? (count as any).length : "unknown")}`);
+  const imgCount = (imagesRes.count ?? (Array.isArray(imagesRes.data) ? imagesRes.data.length : 0)) as number;
+  console.log(`Images linked to those pages: ${imgCount}`);
 }
 
 run().catch((e) => {
