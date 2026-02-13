@@ -338,7 +338,7 @@ export async function scrapeZeroheightProject(
               overallProgress.total,
             );
             console.log(
-              `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping ${getUrlPath(link)} - final URL ${getUrlPath(finalUrl)} already processed`,
+              `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping page - already processed (redirected)`,
             );
             continue;
           }
@@ -530,7 +530,7 @@ export async function scrapeZeroheightProject(
           // Update total to include these images
           overallProgress.total += supportedImages.length;
           console.log(
-            `${createProgressBar(overallProgress.current, overallProgress.total)} [${overallProgress.current}/${overallProgress.total}] 🖼️ Found ${supportedImages.length} supported image${supportedImages.length === 1 ? "" : "s"} on this page (${normalizedImages.length - supportedImages.length} filtered out)`,
+            `${createProgressBar(overallProgress.current, overallProgress.total)} [${overallProgress.current}/${overallProgress.total}] 📷 Found ${supportedImages.length} supported image${supportedImages.length === 1 ? "" : "s"} on this page (${normalizedImages.length - supportedImages.length} filtered out)`,
           );
         }
 
@@ -569,7 +569,7 @@ export async function scrapeZeroheightProject(
               overallProgress.total,
             );
             console.log(
-              `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🖼️ Processing image ${overallProgress.imagesProcessed}: ${img.src.split("/").pop()}`,
+              `${progressBar} [${overallProgress.current}/${overallProgress.total}] 📷 Processing image ${overallProgress.imagesProcessed}: ${img.src.split("/").pop()}`,
             );
 
             // Create a consistent filename based on normalized image URL hash
@@ -778,7 +778,7 @@ export async function scrapeZeroheightProject(
       `${progressBar} [${overallProgress.current}/${overallProgress.total}] 📄 Discovered ${pagesToProcess.length} pages`,
     );
     console.log(
-      `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🖼️ Found ${allImageUrls.length} images`,
+      `${progressBar} [${overallProgress.current}/${overallProgress.total}] 📷 Found ${allImageUrls.length} images`,
     );
 
     // All pages and images are now processed during discovery phase
