@@ -19,183 +19,6 @@ function getUrlPath(url: string): string {
   }
 }
 
-// Helper function to process a page and its images immediately
-async function processPageAndImages(
-  url: string,
-  title: string,
-  content: string,
-  images: Array<{
-    src: string;
-    alt: string;
-    index: number;
-    originalSrc?: string;
-  }>,
-  client: ReturnType<typeof getSupabaseClient>,
-  adminClient: ReturnType<typeof getSupabaseAdminClient>,
-  allExistingImageUrls: Set<string>,
-  overallProgress: {
-    current: number;
-    total: number;
-    pagesProcessed: number;
-    imagesProcessed: number;
-  },
-) {
-  // Insert page immediately
-  const { data: insertedPage, error: pageError } = await client!
-    .from("pages")
-    .upsert(
-      {
-        url,
-        title,
-        content,
-      },
-      { onConflict: "url" },
-    )
-    .select("id")
-    .single();
-
-  if (pageError) {
-    console.error(`Error inserting page ${url}:`, pageError);
-    return;
-  }
-
-  if (!insertedPage?.id) {
-    console.error(`No ID returned for page ${url}`);
-    return;
-  }
-
-  const pageId = insertedPage.id;
-
-  // Process images immediately with unified progress tracking
-  const totalImagesInPage = images.length;
-
-  // Update total progress count with images from this page
-  overallProgress.total += totalImagesInPage;
-
-  for (const img of images) {
-    overallProgress.current++; // Increment immediately for each image counted in total
-
-    if (img.src && img.src.startsWith("http")) {
-      // Check if this image has already been processed globally
-      if (allExistingImageUrls.has(img.src)) {
-        const progressBar = createProgressBar(
-          overallProgress.current,
-          overallProgress.total,
-        );
-        console.log(
-          `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping image ${img.src.split("/").pop()} - already processed`,
-        );
-        continue;
-      }
-
-      overallProgress.imagesProcessed++;
-
-      const progressBar = createProgressBar(
-        overallProgress.current,
-        overallProgress.total,
-      );
-      console.log(
-        `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🖼️ Processing image ${overallProgress.imagesProcessed} for page: ${img.src.split("/").pop()}`,
-      );
-
-      // Create a consistent filename based on normalized image URL hash
-      const crypto = await import("crypto");
-      const urlHash = crypto.default
-        .createHash("md5")
-        .update(img.src)
-        .digest("hex")
-        .substring(0, 8);
-      const filename = `${urlHash}.jpg`;
-
-      // Use original URL for downloading, normalized URL for deduplication
-      const downloadUrl = img.originalSrc || img.src;
-
-      try {
-        const base64Data = await downloadImage(downloadUrl, filename);
-        if (base64Data) {
-          const file = Buffer.from(base64Data, "base64");
-
-          // Ensure bucket exists (only log errors)
-          if (adminClient) {
-            const { data: buckets, error: bucketError } =
-              await adminClient.storage.listBuckets();
-            if (bucketError) {
-              console.error("Error listing buckets:", bucketError);
-            } else {
-              const bucketExists = buckets?.some(
-                (bucket: { name: string }) =>
-                  bucket.name === "zeroheight-images",
-              );
-              if (!bucketExists) {
-                const { error: createError } =
-                  await adminClient.storage.createBucket("zeroheight-images", {
-                    public: true,
-                    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
-                    fileSizeLimit: 10485760, // 10MB
-                  });
-                if (createError) {
-                  console.error("Error creating bucket:", createError);
-                }
-              }
-            }
-          }
-
-          // Upload using admin client if available, otherwise regular client
-          let uploadResult;
-          if (adminClient) {
-            uploadResult = await adminClient.storage
-              .from("zeroheight-images")
-              .upload(filename, file, {
-                cacheControl: "3600",
-                upsert: true,
-                contentType: "image/jpeg",
-              });
-          } else {
-            uploadResult = await client!.storage
-              .from("zeroheight-images")
-              .upload(filename, file, {
-                cacheControl: "3600",
-                upsert: true,
-                contentType: "image/jpeg",
-              });
-          }
-
-          const { data, error } = uploadResult;
-
-          if (error) {
-            console.error(`Error uploading image ${downloadUrl}:`, error);
-          } else {
-            const storagePath = data.path;
-
-            // Insert image record immediately
-            const { error: imageError } = await client!.from("images").insert({
-              page_id: pageId,
-              original_url: downloadUrl,
-              storage_path: storagePath,
-            });
-
-            if (imageError) {
-              console.error(
-                `Error inserting image record for ${downloadUrl}:`,
-                imageError,
-              );
-            } else {
-              // Mark this image as uploaded to prevent re-processing
-              allExistingImageUrls.add(img.src);
-            }
-          }
-        } else {
-          console.error(`Failed to download image: ${downloadUrl}`);
-        }
-      } catch (e) {
-        console.error(`Error processing image ${downloadUrl}:`, e);
-      }
-    } else {
-      console.error(`Invalid image source: ${img.src}`);
-    }
-  }
-}
-
 export async function scrapeZeroheightProject(
   url: string,
   password?: string,
@@ -451,8 +274,7 @@ export async function scrapeZeroheightProject(
     console.log(`Total unique links to process: ${allLinks.size}`);
 
     // When specific pageUrls are provided, process all of them. Otherwise, process all discovered links.
-    const maxPages =
-      pageUrls && pageUrls.length > 0 ? pageUrls.length : Infinity;
+    const maxPages = pageUrls && pageUrls.length > 0 ? allLinks.size : Infinity;
 
     // Unified progress tracking across pages and images
     const overallProgress = {
@@ -462,13 +284,33 @@ export async function scrapeZeroheightProject(
       imagesProcessed: 0,
     };
 
+    // Phase 1: Discover all pages and collect all image URLs
+    const pagesToProcess: Array<{
+      url: string;
+      title: string;
+      content: string;
+      images: Array<{
+        src: string;
+        alt: string;
+        index: number;
+        originalSrc?: string;
+      }>;
+    }> = [];
+    const allImageUrls: Array<{
+      src: string;
+      alt: string;
+      originalSrc?: string;
+      pageUrl: string;
+    }> = [];
+
     let processedCount = 0;
 
-    // Process links, discovering more as we go when no specific URLs provided
+    // Discover all pages and collect image URLs
     while (processedCount < maxPages) {
       // Get the next link to process (remove it from the set)
-      let link = allLinks.values().next().value;
-      if (!link) break; // No more links to process
+      const linkValue = allLinks.values().next().value;
+      if (!linkValue) break; // No more links to process
+      let link = linkValue;
       allLinks.delete(link);
 
       if (processedLinks.has(link)) continue;
@@ -479,18 +321,8 @@ export async function scrapeZeroheightProject(
         // Check for redirects and normalize URL
         const finalUrl = page.url();
         if (finalUrl !== link) {
-          const progressBar = createProgressBar(
-            overallProgress.current,
-            overallProgress.total,
-          );
-          console.log(
-            `${progressBar} [${overallProgress.current}/${overallProgress.total}] ↪️ Redirect detected: ${getUrlPath(link)} -> ${getUrlPath(finalUrl)}`,
-          );
           if (processedLinks.has(finalUrl)) {
-            console.log(
-              `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping ${getUrlPath(link)} - final URL ${getUrlPath(finalUrl)} already processed`,
-            );
-            overallProgress.current++; // Increment current even when skipping, since it was counted in total
+            overallProgress.current++; // Count skipped redirects as attempted work
             continue;
           }
           // Use the final URL for processing instead of the original link
@@ -501,7 +333,7 @@ export async function scrapeZeroheightProject(
 
         processedCount++;
         overallProgress.pagesProcessed = processedCount;
-        overallProgress.current++; // Count page processing as one unit of work
+        overallProgress.current++; // Increment current for each page processed
 
         const progressBar = createProgressBar(
           overallProgress.current,
@@ -646,17 +478,38 @@ export async function scrapeZeroheightProject(
           return !lowerSrc.includes(".gif") && !lowerSrc.includes(".svg");
         });
 
-        // Process page and images immediately to avoid signed URL expiration
-        await processPageAndImages(
-          link,
-          title,
-          content,
-          supportedImages,
-          client!,
-          adminClient,
-          allExistingImageUrls,
-          overallProgress,
-        );
+        // Save page immediately
+        const { data: insertedPage, error: pageError } = await client!
+          .from("pages")
+          .upsert(
+            {
+              url: link,
+              title,
+              content,
+            },
+            { onConflict: "url" },
+          )
+          .select("id")
+          .single();
+
+        if (pageError) {
+          console.error(`Error inserting page ${link}:`, pageError);
+          continue;
+        }
+
+        if (!insertedPage?.id) {
+          console.error(`No ID returned for page ${link}`);
+          continue;
+        }
+
+        // Log images found on this page and update total
+        if (supportedImages.length > 0) {
+          // Update total to include these images
+          overallProgress.total += supportedImages.length;
+          console.log(
+            `${createProgressBar(overallProgress.current, overallProgress.total)} [${overallProgress.current}/${overallProgress.total}] 🖼️ Found ${supportedImages.length} supported image${supportedImages.length === 1 ? "" : "s"} on this page (${normalizedImages.length - supportedImages.length} filtered out)`,
+          );
+        }
 
         // Track for return value
         processedPages.push({
@@ -669,14 +522,155 @@ export async function scrapeZeroheightProject(
           })),
         });
 
+        // Process images immediately
+        for (const img of supportedImages) {
+          overallProgress.current++;
+
+          if (img.src && img.src.startsWith("http")) {
+            // Check if this image has already been processed globally
+            if (allExistingImageUrls.has(img.src)) {
+              const progressBar = createProgressBar(
+                overallProgress.current,
+                overallProgress.total,
+              );
+              console.log(
+                `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping image - already processed`,
+              );
+              continue;
+            }
+
+            overallProgress.imagesProcessed++;
+
+            const progressBar = createProgressBar(
+              overallProgress.current,
+              overallProgress.total,
+            );
+            console.log(
+              `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🖼️ Processing image ${overallProgress.imagesProcessed}: ${img.src.split("/").pop()}`,
+            );
+
+            // Create a consistent filename based on normalized image URL hash
+            const crypto = await import("crypto");
+            const urlHash = crypto.default
+              .createHash("md5")
+              .update(img.src)
+              .digest("hex")
+              .substring(0, 8);
+            const filename = `${urlHash}.jpg`;
+
+            // Use original URL for downloading, normalized URL for deduplication
+            const downloadUrl = img.originalSrc || img.src;
+
+            try {
+              const base64Data = await downloadImage(downloadUrl, filename);
+              if (base64Data) {
+                const file = Buffer.from(base64Data, "base64");
+
+                // Ensure bucket exists (only log errors)
+                if (adminClient) {
+                  const { data: buckets, error: bucketError } =
+                    await adminClient.storage.listBuckets();
+                  if (bucketError) {
+                    console.error("Error listing buckets:", bucketError);
+                  } else {
+                    const bucketExists = buckets?.some(
+                      (bucket: { name: string }) =>
+                        bucket.name === "zeroheight-images",
+                    );
+                    if (!bucketExists) {
+                      const { error: createError } =
+                        await adminClient.storage.createBucket(
+                          "zeroheight-images",
+                          {
+                            public: true,
+                            allowedMimeTypes: [
+                              "image/jpeg",
+                              "image/png",
+                              "image/webp",
+                            ],
+                            fileSizeLimit: 10485760, // 10MB
+                          },
+                        );
+                      if (createError) {
+                        console.error("Error creating bucket:", createError);
+                      }
+                    }
+                  }
+                }
+
+                // Upload using admin client if available, otherwise regular client
+                let uploadResult;
+                if (adminClient) {
+                  uploadResult = await adminClient.storage
+                    .from("zeroheight-images")
+                    .upload(filename, file, {
+                      cacheControl: "3600",
+                      upsert: true,
+                      contentType: "image/jpeg",
+                    });
+                } else {
+                  uploadResult = await client!.storage
+                    .from("zeroheight-images")
+                    .upload(filename, file, {
+                      cacheControl: "3600",
+                      upsert: true,
+                      contentType: "image/jpeg",
+                    });
+                }
+
+                const { data, error } = uploadResult;
+
+                if (error) {
+                  console.error(
+                    `❌ Failed to upload image ${img.src.split("/").pop()}:`,
+                    error.message,
+                  );
+                } else {
+                  const storagePath = data.path;
+
+                  // Insert image record
+                  const { error: imageError } = await client!
+                    .from("images")
+                    .insert({
+                      page_id: insertedPage.id,
+                      original_url: downloadUrl,
+                      storage_path: storagePath,
+                    });
+
+                  if (imageError) {
+                    console.error(
+                      `❌ Failed to save image record for ${img.src.split("/").pop()}:`,
+                      imageError.message,
+                    );
+                  } else {
+                    // Mark this image as uploaded to prevent re-processing
+                    allExistingImageUrls.add(img.src);
+                    console.log(
+                      `✅ Successfully uploaded and saved image: ${img.src.split("/").pop()}`,
+                    );
+                  }
+                }
+              } else {
+                console.error(
+                  `❌ Failed to download image: ${img.src.split("/").pop()}`,
+                );
+              }
+            } catch (e) {
+              console.error(
+                `❌ Error processing image ${img.src.split("/").pop()}:`,
+                e instanceof Error ? e.message : String(e),
+              );
+            }
+          } else {
+            console.error(`❌ Invalid image source: ${img.src}`);
+          }
+        }
+
         // Only discover new links if we're not using specific URLs
         if (!pageUrls || pageUrls.length === 0) {
           const progressBar = createProgressBar(
             overallProgress.current,
             overallProgress.total,
-          );
-          console.log(
-            `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🔍 Discovering new links on this page (automatic mode)`,
           );
           // Discover new links on this page
           const newLinks = await page.$$eval(
@@ -707,6 +701,7 @@ export async function scrapeZeroheightProject(
             allowedHostname,
           );
 
+          let actuallyNewLinksCount = 0;
           newLinks.forEach((newLink) => {
             if (
               !allLinks.has(newLink) &&
@@ -715,21 +710,37 @@ export async function scrapeZeroheightProject(
             ) {
               allLinks.add(newLink);
               overallProgress.total++; // Update total to include newly discovered links
-              const progressBar = createProgressBar(
-                overallProgress.current,
-                overallProgress.total,
-              );
-              console.log(
-                `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🔗 Discovered new link: ${getUrlPath(newLink)}`,
-              );
+              actuallyNewLinksCount++;
             }
           });
+
+          if (actuallyNewLinksCount > 0) {
+            console.log(
+              `${createProgressBar(overallProgress.current, overallProgress.total)} [${overallProgress.current}/${overallProgress.total}] 🔍 ${actuallyNewLinksCount} new links discovered on this page (automatic mode)`,
+            );
+          }
         }
       } catch (e) {
         console.error(`Failed to scrape ${getUrlPath(link)}:`, e);
-        overallProgress.current++; // Increment current even for failed links to maintain progress accuracy
+        // Remove failed pages from total since they won't be processed
+        overallProgress.total--;
+        // Note: current is managed by processedCount, so failed links don't advance progress
       }
     }
+
+    // Show bulk discovery messages
+    const progressBar = createProgressBar(
+      overallProgress.current,
+      overallProgress.total,
+    );
+    console.log(
+      `${progressBar} [${overallProgress.current}/${overallProgress.total}] 📄 Discovered ${pagesToProcess.length} pages`,
+    );
+    console.log(
+      `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🖼️ Found ${allImageUrls.length} images`,
+    );
+
+    // All pages and images are now processed during discovery phase
 
     const finalPageTitle = await page.title();
     await browser.close();
