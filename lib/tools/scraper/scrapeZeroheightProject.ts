@@ -313,7 +313,17 @@ export async function scrapeZeroheightProject(
       let link = linkValue;
       allLinks.delete(link);
 
-      if (processedLinks.has(link)) continue;
+      if (processedLinks.has(link)) {
+        overallProgress.current++; // Count early skips as attempted work
+        const progressBar = createProgressBar(
+          overallProgress.current,
+          overallProgress.total,
+        );
+        console.log(
+          `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping ${getUrlPath(link)} - already processed`,
+        );
+        continue;
+      }
 
       try {
         await page.goto(link, { waitUntil: "networkidle2", timeout: 30000 });
@@ -323,6 +333,13 @@ export async function scrapeZeroheightProject(
         if (finalUrl !== link) {
           if (processedLinks.has(finalUrl)) {
             overallProgress.current++; // Count skipped redirects as attempted work
+            const progressBar = createProgressBar(
+              overallProgress.current,
+              overallProgress.total,
+            );
+            console.log(
+              `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping ${getUrlPath(link)} - final URL ${getUrlPath(finalUrl)} already processed`,
+            );
             continue;
           }
           // Use the final URL for processing instead of the original link
@@ -334,14 +351,6 @@ export async function scrapeZeroheightProject(
         processedCount++;
         overallProgress.pagesProcessed = processedCount;
         overallProgress.current++; // Increment current for each page processed
-
-        const progressBar = createProgressBar(
-          overallProgress.current,
-          overallProgress.total,
-        );
-        console.log(
-          `${progressBar} [${overallProgress.current}/${overallProgress.total}] 📄 Processing page ${processedCount}: ${getUrlPath(link)}`,
-        );
 
         const title: string = await page.title();
         const content: string = await page
@@ -494,11 +503,25 @@ export async function scrapeZeroheightProject(
 
         if (pageError) {
           console.error(`Error inserting page ${link}:`, pageError);
+          const progressBar = createProgressBar(
+            overallProgress.current,
+            overallProgress.total,
+          );
+          console.log(
+            `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping ${getUrlPath(link)} - error saving page`,
+          );
           continue;
         }
 
         if (!insertedPage?.id) {
           console.error(`No ID returned for page ${link}`);
+          const progressBar = createProgressBar(
+            overallProgress.current,
+            overallProgress.total,
+          );
+          console.log(
+            `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping ${getUrlPath(link)} - no page id returned`,
+          );
           continue;
         }
 
@@ -666,6 +689,14 @@ export async function scrapeZeroheightProject(
           }
         }
 
+        const progressBar = createProgressBar(
+          overallProgress.current,
+          overallProgress.total,
+        );
+        console.log(
+          `${progressBar} [${overallProgress.current}/${overallProgress.total}] 📄 Processing page ${processedCount}: ${getUrlPath(link)}`,
+        );
+
         // Only discover new links if we're not using specific URLs
         if (!pageUrls || pageUrls.length === 0) {
           const progressBar = createProgressBar(
@@ -722,11 +753,21 @@ export async function scrapeZeroheightProject(
         }
       } catch (e) {
         console.error(`Failed to scrape ${getUrlPath(link)}:`, e);
-        // Remove failed pages from total since they won't be processed
-        overallProgress.total--;
-        // Note: current is managed by processedCount, so failed links don't advance progress
+        // Count the failed attempt as attempted work instead of mutating total
+        overallProgress.current++;
+        const progressBar = createProgressBar(
+          overallProgress.current,
+          overallProgress.total,
+        );
+        console.log(
+          `${progressBar} [${overallProgress.current}/${overallProgress.total}] ❌ Failed to scrape ${getUrlPath(link)}`,
+        );
       }
     }
+
+    console.log(
+      `Scraping completed. Final progress: [${overallProgress.current}/${overallProgress.total}]`,
+    );
 
     // Show bulk discovery messages
     const progressBar = createProgressBar(
