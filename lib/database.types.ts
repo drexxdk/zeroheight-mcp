@@ -5,17 +5,35 @@ import type { Database } from './database.schema';
 
 export const publicImagesSchema = z.object({
   id: z.number(),
-  // Could not parse table schema
+  original_url: z.string(),
+  page_id: z.number().nullable(),
+  storage_path: z.string(),
 });
 
 export const publicPagesSchema = z.object({
+  content: z.string().nullable(),
   id: z.number(),
-  // Could not parse table schema
+  scraped_at: z.string().nullable(),
+  title: z.string(),
+  url: z.string(),
+});
+
+export const publicScrape_jobsSchema = z.object({
+  args: z.any().nullable(),
+  created_at: z.string().nullable(),
+  error: z.string().nullable(),
+  finished_at: z.string().nullable(),
+  id: z.string(),
+  logs: z.string().nullable(),
+  name: z.string(),
+  started_at: z.string().nullable(),
+  status: z.string(),
 });
 
 // Export inferred types
 export type ImagesType = z.infer<typeof publicImagesSchema>;
 export type PagesType = z.infer<typeof publicPagesSchema>;
+export type Scrape_jobsType = z.infer<typeof publicScrape_jobsSchema>;
 
 // Database type for reference
 export type SupabaseDatabase = Database;

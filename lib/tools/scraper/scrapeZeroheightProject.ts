@@ -9,12 +9,11 @@ import { createProgressHelpers } from "./shared";
 import {
   tryLogin,
   uploadWithRetry,
-  retryAsync,
   SupabaseResult,
-  SupabaseClientMinimal,
 } from "../../common/scraperHelpers";
 
 import { processImagesForPage } from "./pageProcessors";
+import type { PagesType, ImagesType } from "../../database.types";
 
 // Helper function to get URL path without host
 function getUrlPath(url: string): string {
@@ -30,11 +29,14 @@ export async function scrapeZeroheightProject(
   url: string,
   password?: string,
   pageUrls?: string[],
+  logger?: (msg: string) => void,
 ) {
   try {
     console.log("Starting Zeroheight project scrape...");
 
     const { client, storage } = getClient();
+    const imagesTable = "images" as const;
+    const pagesTable = "pages" as const;
 
     const browser = await puppeteer.launch({
       headless: true,
@@ -148,7 +150,7 @@ export async function scrapeZeroheightProject(
 
     // Get all existing image URLs globally to prevent duplicates (do this once at the start)
     const { data: allExistingImages, error: allExistingImagesError } =
-      await client!.from("images").select("original_url");
+      await client!.from(imagesTable).select("original_url");
 
     if (allExistingImagesError) {
       console.error(
@@ -190,9 +192,9 @@ export async function scrapeZeroheightProject(
 
     // Track processed pages for return value
     const processedPages: Array<{
-      url: string;
-      title: string;
-      content: string;
+      url: PagesType["url"];
+      title: PagesType["title"];
+      content: PagesType["content"];
       images: Array<{ src: string; alt: string }>;
     }> = [];
 
@@ -213,20 +215,17 @@ export async function scrapeZeroheightProject(
     const { logProgress, markAttempt } = createProgressHelpers(
       overallProgress,
       checkProgressInvariant,
+      logger,
     );
 
     // Phase 1: Discover all pages and collect page data; upload images immediately
-    const pagesToUpsert: Array<{
-      url: string;
-      title: string;
-      content: string;
-    }> = [];
+    const pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">> = [];
 
     // Images uploaded during scraping; DB records will be inserted in bulk after pages are upserted
     const pendingImageRecords: Array<{
       pageUrl: string;
-      original_url: string;
-      storage_path: string;
+      original_url: ImagesType["original_url"];
+      storage_path: ImagesType["storage_path"];
     }> = [];
 
     let processedCount = 0;
@@ -531,22 +530,38 @@ export async function scrapeZeroheightProject(
       // Deduplicate pages by URL
       const pageMap = new Map<
         string,
-        { url: string; title: string; content: string }
+        Pick<PagesType, "url" | "title" | "content">
       >();
       for (const p of pagesToUpsert) pageMap.set(p.url, p);
       const uniquePages = Array.from(pageMap.values());
 
-      const upsertResult = (await retryAsync(
-        () =>
-          (client! as unknown as SupabaseClientMinimal)
-            .from("pages")
-            .upsert(uniquePages, { onConflict: "url" })
-            .select("id, url"),
-        3,
-        500,
-      ).catch((e) => ({ error: e, data: null }))) as SupabaseResult<
-        Array<{ id?: number; url?: string }>
-      >;
+      // Manual retry loop for upserting pages to avoid Postgrest builder typing issues
+      let upsertResult: SupabaseResult<Array<{ id?: number; url?: string }>> = {
+        data: null,
+        error: null,
+      };
+      {
+        let attempts = 0;
+        while (attempts < 3) {
+          try {
+            // Await the Postgrest response directly
+            const res = await client!
+              .from(pagesTable)
+              .upsert(uniquePages, { onConflict: "url" })
+              .select("id, url");
+            upsertResult = res as SupabaseResult<
+              Array<{ id?: number; url?: string }>
+            >;
+            if (!res.error) break;
+          } catch (err) {
+            upsertResult = { error: err, data: null } as SupabaseResult<
+              Array<{ id?: number; url?: string }>
+            >;
+          }
+          attempts++;
+          if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
+        }
+      }
 
       const { data: upsertedPages, error: upsertError } = upsertResult;
 
@@ -575,19 +590,32 @@ export async function scrapeZeroheightProject(
         })
         .filter(Boolean) as Array<{
         page_id: number;
-        original_url: string;
-        storage_path: string;
+        original_url: ImagesType["original_url"];
+        storage_path: ImagesType["storage_path"];
       }>;
 
       if (imagesToInsert.length > 0) {
-        const insertResult = await retryAsync(
-          () =>
-            (client! as unknown as SupabaseClientMinimal)
-              .from("images")
-              .insert(imagesToInsert),
-          3,
-          500,
-        ).catch((e) => ({ error: e }));
+        // Manual retry loop for image inserts
+        let insertResult: SupabaseResult<unknown> = { data: null, error: null };
+        {
+          let attempts = 0;
+          while (attempts < 3) {
+            try {
+              const res = await client!
+                .from(imagesTable)
+                .insert(imagesToInsert);
+              insertResult = res as SupabaseResult<unknown>;
+              if (!res.error) break;
+            } catch (err) {
+              insertResult = {
+                error: err,
+                data: null,
+              } as SupabaseResult<unknown>;
+            }
+            attempts++;
+            if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
+          }
+        }
         const { error: insertImagesError } =
           insertResult as SupabaseResult<unknown>;
         if (insertImagesError) {
@@ -655,9 +683,14 @@ export const scrapeZeroheightProjectTool = {
       );
     }
 
-    // Always perform a fresh scrape
-    await scrapeZeroheightProject(projectUrl, password, pageUrls);
-    console.log("Scraping completed successfully");
-    return createSuccessResponse("Scraping completed successfully");
+    // Start a background job for the scrape and return a job id immediately
+    // Enqueue job in DB for worker to pick up
+    const { createJobInDb } = await import("./jobStore");
+    const jobId = await createJobInDb("scrape-zeroheight-project", {
+      pageUrls: pageUrls || null,
+      password: password || null,
+    });
+
+    return createSuccessResponse({ message: "Scrape enqueued", jobId });
   },
 };

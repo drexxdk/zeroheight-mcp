@@ -56,14 +56,16 @@ export const queryZeroheightDataTool = {
 
     let pages: PageData[] = [];
 
+    const pagesTable = "pages" as const;
+
     if (search) {
       // Use separate queries to avoid complex OR conditions that can cause parsing issues
       const titleQuery = client
-        .from("pages")
+        .from(pagesTable)
         .select("id, title, url, content, images (original_url, storage_path)")
         .ilike("title", `%${search}%`);
       const contentQuery = client
-        .from("pages")
+        .from(pagesTable)
         .select("id, title, url, content, images (original_url, storage_path)")
         .ilike("content", `%${search}%`);
 
@@ -97,7 +99,7 @@ export const queryZeroheightDataTool = {
     } else if (url) {
       // Query by URL
       const { data: urlPages, error: urlError } = await client
-        .from("pages")
+        .from(pagesTable)
         .select("id, title, url, content, images (original_url, storage_path)")
         .eq("url", url)
         .limit(effectiveLimit);
@@ -111,7 +113,7 @@ export const queryZeroheightDataTool = {
     } else {
       // Get all pages with limit
       const { data: allPages, error: allError } = await client
-        .from("pages")
+        .from(pagesTable)
         .select("id, title, url, content, images (original_url, storage_path)")
         .limit(effectiveLimit);
 

@@ -17,6 +17,8 @@ import {
   scrapeZeroheightProjectTool,
   queryZeroheightDataTool,
   clearZeroheightDataTool,
+  getJobStatusTool,
+  getJobLogsTool,
 } from "../../../lib/tools/scraper";
 
 const handler = createMcpHandler(
@@ -53,6 +55,27 @@ const handler = createMcpHandler(
         inputSchema: clearZeroheightDataTool.inputSchema,
       },
       clearZeroheightDataTool.handler,
+    );
+
+    // Job status/log tools for background scraper
+    server.registerTool(
+      getJobStatusTool.title,
+      {
+        title: getJobStatusTool.title,
+        description: getJobStatusTool.description,
+        inputSchema: getJobStatusTool.inputSchema,
+      },
+      getJobStatusTool.handler,
+    );
+
+    server.registerTool(
+      getJobLogsTool.title,
+      {
+        title: getJobLogsTool.title,
+        description: getJobLogsTool.description,
+        inputSchema: getJobLogsTool.inputSchema,
+      },
+      getJobLogsTool.handler,
     );
 
     // Database Inspection & Management Tools

@@ -1,37 +1,50 @@
-import type { SupabaseClientMinimal, SupabaseResult } from "./scraperHelpers";
-import { retryAsync } from "./scraperHelpers";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "../database.schema";
+import type { PagesType, ImagesType } from "../database.types";
 
 export async function commitPagesAndImages(options: {
-  client: unknown; // will be cast to SupabaseClientMinimal by caller
-  pagesToUpsert: Array<{ url: string; title: string; content: string }>;
+  client: SupabaseClient<Database>;
+  pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
   pendingImageRecords: Array<{
     pageUrl: string;
-    original_url: string;
-    storage_path: string;
+    original_url: ImagesType["original_url"];
+    storage_path: ImagesType["storage_path"];
   }>;
 }) {
   const { client, pagesToUpsert, pendingImageRecords } = options;
   // Deduplicate pages
   const pageMap = new Map<
     string,
-    { url: string; title: string; content: string }
+    Pick<PagesType, "url" | "title" | "content">
   >();
   for (const p of pagesToUpsert) pageMap.set(p.url, p);
   const uniquePages = Array.from(pageMap.values());
 
   let upsertedPages: Array<{ id?: number; url?: string }> | null = null;
   try {
-    const upsertResult = (await retryAsync(
-      () =>
-        (client as unknown as SupabaseClientMinimal)
-          .from("pages")
+    const pagesTable = "pages" as const;
+    // Manual retry loop to avoid typing issues with Postgrest builders
+    let attempts = 0;
+    let upsertResult: {
+      data?: Array<{ id?: number; url?: string }> | null;
+      error?: unknown;
+    } = { data: null, error: null };
+    while (attempts < 3) {
+      try {
+        // Await the Postgrest response directly
+        const res = await client
+          .from(pagesTable)
           .upsert(uniquePages, { onConflict: "url" })
-          .select("id, url"),
-      3,
-      500,
-    ).catch((e) => ({ error: e, data: null }))) as SupabaseResult<
-      Array<{ id?: number; url?: string }>
-    >;
+          .select("id, url");
+        upsertResult = res;
+        if (!res.error) break;
+      } catch (err) {
+        upsertResult = { error: err, data: null };
+      }
+      attempts++;
+      if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
+    }
+
     if (upsertResult.error) {
       console.error("Error bulk upserting pages:", upsertResult.error);
     }
@@ -57,22 +70,30 @@ export async function commitPagesAndImages(options: {
     })
     .filter(Boolean) as Array<{
     page_id: number;
-    original_url: string;
-    storage_path: string;
+    original_url: ImagesType["original_url"];
+    storage_path: ImagesType["storage_path"];
   }>;
 
   if (imagesToInsert.length > 0) {
     try {
-      const insertResult = await retryAsync(
-        () =>
-          (client as unknown as SupabaseClientMinimal)
-            .from("images")
-            .insert(imagesToInsert),
-        3,
-        500,
-      ).catch((e) => ({ error: e }));
-      const { error: insertImagesError } =
-        insertResult as SupabaseResult<unknown>;
+      const imagesTable = "images" as const;
+      // Manual retry for image inserts
+      let attempts = 0;
+      let insertResult: { error?: unknown } = { error: null };
+      while (attempts < 3) {
+        try {
+          const res = await client.from(imagesTable).insert(imagesToInsert);
+          insertResult = res;
+          if (!res.error) break;
+        } catch (err) {
+          insertResult = { error: err };
+        }
+        attempts++;
+        if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
+      }
+      const { error: insertImagesError } = insertResult as {
+        error?: { message?: string } | null;
+      };
       if (insertImagesError) {
         console.error("Error bulk inserting images:", insertImagesError);
       }

@@ -119,3 +119,54 @@
 
 - **Don't suggest follow-up commands**: Only suggest or execute follow-up commands when explicitly asked, or when it's necessary to complete the current task
 - **Focus on requested actions**: Complete the user's specific request without adding unsolicited suggestions for next steps
+
+### Database Schema & Types
+
+- **Purpose**: Use the auto-generated `lib/database.schema.ts` and `lib/database.types.ts` as the authoritative source of truth for DB table shapes and runtime Zod schemas. Always regenerate them after migrations and import their types in code instead of hand-writing table shapes or using `any`.
+- **When to regenerate**: After applying migrations (for example, running `001_create_scrape_jobs_table.sql`), run the schema/type generation scripts immediately.
+- **Commands**:
+  - Generate the TypeScript DB schema (supabase CLI):
+
+    ```bash
+    npx -y supabase@2.72.8 gen types typescript --project-id <project-id> --schema public > lib/database.schema.ts
+    ```
+
+  - Convert the schema into runtime Zod schemas and inferred types (project helper):
+
+    ```bash
+    npm run generate-database-types
+    # or
+    npx tsx scripts/generate-database-types.ts
+    ```
+
+- **Files produced**:
+  - `lib/database.schema.ts` — static TS types representing DB tables (use this as the generic for Supabase clients)
+  - `lib/database.types.ts` — runtime Zod schemas and inferred TS types (`Scrape_jobsType`, `PagesType`, etc.)
+
+- **How to use in code**:
+  - Create a typed Supabase client:
+
+    ```ts
+    import type { Database } from "lib/database.schema";
+    const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY);
+    ```
+
+  - When referencing a table name in `supabase.from(...)`, prefer a `const` literal so the type system recognizes it:
+
+    ```ts
+    const table = "scrape_jobs" as const;
+    await supabase.from(table).select("*");
+    ```
+
+  - Import generated runtime/inferred types when you need a concrete shape:
+
+    ```ts
+    import type { Scrape_jobsType } from "lib/database.types";
+    type JobRecord = Scrape_jobsType;
+    ```
+
+- **Guidelines for changes**:
+  - Regenerate the schema & types after any DB migration and commit the generated `lib/` files to the repo.
+  - Prefer the generated `Database` generic on Supabase clients to avoid `any` casts and manual `as any` workarounds.
+  - Avoid using dynamic `string` table names; use `as const` literals to satisfy typed table names.
+  - If a new table is added and TypeScript errors appear, regenerate types then run `npm run build` and `npm run lint`.

@@ -16,8 +16,9 @@ export const listMigrationsTool = {
       // Use untyped client for system tables
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const untypedClient = client as any;
+      const migrationsTable = "schema_migrations" as const;
       const { data: migrations, error } = await untypedClient
-        .from("schema_migrations")
+        .from(migrationsTable)
         .select("*")
         .order("version", { ascending: false });
 

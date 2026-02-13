@@ -12,10 +12,12 @@ async function clearZeroheightData() {
     console.log("Admin-capable storage available:", !!storage.listBuckets);
 
     if (client) {
+      const imagesTable = "images" as const;
+      const pagesTable = "pages" as const;
       // Clear images table
       console.log("Clearing images table...");
       const { error: imagesError } = await client
-        .from("images")
+        .from(imagesTable)
         .delete()
         .neq("id", 0); // Delete all rows
 
@@ -31,7 +33,7 @@ async function clearZeroheightData() {
       // Clear pages table
       console.log("Clearing pages table...");
       const { error: pagesError } = await client
-        .from("pages")
+        .from(pagesTable)
         .delete()
         .neq("id", 0); // Delete all rows
 

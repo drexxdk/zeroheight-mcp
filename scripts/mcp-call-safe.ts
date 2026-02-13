@@ -1,5 +1,7 @@
 #!/usr/bin/env tsx
 // lightweight safe MCP caller; no readline needed
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
 async function promptHidden(prompt: string): Promise<string> {
   return new Promise((resolve) => {

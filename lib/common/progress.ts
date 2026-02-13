@@ -21,10 +21,13 @@ export function createProgressBar(
 export function createProgressHelpers(
   progress: Progress,
   checkProgressInvariant: (p: Progress, reason: string) => void,
+  logger?: (msg: string) => void,
 ) {
+  const out = logger ?? ((msg: string) => console.log(msg));
+
   function logProgress(icon: string, message: string) {
     const progressBar = createProgressBar(progress.current, progress.total);
-    console.log(
+    out(
       `${progressBar} [${progress.current}/${progress.total}] ${icon} ${message}`,
     );
   }
