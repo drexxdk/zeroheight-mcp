@@ -73,6 +73,8 @@ async function processPageAndImages(
   overallProgress.total += totalImagesInPage;
 
   for (const img of images) {
+    overallProgress.current++; // Increment immediately for each image counted in total
+
     if (img.src && img.src.startsWith("http")) {
       // Check if this image has already been processed globally
       if (allExistingImageUrls.has(img.src)) {
@@ -83,12 +85,10 @@ async function processPageAndImages(
         console.log(
           `${progressBar} [${overallProgress.current}/${overallProgress.total}] 🚫 Skipping image ${img.src.split("/").pop()} - already processed`,
         );
-        overallProgress.current++; // Increment current even when skipping, since it was counted in total
         continue;
       }
 
       overallProgress.imagesProcessed++;
-      overallProgress.current++;
 
       const progressBar = createProgressBar(
         overallProgress.current,
@@ -109,80 +109,86 @@ async function processPageAndImages(
 
       // Use original URL for downloading, normalized URL for deduplication
       const downloadUrl = img.originalSrc || img.src;
-      const base64Data = await downloadImage(downloadUrl, filename);
-      if (base64Data) {
-        const file = Buffer.from(base64Data, "base64");
 
-        // Ensure bucket exists (only log errors)
-        if (adminClient) {
-          const { data: buckets, error: bucketError } =
-            await adminClient.storage.listBuckets();
-          if (bucketError) {
-            console.error("Error listing buckets:", bucketError);
-          } else {
-            const bucketExists = buckets?.some(
-              (bucket: { name: string }) => bucket.name === "zeroheight-images",
-            );
-            if (!bucketExists) {
-              const { error: createError } =
-                await adminClient.storage.createBucket("zeroheight-images", {
-                  public: true,
-                  allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
-                  fileSizeLimit: 10485760, // 10MB
-                });
-              if (createError) {
-                console.error("Error creating bucket:", createError);
+      try {
+        const base64Data = await downloadImage(downloadUrl, filename);
+        if (base64Data) {
+          const file = Buffer.from(base64Data, "base64");
+
+          // Ensure bucket exists (only log errors)
+          if (adminClient) {
+            const { data: buckets, error: bucketError } =
+              await adminClient.storage.listBuckets();
+            if (bucketError) {
+              console.error("Error listing buckets:", bucketError);
+            } else {
+              const bucketExists = buckets?.some(
+                (bucket: { name: string }) =>
+                  bucket.name === "zeroheight-images",
+              );
+              if (!bucketExists) {
+                const { error: createError } =
+                  await adminClient.storage.createBucket("zeroheight-images", {
+                    public: true,
+                    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+                    fileSizeLimit: 10485760, // 10MB
+                  });
+                if (createError) {
+                  console.error("Error creating bucket:", createError);
+                }
               }
             }
           }
-        }
 
-        // Upload using admin client if available, otherwise regular client
-        let uploadResult;
-        if (adminClient) {
-          uploadResult = await adminClient.storage
-            .from("zeroheight-images")
-            .upload(filename, file, {
-              cacheControl: "3600",
-              upsert: true,
-              contentType: "image/jpeg",
-            });
-        } else {
-          uploadResult = await client!.storage
-            .from("zeroheight-images")
-            .upload(filename, file, {
-              cacheControl: "3600",
-              upsert: true,
-              contentType: "image/jpeg",
-            });
-        }
-
-        const { data, error } = uploadResult;
-
-        if (error) {
-          console.error(`Error uploading image ${downloadUrl}:`, error);
-        } else {
-          const storagePath = data.path;
-
-          // Insert image record immediately
-          const { error: imageError } = await client!.from("images").insert({
-            page_id: pageId,
-            original_url: downloadUrl,
-            storage_path: storagePath,
-          });
-
-          if (imageError) {
-            console.error(
-              `Error inserting image record for ${downloadUrl}:`,
-              imageError,
-            );
+          // Upload using admin client if available, otherwise regular client
+          let uploadResult;
+          if (adminClient) {
+            uploadResult = await adminClient.storage
+              .from("zeroheight-images")
+              .upload(filename, file, {
+                cacheControl: "3600",
+                upsert: true,
+                contentType: "image/jpeg",
+              });
           } else {
-            // Mark this image as uploaded to prevent re-processing
-            allExistingImageUrls.add(img.src);
+            uploadResult = await client!.storage
+              .from("zeroheight-images")
+              .upload(filename, file, {
+                cacheControl: "3600",
+                upsert: true,
+                contentType: "image/jpeg",
+              });
           }
+
+          const { data, error } = uploadResult;
+
+          if (error) {
+            console.error(`Error uploading image ${downloadUrl}:`, error);
+          } else {
+            const storagePath = data.path;
+
+            // Insert image record immediately
+            const { error: imageError } = await client!.from("images").insert({
+              page_id: pageId,
+              original_url: downloadUrl,
+              storage_path: storagePath,
+            });
+
+            if (imageError) {
+              console.error(
+                `Error inserting image record for ${downloadUrl}:`,
+                imageError,
+              );
+            } else {
+              // Mark this image as uploaded to prevent re-processing
+              allExistingImageUrls.add(img.src);
+            }
+          }
+        } else {
+          console.error(`Failed to download image: ${downloadUrl}`);
         }
-      } else {
-        console.error(`Failed to download image: ${downloadUrl}`);
+      } catch (e) {
+        console.error(`Error processing image ${downloadUrl}:`, e);
       }
     } else {
       console.error(`Invalid image source: ${img.src}`);
@@ -271,15 +277,6 @@ export async function scrapeZeroheightProject(
         if (errorText) {
           console.log(`ERROR: ${errorText} - login likely failed`);
         }
-
-        // Check for navigation elements that indicate successful login
-        const navLinks = await page.$$eval(
-          "nav a, .navigation a, .menu a",
-          (links) => links.length,
-        );
-        if (navLinks) {
-          console.log(`Found ${navLinks} navigation links after login attempt`);
-        }
       } else {
         console.log("No password input field found on the page");
       }
@@ -347,15 +344,6 @@ export async function scrapeZeroheightProject(
       console.log(
         "No specific page URLs provided, discovering links automatically...",
       );
-
-      // Get all links on the main page
-      const allRawLinks = await page.$$eval("a[href]", (links) =>
-        links.map((link) => link.href),
-      );
-      if (allRawLinks.length) {
-        console.log(`Found ${allRawLinks.length} total raw links on page`);
-        console.log(`Sample raw links: ${allRawLinks.slice(0, 5).join(", ")}`);
-      }
 
       allLinksOnPage = await page.$$eval("a[href]", (links) =>
         links
@@ -740,6 +728,7 @@ export async function scrapeZeroheightProject(
         }
       } catch (e) {
         console.error(`Failed to scrape ${getUrlPath(link)}:`, e);
+        overallProgress.current++; // Increment current even for failed links to maintain progress accuracy
       }
     }
 

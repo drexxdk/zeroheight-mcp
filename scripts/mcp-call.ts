@@ -279,7 +279,7 @@ Note: Arguments can be JSON strings or --key value format for tools that require
             });
             toolArgs[key] = JSON.parse(`[${quotedItems.join(",")}]`);
           }
-        } catch (e) {
+        } catch {
           toolArgs[key] = value; // Fallback to string if parsing fails
         }
       } else {
@@ -336,8 +336,10 @@ Note: Arguments can be JSON strings or --key value format for tools that require
               // Next arg is the value
               const value = args[i + 1];
               // Try to parse as JSON if it looks like JSON
-              if ((value.startsWith("{") && value.endsWith("}")) ||
-                  (value.startsWith("[") && value.endsWith("]"))) {
+              if (
+                (value.startsWith("{") && value.endsWith("}")) ||
+                (value.startsWith("[") && value.endsWith("]"))
+              ) {
                 try {
                   parsedArgs[key] = JSON.parse(value);
                 } catch {
