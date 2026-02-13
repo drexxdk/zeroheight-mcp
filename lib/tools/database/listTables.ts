@@ -7,7 +7,8 @@ import {
 
 export const listTablesTool = {
   title: "list-tables",
-  description: "List all tables in the database.",
+  description:
+    "List all tables in the database schemas to understand the data structure.",
   inputSchema: z.object({}),
   handler: async () => {
     const client = getSupabaseClient();

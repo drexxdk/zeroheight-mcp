@@ -3,7 +3,7 @@ import { createErrorResponse, createSuccessResponse } from "../../common";
 
 export const getProjectUrlTool = {
   title: "get-project-url",
-  description: "Gets the API URL for the Supabase project.",
+  description: "Returns the Supabase project API URL.",
   inputSchema: z.object({}),
   handler: async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

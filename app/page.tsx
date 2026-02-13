@@ -72,7 +72,8 @@ export default function Home() {
       }
 
       // Calculate scroll progress
-      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const totalHeight =
+        document.documentElement.scrollHeight - window.innerHeight;
       const progress = (window.scrollY / totalHeight) * 100;
       setScrollProgress(progress);
     };
@@ -117,7 +118,7 @@ export default function Home() {
           style={{ scaleX: scrollProgress / 100 }}
           transition={{ duration: 0.1 }}
         />
-        
+
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-6">
             <div className="flex items-center space-x-3">
@@ -235,73 +236,73 @@ export default function Home() {
       </header>
 
       {/* Hero Section - Full Width */}
-      <motion.section 
+      <motion.section
         className="relative overflow-hidden"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1 }}
       >
-        <motion.div 
+        <motion.div
           className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900/30 to-purple-900/40"
-          animate={{ 
-            backgroundPosition: ["0% 0%", "100% 100%"] 
+          animate={{
+            backgroundPosition: ["0% 0%", "100% 100%"],
           }}
-          transition={{ 
-            duration: 20, 
-            repeat: Infinity, 
-            repeatType: "reverse" 
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            repeatType: "reverse",
           }}
         ></motion.div>
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-purple-600/10"></div>
-        <motion.div 
+        <motion.div
           className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl"
-          animate={{ 
+          animate={{
             scale: [1, 1.2, 1],
-            opacity: [0.2, 0.4, 0.2] 
+            opacity: [0.2, 0.4, 0.2],
           }}
-          transition={{ 
-            duration: 8, 
-            repeat: Infinity, 
-            repeatType: "reverse" 
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            repeatType: "reverse",
           }}
         ></motion.div>
-        <motion.div 
+        <motion.div
           className="absolute right-1/4 bottom-0 h-96 w-96 rounded-full bg-purple-500/20 blur-3xl"
-          animate={{ 
+          animate={{
             scale: [1.2, 1, 1.2],
-            opacity: [0.3, 0.1, 0.3] 
+            opacity: [0.3, 0.1, 0.3],
           }}
-          transition={{ 
-            duration: 10, 
-            repeat: Infinity, 
-            repeatType: "reverse" 
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            repeatType: "reverse",
           }}
         ></motion.div>
 
         <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 md:py-32 lg:px-8">
           <div className="text-center">
-            <motion.h1 
+            <motion.h1
               className="mb-6 text-5xl leading-tight font-bold text-white md:text-7xl"
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               Zeroheight Design System
-              <motion.span 
+              <motion.span
                 className="block bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent"
-                animate={{ 
-                  backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] 
+                animate={{
+                  backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
                 }}
-                transition={{ 
-                  duration: 3, 
-                  repeat: Infinity, 
-                  ease: "linear" 
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "linear",
                 }}
               >
                 MCP Server
               </motion.span>
             </motion.h1>
-            <motion.p 
+            <motion.p
               className="mx-auto mb-12 max-w-4xl text-xl leading-relaxed text-slate-300 md:text-2xl"
               initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -313,7 +314,7 @@ export default function Home() {
               need programmatic access to their component libraries and design
               guidelines.
             </motion.p>
-            <motion.div 
+            <motion.div
               className="flex flex-col justify-center gap-6 sm:flex-row"
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -352,8 +353,8 @@ export default function Home() {
       {/* Main Content */}
       <main className="mx-auto flex max-w-7xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         {/* Features Section */}
-        <motion.section 
-          id="features" 
+        <motion.section
+          id="features"
           className="grid gap-6 py-8"
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -361,16 +362,16 @@ export default function Home() {
           viewport={{ once: true }}
         >
           <SectionHeader>Key Features</SectionHeader>
-          <motion.div 
+          <motion.div
             className="grid gap-8 md:grid-cols-2 lg:grid-cols-3"
             variants={{
               hidden: { opacity: 0 },
               show: {
                 opacity: 1,
                 transition: {
-                  staggerChildren: 0.05
-                }
-              }
+                  staggerChildren: 0.05,
+                },
+              },
             }}
             initial="hidden"
             whileInView="show"
@@ -379,7 +380,7 @@ export default function Home() {
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: 20 },
-                show: { opacity: 1, y: 0 }
+                show: { opacity: 1, y: 0 },
               }}
               className="h-full"
             >
@@ -395,7 +396,7 @@ export default function Home() {
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: 20 },
-                show: { opacity: 1, y: 0 }
+                show: { opacity: 1, y: 0 },
               }}
               className="h-full"
             >
@@ -411,7 +412,7 @@ export default function Home() {
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: 20 },
-                show: { opacity: 1, y: 0 }
+                show: { opacity: 1, y: 0 },
               }}
               className="h-full"
             >
@@ -427,7 +428,7 @@ export default function Home() {
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: 20 },
-                show: { opacity: 1, y: 0 }
+                show: { opacity: 1, y: 0 },
               }}
               className="h-full"
             >
@@ -443,7 +444,7 @@ export default function Home() {
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: 20 },
-                show: { opacity: 1, y: 0 }
+                show: { opacity: 1, y: 0 },
               }}
               className="h-full"
             >
@@ -459,7 +460,7 @@ export default function Home() {
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: 20 },
-                show: { opacity: 1, y: 0 }
+                show: { opacity: 1, y: 0 },
               }}
               className="h-full"
             >
@@ -475,8 +476,8 @@ export default function Home() {
         </motion.section>
 
         {/* Image Management Section */}
-        <motion.section 
-          id="image-management" 
+        <motion.section
+          id="image-management"
           className="grid gap-6 py-8"
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -484,7 +485,7 @@ export default function Home() {
           viewport={{ once: true }}
         >
           <SectionHeader>Image Management</SectionHeader>
-          <motion.div 
+          <motion.div
             className="grid gap-8 md:grid-cols-2"
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
@@ -534,8 +535,9 @@ export default function Home() {
             >
               <InfoCard title="Upload Process" className="h-full">
                 <p className="mb-4 text-slate-400">
-                  Images are automatically downloaded from Zeroheight and uploaded
-                  to Supabase Storage buckets with intelligent deduplication.
+                  Images are automatically downloaded from Zeroheight and
+                  uploaded to Supabase Storage buckets with intelligent
+                  deduplication.
                 </p>
                 <ul className="space-y-2 text-sm text-slate-400">
                   <li className="flex items-start">
@@ -642,8 +644,8 @@ export default function Home() {
         </motion.section>
 
         {/* Page Discovery Section */}
-        <motion.section 
-          id="page-discovery" 
+        <motion.section
+          id="page-discovery"
           className="grid gap-6 py-8"
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -651,7 +653,7 @@ export default function Home() {
           viewport={{ once: true }}
         >
           <SectionHeader>Page Discovery and Redirect Handling</SectionHeader>
-          <motion.div 
+          <motion.div
             className="grid gap-8 md:grid-cols-2"
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
@@ -673,12 +675,15 @@ export default function Home() {
                 <ul className="space-y-2 text-sm text-slate-400">
                   <li className="flex items-start">
                     <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                    <span>Starts with the configured Zeroheight project URL</span>
+                    <span>
+                      Starts with the configured Zeroheight project URL
+                    </span>
                   </li>
                   <li className="flex items-start">
                     <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
                     <span>
-                      Automatically finds all linked pages within the same domain
+                      Automatically finds all linked pages within the same
+                      domain
                     </span>
                   </li>
                   <li className="flex items-start">
@@ -706,8 +711,8 @@ export default function Home() {
             >
               <InfoCard title="Redirect Detection" className="h-full">
                 <p className="mb-4 text-slate-400">
-                  After navigating to each URL, the scraper detects redirects and
-                  normalizes URLs.
+                  After navigating to each URL, the scraper detects redirects
+                  and normalizes URLs.
                 </p>
                 <ul className="space-y-2 text-sm text-slate-400">
                   <li className="flex items-start">
@@ -750,8 +755,8 @@ export default function Home() {
                   <li className="flex items-start">
                     <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>
                     <span>
-                      Maintains a set of processed URLs to avoid re-processing the
-                      same content
+                      Maintains a set of processed URLs to avoid re-processing
+                      the same content
                     </span>
                   </li>
                   <li className="flex items-start">
@@ -795,8 +800,8 @@ export default function Home() {
                   <li className="flex items-start">
                     <span className="mr-2 mt-1 h-1.5 w-1.5 rounded-full bg-purple-500"></span>
                     <span>
-                      When a page limit is set (e.g., limit: 3), stops discovering
-                      new links once the limit is reached
+                      When a page limit is set (e.g., limit: 3), stops
+                      discovering new links once the limit is reached
                     </span>
                   </li>
                   <li className="flex items-start">
@@ -819,8 +824,8 @@ export default function Home() {
         </motion.section>
 
         {/* Console Output Example Section */}
-        <motion.section 
-          id="console-output" 
+        <motion.section
+          id="console-output"
           className="grid gap-6 py-8"
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -828,7 +833,7 @@ export default function Home() {
           viewport={{ once: true }}
         >
           <SectionHeader>Console Output Example</SectionHeader>
-          <motion.div 
+          <motion.div
             className="rounded-xl border border-slate-700 bg-slate-800 p-6"
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
@@ -883,7 +888,7 @@ Successfully inserted 2 images
 Scraping completed successfully`}</pre>
               </div>
             </div>
-            <motion.div 
+            <motion.div
               className="mt-6 space-y-4"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -893,7 +898,7 @@ Scraping completed successfully`}</pre>
               <h4 className="text-lg font-semibold text-white">
                 Output Explanation
               </h4>
-              <motion.div 
+              <motion.div
                 className="grid gap-3 md:grid-cols-2"
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
@@ -989,8 +994,8 @@ Scraping completed successfully`}</pre>
             </motion.div>
           </motion.div>
         </motion.section>
-        <motion.section 
-          id="tools" 
+        <motion.section
+          id="tools"
           className="grid gap-6 py-8"
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -998,7 +1003,7 @@ Scraping completed successfully`}</pre>
           viewport={{ once: true }}
         >
           <SectionHeader>MCP Tools</SectionHeader>
-          <motion.div 
+          <motion.div
             className="grid gap-8 md:grid-cols-2 lg:grid-cols-3"
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
@@ -1015,7 +1020,7 @@ Scraping completed successfully`}</pre>
               <ToolCard
                 icon={<FaGlobe />}
                 title="Scrape Zeroheight Project"
-                description="Automatically discovers and scrapes all pages from your Zeroheight design system, including content and images. Uses upsert logic for safe re-running."
+                description="Automatically discovers and scrapes all pages from your Zeroheight design system, including content and images. Uses upsert logic for safe re-running without clearing existing data."
                 codeExample='"Scrape the Zeroheight design system"'
                 iconColor="blue"
                 className="h-full"
@@ -1195,8 +1200,8 @@ Scraping completed successfully`}</pre>
         </motion.section>
 
         {/* Tech Stack Section */}
-        <motion.section 
-          id="tech" 
+        <motion.section
+          id="tech"
           className="grid gap-6 py-8"
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -1204,14 +1209,14 @@ Scraping completed successfully`}</pre>
           viewport={{ once: true }}
         >
           <SectionHeader>Technology Stack</SectionHeader>
-          <motion.div 
+          <motion.div
             className="grid gap-8 md:grid-cols-2"
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             transition={{ duration: 0.4, delay: 0.1 }}
             viewport={{ once: true }}
           >
-            <motion.div 
+            <motion.div
               className="h-full rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm"
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -1245,7 +1250,7 @@ Scraping completed successfully`}</pre>
               </ul>
             </motion.div>
 
-            <motion.div 
+            <motion.div
               className="h-full rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-sm"
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -1282,8 +1287,8 @@ Scraping completed successfully`}</pre>
         </motion.section>
 
         {/* Legal Compliance Section */}
-        <motion.section 
-          id="legal" 
+        <motion.section
+          id="legal"
           className="grid gap-6 py-8"
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -1291,7 +1296,7 @@ Scraping completed successfully`}</pre>
           viewport={{ once: true }}
         >
           <SectionHeader>Terms & Conditions</SectionHeader>
-          <motion.div 
+          <motion.div
             className="space-y-4 rounded-xl border border-slate-700 bg-slate-800/50 p-8 text-slate-300"
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
@@ -1317,14 +1322,14 @@ Scraping completed successfully`}</pre>
               authentication and access permissions. This tool operates solely
               within the bounds of authorized access that you already possess.
             </p>
-            <motion.div 
+            <motion.div
               className="grid gap-4 md:grid-cols-2"
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               transition={{ duration: 0.4, delay: 0.2 }}
               viewport={{ once: true }}
             >
-              <motion.div 
+              <motion.div
                 className="rounded-lg bg-slate-700/50 p-4"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -1340,7 +1345,7 @@ Scraping completed successfully`}</pre>
                   existing access permissions.
                 </p>
               </motion.div>
-              <motion.div 
+              <motion.div
                 className="rounded-lg bg-slate-700/50 p-4"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -1356,7 +1361,7 @@ Scraping completed successfully`}</pre>
                   occurs.
                 </p>
               </motion.div>
-              <motion.div 
+              <motion.div
                 className="rounded-lg bg-slate-700/50 p-4"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -1372,7 +1377,7 @@ Scraping completed successfully`}</pre>
                   strain.
                 </p>
               </motion.div>
-              <motion.div 
+              <motion.div
                 className="rounded-lg bg-slate-700/50 p-4"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -1394,19 +1399,19 @@ Scraping completed successfully`}</pre>
 
         {/* CTA Section */}
 
-        <motion.section 
+        <motion.section
           className="py-8"
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           viewport={{ once: true }}
         >
-          <motion.div 
+          <motion.div
             className="rounded-xl border border-slate-700 bg-slate-800 p-8 text-center shadow-sm"
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.3 }}
           >
-            <motion.h2 
+            <motion.h2
               className="mb-4 text-2xl font-bold text-white"
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
@@ -1415,7 +1420,7 @@ Scraping completed successfully`}</pre>
             >
               Ready to enhance your design system workflow?
             </motion.h2>
-            <motion.p 
+            <motion.p
               className="mx-auto mb-6 max-w-2xl text-slate-400"
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
@@ -1426,7 +1431,7 @@ Scraping completed successfully`}</pre>
               give your team programmatic access to design system documentation,
               components, and guidelines.
             </motion.p>
-            <motion.div 
+            <motion.div
               className="flex flex-col justify-center gap-4 sm:flex-row"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1465,11 +1470,11 @@ Scraping completed successfully`}</pre>
       {/* Back to Top Button */}
       <motion.button
         className="fixed bottom-8 right-8 z-40 rounded-full bg-cyan-600 p-3 text-white shadow-lg transition-colors hover:bg-cyan-700"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         initial={{ opacity: 0, scale: 0 }}
-        animate={{ 
+        animate={{
           opacity: scrollProgress > 20 ? 1 : 0,
-          scale: scrollProgress > 20 ? 1 : 0
+          scale: scrollProgress > 20 ? 1 : 0,
         }}
         transition={{ duration: 0.3 }}
         whileHover={{ scale: 1.1 }}

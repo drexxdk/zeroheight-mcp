@@ -3,7 +3,8 @@ import { createErrorResponse } from "../../common";
 
 export const getPublishableKeysTool = {
   title: "get-publishable-api-keys",
-  description: "Gets all publishable API keys for the project.",
+  description:
+    "Get all publishable API keys for your project, including legacy anon keys and modern keys.",
   inputSchema: z.object({}),
   handler: async () => {
     // This would require API calls to Supabase management API

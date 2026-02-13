@@ -7,7 +7,7 @@ import {
 
 export const listMigrationsTool = {
   title: "list-migrations",
-  description: "List all database migrations.",
+  description: "List all database migrations in chronological order.",
   inputSchema: z.object({}),
   handler: async () => {
     const client = getSupabaseClient();

@@ -12,8 +12,12 @@ export async function downloadImage(
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
 
-    if (!response.ok)
-      throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+    if (!response.ok) {
+      console.error(
+        `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
+      );
+      return null;
+    }
 
     const contentType = response.headers.get("content-type") || "";
 

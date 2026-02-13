@@ -329,7 +329,7 @@ npx tsx scripts/mcp-call.ts "List Tables"
 
 ### Available Tools
 
-- **scrape-zeroheight-project**: Automatically discovers and scrapes all pages from Zeroheight design systems with image processing
+- **scrape-zeroheight-project**: Automatically discovers and scrapes all pages from Zeroheight design systems with image processing. Uses upsert logic for safe re-running without clearing existing data.
 - **query-zeroheight-data**: Searches cached design system data with full-text search, returns complete Supabase storage URLs for images
 - **clear-zeroheight-data**: Removes all cached Zeroheight data and images (requires explicit API key confirmation)
 - **execute-sql**: Executes raw SQL queries directly on the Supabase database

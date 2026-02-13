@@ -6,7 +6,7 @@ import { createErrorResponse, createSuccessResponse } from "../../common";
 export const generateTypescriptTypesTool = {
   title: "get-database-schema",
   description:
-    "Returns the TypeScript database schema types from the database.schema.ts file.",
+    "Retrieve TypeScript type definitions for the complete database schema.",
   inputSchema: z.object({}),
   handler: async () => {
     try {

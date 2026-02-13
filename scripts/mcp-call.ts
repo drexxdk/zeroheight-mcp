@@ -5,6 +5,19 @@
  * Ensures correct headers and response handling for all MCP API calls
  */
 
+import { config } from "dotenv";
+import { existsSync } from "fs";
+import { join } from "path";
+
+// Load environment variables from .env.local if it exists
+const envLocalPath = join(process.cwd(), ".env.local");
+if (existsSync(envLocalPath)) {
+  config({ path: envLocalPath });
+  console.log("✅ Loaded environment from .env.local");
+} else {
+  console.log("⚠️  .env.local not found, using existing environment variables");
+}
+
 const API_URL: string =
   process.env.MCP_API_URL || "http://localhost:3000/api/mcp";
 const API_KEY: string | undefined = process.env.MCP_API_KEY;
@@ -14,6 +27,51 @@ console.log(`API_KEY set: ${!!API_KEY}`);
 
 if (!API_KEY) {
   console.error("❌ Error: MCP_API_KEY environment variable not set");
+  console.error("");
+  console.error("To fix this:");
+  console.error("1. Ensure .env.local exists in the project root");
+  console.error("2. Add MCP_API_KEY=your-api-key to .env.local");
+  console.error(
+    "3. Or set the environment variable: $env:MCP_API_KEY = 'your-key'",
+  );
+  console.error("");
+  console.error("Current working directory:", process.cwd());
+  console.error("Looking for .env.local at:", envLocalPath);
+  process.exit(1);
+}
+
+// Check if server is running
+console.log("🔍 Checking if MCP server is running...");
+try {
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": API_KEY!,
+      Accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: -1, // Special ID for connectivity check
+      method: "tools/list",
+      params: {},
+    }),
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) {
+    throw new Error(`Server responded with ${response.status}`);
+  }
+  console.log("✅ MCP server is running and responding");
+} catch (error) {
+  console.error("❌ Error: MCP server is not running or not accessible");
+  console.error(`   URL: ${API_URL}`);
+  console.error(
+    `   Error: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  console.error("");
+  console.error("To fix this:");
+  console.error("1. Start the development server: npm run dev");
+  console.error("2. Or check if the server is running on a different port");
   process.exit(1);
 }
 
@@ -183,8 +241,9 @@ Examples:
   npm run mcp-call -- "List Tables"
   npm run mcp-call -- "Execute SQL" '{"query": "SELECT * FROM users LIMIT 5"}'
   npm run mcp-call -- "Query Zeroheight Data" '{"search": "button"}'
+  npm run mcp-call -- "scrape-zeroheight-project" --pageUrls '["https://example.com/page1"]'
 
-Note: Arguments should be valid JSON strings for tools that require parameters.
+Note: Arguments can be JSON strings or --key value format for tools that require parameters.
 `);
     process.exit(0);
   }
@@ -203,24 +262,52 @@ Note: Arguments should be valid JSON strings for tools that require parameters.
         toolArgs[key] = true; // Boolean flag
       } else if (!isNaN(Number(value))) {
         toolArgs[key] = Number(value); // Number
+      } else if (value.startsWith("[") && value.endsWith("]")) {
+        // Parse array values - handle simple cases like [url1,url2] or ["url1","url2"]
+        try {
+          // If it already has quotes, parse directly
+          if (value.includes('"')) {
+            toolArgs[key] = JSON.parse(value);
+          } else {
+            // Add quotes around unquoted strings inside the array
+            const content = value.slice(1, -1); // Remove [ and ]
+            const items = content.split(",").map((item) => item.trim());
+            const quotedItems = items.map((item) => {
+              // Remove existing quotes if any, then add them back
+              item = item.replace(/^["']|["']$/g, "");
+              return `"${item}"`;
+            });
+            toolArgs[key] = JSON.parse(`[${quotedItems.join(",")}]`);
+          }
+        } catch (e) {
+          toolArgs[key] = value; // Fallback to string if parsing fails
+        }
       } else {
         toolArgs[key] = value; // String
       }
     } else {
-      // Try to parse as JSON
+      // Try to parse as JSON first
       try {
         toolArgs = JSON.parse(arg);
       } catch {
-        // If not valid JSON and not key=value, treat as single argument
-        // For backward compatibility, try to parse simple object notation like {limit: 3}
+        // If not valid JSON, try to parse simple object notation like {limit: 3}
         if (arg.startsWith("{") && arg.endsWith("}")) {
           try {
             // Convert {limit: 3} to {"limit": 3}
             const jsonStr = arg
               .replace(/(\w+):/g, '"$1":') // Add quotes around keys
-              .replace(/: (true|false|null)/g, ": $1") // Keep boolean/null values as is
-              .replace(/: (\d+(?:\.\d+)?)/g, ": $1") // Keep number values as is
-              .replace(/: ([^,\}\s]+)/g, ': "$1"'); // Add quotes around other values (strings)
+              .replace(/: ([^,\}\s]+)(?=\s*[,\}])/g, (match, value) => {
+                // Check if value is a number, boolean, or null
+                if (!isNaN(Number(value))) {
+                  return `: ${Number(value)}`; // Keep as number
+                } else if (value === "true" || value === "false") {
+                  return `: ${value}`; // Keep as boolean
+                } else if (value === "null") {
+                  return `: ${value}`; // Keep as null
+                } else {
+                  return `: "${value}"`; // Add quotes for strings
+                }
+              });
             toolArgs = JSON.parse(jsonStr);
           } catch {
             toolArgs = { query: arg }; // Default fallback
@@ -231,15 +318,95 @@ Note: Arguments should be valid JSON strings for tools that require parameters.
       }
     }
   } else if (args.length > 1) {
-    // Parse key=value pairs
-    for (const arg of args) {
-      const [key, value] = arg.split("=");
-      if (value === undefined) {
-        toolArgs[key] = true; // Boolean flag
-      } else if (!isNaN(Number(value))) {
-        toolArgs[key] = Number(value); // Number
-      } else {
-        toolArgs[key] = value; // String
+    // Check if the arguments might be a split JSON string (due to PowerShell splitting)
+    const combinedArgs = args.join(" ");
+    if (combinedArgs.startsWith("{") && combinedArgs.endsWith("}")) {
+      try {
+        toolArgs = JSON.parse(combinedArgs);
+        console.log("✅ Parsed combined JSON arguments");
+      } catch {
+        // Fall back to --key value or key=value parsing
+        // Check if arguments are in --key value format
+        const parsedArgs: Record<string, unknown> = {};
+        for (let i = 0; i < args.length; i++) {
+          const arg = args[i];
+          if (arg.startsWith("--")) {
+            const key = arg.slice(2); // Remove --
+            if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
+              // Next arg is the value
+              const value = args[i + 1];
+              // Try to parse as JSON if it looks like JSON
+              if ((value.startsWith("{") && value.endsWith("}")) ||
+                  (value.startsWith("[") && value.endsWith("]"))) {
+                try {
+                  parsedArgs[key] = JSON.parse(value);
+                } catch {
+                  parsedArgs[key] = value;
+                }
+              } else if (!isNaN(Number(value))) {
+                parsedArgs[key] = Number(value);
+              } else if (value === "true") {
+                parsedArgs[key] = true;
+              } else if (value === "false") {
+                parsedArgs[key] = false;
+              } else {
+                parsedArgs[key] = value;
+              }
+              i++; // Skip the value in next iteration
+            } else {
+              // Boolean flag
+              parsedArgs[key] = true;
+            }
+          }
+        }
+        if (Object.keys(parsedArgs).length > 0) {
+          toolArgs = parsedArgs;
+          console.log("✅ Parsed --key value arguments");
+        } else {
+          // Fall back to key=value parsing
+          for (const arg of args) {
+            const [key, value] = arg.split("=");
+            if (value === undefined) {
+              toolArgs[key] = true; // Boolean flag
+            } else if (!isNaN(Number(value))) {
+              toolArgs[key] = Number(value); // Number
+            } else if (value.startsWith("[") && value.endsWith("]")) {
+              // Parse array values - handle simple cases like [url1,url2]
+              try {
+                // If it already has quotes, parse directly
+                if (value.includes('"')) {
+                  toolArgs[key] = JSON.parse(value);
+                } else {
+                  // Add quotes around unquoted strings inside the array
+                  const content = value.slice(1, -1); // Remove [ and ]
+                  const items = content.split(",").map((item) => item.trim());
+                  const quotedItems = items.map((item) => {
+                    // Remove existing quotes if any, then add them back
+                    item = item.replace(/^["']|["']$/g, "");
+                    return `"${item}"`;
+                  });
+                  toolArgs[key] = JSON.parse(`[${quotedItems.join(",")}]`);
+                }
+              } catch {
+                toolArgs[key] = value; // Fallback to string if parsing fails
+              }
+            } else {
+              toolArgs[key] = value; // String
+            }
+          }
+        }
+      }
+    } else {
+      // Parse key=value pairs
+      for (const arg of args) {
+        const [key, value] = arg.split("=");
+        if (value === undefined) {
+          toolArgs[key] = true; // Boolean flag
+        } else if (!isNaN(Number(value))) {
+          toolArgs[key] = Number(value); // Number
+        } else {
+          toolArgs[key] = value; // String
+        }
       }
     }
   }
