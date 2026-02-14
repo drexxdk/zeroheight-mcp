@@ -38,9 +38,16 @@ export function createErrorResponse(message: string) {
 
 // Common success response helper
 export function createSuccessResponse(data: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
-  };
+  try {
+    const text = JSON.stringify(data, null, 2);
+    return {
+      content: [{ type: "text" as const, text }],
+    };
+  } catch {
+    return {
+      content: [{ type: "text" as const, text: String(data) }],
+    };
+  }
 }
 
 // Map SQL types to TypeScript types

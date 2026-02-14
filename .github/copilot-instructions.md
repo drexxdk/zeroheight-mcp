@@ -78,7 +78,7 @@
 - **Action**: When the user asks you to run or test an MCP tool, call the MCP tool via the server API endpoint. Include the `Authorization: Bearer <MCP_API_KEY>` header and `Accept: application/json, text/event-stream` when making requests.
 - **Rationale**: Direct API calls are explicit and portable across environments; many editors also provide MCP integrations that can be configured to call the same endpoint.
 - **When to apply**: When user requests involve running, testing, or calling any MCP tools (scrape-zeroheight-project, query-zeroheight-data, list-tables, etc.)
-**Examples**: Use the `tools/list` RPC to discover tool names and call `tools/call` with the tool name and arguments.
+  **Examples**: Use the `tools/list` RPC to discover tool names and call `tools/call` with the tool name and arguments.
 
 - **Testing the scraper locally**: When you want to run a focused scraper test against specific pages, use the provided script `scripts/test-scrape-specific-pages.ts`. Run it with:
 
@@ -94,9 +94,30 @@
 - **Action**: When asked to perform actions that interact with the MCP (clear data, run scrapers, query stored data, or other project-level tasks), use the MCP tools exposed by the project API rather than calling services or endpoints directly.
 - **Where the tools are defined**: The available MCP tools and their server-side implementations are declared in `app/api/[transport]/route.ts` — consult this file to discover which tools exist and how they are named.
 - **Discovery-first approach**: Use the `tools/list` tool (the MCP tool that lists available tools) as the starting point to discover tool names and accepted arguments before invoking a tool.
- - **How to call**: Call the MCP server API directly (e.g., `tools/list` and `tools/call`) or use your editor's MCP integration. Ensure requests include `Authorization: Bearer <MCP_API_KEY>` and `Accept: application/json, text/event-stream`.
+- **How to call**: Call the MCP server API directly (e.g., `tools/list` and `tools/call`) or use your editor's MCP integration. Ensure requests include `Authorization: Bearer <MCP_API_KEY>` and `Accept: application/json, text/event-stream`.
 - **Rationale**: This centralizes access control, logging, and validation on the server side and prevents accidental direct modifications to the database or storage from local scripts.
 - **Safety**: For destructive actions (clear, delete), require the explicit `MCP_API_KEY` confirmation parameter and never attempt destructive operations without it.
+
+### Network request policy (Node-only)
+
+- **Priority**: Medium
+- **Action**: Do not use `curl`, `Invoke-WebRequest`, or other shell-native HTTP clients for interacting with the MCP endpoint or other project HTTP APIs. Always use Node-based HTTP callers (for example, `fetch` in `tsx` scripts or `node-fetch`) when writing scripts or invoking the MCP API programmatically.
+- **Rationale**: Node-based requests avoid platform-specific header parsing issues (PowerShell/CMD differences), ensure consistent handling of JSON and streaming responses, and integrate better with the project's TypeScript toolchain and environment variables.
+- **When to apply**: Use Node scripts for all automated requests in `scripts/` and CI; prefer `npx tsx` helpers for local developer tooling that calls MCP endpoints.
+- **Examples**:
+
+  ```bash
+  # Good: use Node/tsx script
+  npx tsx scripts/clear-zeroheight-mcp.ts "$MCP_API_KEY"
+  ```
+
+  ```bash
+  # Avoid: curl in PowerShell, use Node instead
+  curl -X POST "http://localhost:3000/api/mcp" \
+    -H "Authorization: Bearer $MCP_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"jsonrpc":"2.0",...}'
+  ```
 
 ### TypeScript Best Practices
 

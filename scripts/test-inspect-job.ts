@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const jobId = process.argv[2];
 if (!jobId) {
-  console.error("Usage: npx tsx scripts/inspect-job.ts <jobId>");
+  console.error("Usage: npx tsx scripts/test-inspect-job.ts <jobId>");
   process.exit(2);
 }
 

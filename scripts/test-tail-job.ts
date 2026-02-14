@@ -10,7 +10,7 @@ const interval =
   intervalArgIndex >= 0 ? Number(process.argv[intervalArgIndex + 1]) : 5;
 
 if (!jobId) {
-  console.error("Usage: npx tsx scripts/tail-job.ts <jobId> [--interval N]");
+  console.error("Usage: npx tsx scripts/test-tail-job.ts <jobId> [--interval N]");
   process.exit(2);
 }
 
@@ -66,12 +66,12 @@ async function fetchOnce() {
     error: err,
   } = data as JobRow;
 
-  if (logs !== lastLogs) {
-    const newPart = logs.startsWith(lastLogs)
-      ? logs.slice(lastLogs.length)
-      : logs;
+  const safeLogs = logs ?? "";
+
+  if (safeLogs !== lastLogs) {
+    const newPart = safeLogs.startsWith(lastLogs) ? safeLogs.slice(lastLogs.length) : safeLogs;
     process.stdout.write(newPart);
-    lastLogs = logs;
+    lastLogs = safeLogs;
   }
 
   console.log(

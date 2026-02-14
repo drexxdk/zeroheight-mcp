@@ -20,6 +20,12 @@ import {
   getJobStatusTool,
   getJobLogsTool,
 } from "../../../lib/tools/scraper";
+import {
+  inspectJobTool,
+  tailJobTool,
+  countRunTool,
+} from "../../../lib/tools/scraper";
+// removed unused imports (kept tooling lightweight)
 
 const handler = createMcpHandler(
   (server) => {
@@ -76,6 +82,37 @@ const handler = createMcpHandler(
         inputSchema: getJobLogsTool.inputSchema,
       },
       getJobLogsTool.handler,
+    );
+
+    // New job inspection tools
+    server.registerTool(
+      inspectJobTool.title,
+      {
+        title: inspectJobTool.title,
+        description: inspectJobTool.description,
+        inputSchema: inspectJobTool.inputSchema,
+      },
+      inspectJobTool.handler,
+    );
+
+    server.registerTool(
+      tailJobTool.title,
+      {
+        title: tailJobTool.title,
+        description: tailJobTool.description,
+        inputSchema: tailJobTool.inputSchema,
+      },
+      tailJobTool.handler,
+    );
+
+    server.registerTool(
+      countRunTool.title,
+      {
+        title: countRunTool.title,
+        description: countRunTool.description,
+        inputSchema: countRunTool.inputSchema,
+      },
+      countRunTool.handler,
     );
 
     // Database Inspection & Management Tools
