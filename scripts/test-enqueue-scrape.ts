@@ -5,18 +5,18 @@
  * Usage: npx tsx scripts/test-enqueue-scrape.ts [pageUrl1 pageUrl2 ...]
  */
 
-const API_URL = "http://localhost:3000/api/mcp";
-const API_KEY = process.env.MCP_API_KEY;
-
 const args = process.argv.slice(2);
 const pageUrls = args.length > 0 ? args : undefined;
 
-if (!API_KEY) {
-  console.error("❌ Error: MCP_API_KEY environment variable not set");
-  process.exit(1);
-}
+async function runEnqueue() {
+  const API_URL = "http://localhost:3000/api/mcp";
+  const API_KEY = process.env.MCP_API_KEY;
 
-async function run() {
+  if (!API_KEY) {
+    console.error("❌ Error: MCP_API_KEY environment variable not set");
+    process.exit(1);
+  }
+
   console.log(`Enqueueing scrape (pageUrls=${pageUrls ? pageUrls.length : 0})`);
 
   const body = JSON.stringify({
@@ -51,4 +51,4 @@ async function run() {
   }
 }
 
-run();
+runEnqueue();

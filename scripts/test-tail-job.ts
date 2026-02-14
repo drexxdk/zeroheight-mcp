@@ -10,7 +10,9 @@ const interval =
   intervalArgIndex >= 0 ? Number(process.argv[intervalArgIndex + 1]) : 5;
 
 if (!jobId) {
-  console.error("Usage: npx tsx scripts/test-tail-job.ts <jobId> [--interval N]");
+  console.error(
+    "Usage: npx tsx scripts/test-tail-job.ts <jobId> [--interval N]",
+  );
   process.exit(2);
 }
 
@@ -69,7 +71,9 @@ async function fetchOnce() {
   const safeLogs = logs ?? "";
 
   if (safeLogs !== lastLogs) {
-    const newPart = safeLogs.startsWith(lastLogs) ? safeLogs.slice(lastLogs.length) : safeLogs;
+    const newPart = safeLogs.startsWith(lastLogs)
+      ? safeLogs.slice(lastLogs.length)
+      : safeLogs;
     process.stdout.write(newPart);
     lastLogs = safeLogs;
   }
@@ -81,7 +85,7 @@ async function fetchOnce() {
   return { finished: status === "finished" || status === "failed" };
 }
 
-async function run() {
+async function runTail() {
   console.log(`Tailing job ${jobId} every ${interval}s...`);
   while (true) {
     try {
@@ -97,4 +101,4 @@ async function run() {
   }
 }
 
-run();
+runTail();

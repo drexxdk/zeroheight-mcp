@@ -5,21 +5,22 @@
  * Usage: npx tsx scripts/test-cancel-job.ts <jobId>
  */
 
-const API_URL = "http://localhost:3000/api/mcp";
-const API_KEY = process.env.MCP_API_KEY;
-
 const jobId = process.argv[2];
-if (!API_KEY) {
-  console.error("❌ Error: MCP_API_KEY environment variable not set");
-  process.exit(1);
-}
 
-if (!jobId) {
-  console.error("Usage: npx tsx scripts/test-cancel-job.ts <jobId>");
-  process.exit(2);
-}
+async function runCancel() {
+  const API_URL = "http://localhost:3000/api/mcp";
+  const API_KEY = process.env.MCP_API_KEY;
 
-async function run() {
+  if (!API_KEY) {
+    console.error("❌ Error: MCP_API_KEY environment variable not set");
+    process.exit(1);
+  }
+
+  if (!jobId) {
+    console.error("Usage: npx tsx scripts/test-cancel-job.ts <jobId>");
+    process.exit(2);
+  }
+
   console.log(`Calling cancel-job for id=${jobId}...`);
 
   const body = JSON.stringify({
@@ -55,4 +56,4 @@ async function run() {
   }
 }
 
-run();
+runCancel();

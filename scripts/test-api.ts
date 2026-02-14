@@ -6,20 +6,20 @@
  * Run with: npx tsx scripts/test-api.ts
  */
 
-const API_URL = "http://localhost:3000/api/mcp";
-const API_KEY = process.env.MCP_API_KEY;
-
-if (!API_KEY) {
-  console.error("❌ Error: MCP_API_KEY environment variable not set");
-  console.log("");
-  console.log("Set it with:");
-  console.log('  export MCP_API_KEY="your-api-key-here"');
-  console.log("  # or in PowerShell:");
-  console.log('  $env:MCP_API_KEY = "your-api-key-here"');
-  process.exit(1);
-}
-
 async function testApi() {
+  const API_URL = "http://localhost:3000/api/mcp";
+  const API_KEY = process.env.MCP_API_KEY;
+
+  if (!API_KEY) {
+    console.error("❌ Error: MCP_API_KEY environment variable not set");
+    console.log("");
+    console.log("Set it with:");
+    console.log('  export MCP_API_KEY="your-api-key-here"');
+    console.log("  # or in PowerShell:");
+    console.log('  $env:MCP_API_KEY = "your-api-key-here"');
+    process.exit(1);
+  }
+
   console.log("🧪 Testing Zeroheight MCP API...");
   console.log(`📍 API URL: ${API_URL}`);
   console.log(
