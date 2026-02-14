@@ -55,7 +55,10 @@ async function main() {
     console.log(`Job ${jobId} marked cancelled (previousStatus=${status})`);
     process.exit(0);
   } catch (e) {
-    console.error("Error cancelling job:", e instanceof Error ? e.message : String(e));
+    console.error(
+      "Error cancelling job:",
+      e instanceof Error ? e.message : String(e),
+    );
     process.exit(1);
   }
 }
