@@ -1,8 +1,9 @@
 import { downloadImage } from "@/lib/image-utils";
 import type { StorageHelper } from "@/lib/common/scraperHelpers";
-import { IMAGE_BUCKET } from "@/lib/config";
-import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
-import { ensureBucket, uploadWithFallback } from "./storageHelper";
+import { hashFilenameFromUrl } from "./imageHelpers";
+import { uploadBufferToStorage } from "./uploadHelpers";
+import { addPendingImageRecord } from "./pendingRecords";
+import { retryWithBackoff } from "./retryHelpers";
 import { JobCancelled } from "@/lib/common/errors";
 
 export type LogProgressFn = (icon: string, message: string) => void;
@@ -48,7 +49,14 @@ export async function processAndUploadImage(options: {
       throw new JobCancelled();
     }
 
-    const file = await downloadImageToBuffer(downloadUrl, filename);
+    const file = await retryWithBackoff(
+      () => downloadImageToBuffer(downloadUrl, filename),
+      {
+        retries: 3,
+        factor: 2,
+        minDelayMs: 250,
+      },
+    );
     if (!file) return { uploaded: false, error: "download_failed" };
 
     if (shouldCancel && shouldCancel()) {
@@ -56,32 +64,22 @@ export async function processAndUploadImage(options: {
       throw new JobCancelled();
     }
 
-    await ensureBucket(storage, IMAGE_BUCKET);
-
-    if (shouldCancel && shouldCancel()) {
-      logProgress(
-        "⏹️",
-        "Cancellation requested - aborting before upload attempt",
-      );
-      throw new JobCancelled();
+    const uploadRes = await uploadBufferToStorage(storage, filename, file);
+    if (uploadRes.error) {
+      const e = uploadRes.error;
+      const msg = e instanceof Error ? e.message : String(e);
+      return { uploaded: false, error: msg || "upload_failed" };
     }
-
-    const res = await uploadWithFallback(storage, filename, file, "image/jpeg");
-    if (res.error) {
-      return {
-        uploaded: false,
-        error: String(res.error.message || "upload_failed"),
-      };
-    }
-    const path = res.data?.path;
+    const path = uploadRes.path;
     if (!path) return { uploaded: false, error: "no_path_returned" };
 
-    pendingImageRecords.push({
-      pageUrl: link,
-      original_url: downloadUrl,
-      storage_path: path,
-    });
-    allExistingImageUrls.add(normalizeImageUrl(downloadUrl));
+    addPendingImageRecord(
+      pendingImageRecords,
+      link,
+      downloadUrl,
+      path,
+      allExistingImageUrls,
+    );
     logProgress(
       "✅",
       `Successfully uploaded image: ${downloadUrl.split("/").pop()}`,

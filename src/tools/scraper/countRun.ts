@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createErrorResponse } from "@/lib/common";
+import { createErrorResponse } from "@/lib/toolResponses";
 import { getClient } from "@/lib/common/supabaseClients";
 import util from "util";
 

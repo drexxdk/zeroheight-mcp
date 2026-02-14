@@ -1,7 +1,13 @@
-import type { PagesType, ImagesType } from "@/lib/database.types";
+﻿import type { PagesType, ImagesType } from "@/lib/database.types";
 import { getClient } from "@/lib/common/supabaseClients";
 
 type DbClient = ReturnType<typeof getClient>["client"];
+
+type UpsertPagesRes = {
+  data?: Array<{ id?: number; url?: string }>;
+  error?: unknown;
+};
+type InsertRes = { data?: unknown; error?: unknown };
 
 export async function bulkUpsertPagesAndImages(options: {
   db: DbClient;
@@ -23,7 +29,7 @@ export async function bulkUpsertPagesAndImages(options: {
   };
   pagesFailed: number;
   providedCount: number;
-}) {
+}): Promise<{ lines: string[] }> {
   const {
     db,
     pagesToUpsert,
@@ -45,10 +51,9 @@ export async function bulkUpsertPagesAndImages(options: {
   for (const p of pagesToUpsert) pageMap.set(p.url, p);
   const uniquePages = Array.from(pageMap.values());
 
-  // Before upserting, check which of the unique pages already exist so we can
-  // report inserted vs updated counts accurately.
+  // Query existing pages (best-effort)
   const uniqueUrls = uniquePages.map((p) => p.url);
-  let existingPagesBefore: Array<{ url?: string } | null> = [];
+  let existingPagesBefore: Array<{ url?: string }> = [];
   try {
     const { data: existingData } = await db!
       .from("pages")
@@ -58,47 +63,43 @@ export async function bulkUpsertPagesAndImages(options: {
   } catch (err) {
     console.warn("Could not query existing pages before upsert:", err);
   }
-
   const existingUrlSet = new Set(
-    existingPagesBefore.map((p) => (p?.url ? p.url : "")).filter(Boolean),
+    existingPagesBefore.map((p) => p?.url).filter(Boolean) as string[],
   );
 
-  // Manual retry loop for upserting pages
-  let upsertResult: {
-    data: Array<{ id?: number; url?: string }> | null;
-    error: unknown | null;
-  } = { data: null, error: null };
-  {
+  // Upsert pages in chunks with retries
+  const pageChunkSize = Number(process.env.SCRAPER_PAGE_UPSERT_CHUNK || 200);
+  const upsertedPagesAll: Array<{ id?: number; url?: string }> = [];
+  for (let i = 0; i < uniquePages.length; i += pageChunkSize) {
+    const chunk = uniquePages.slice(i, i + pageChunkSize);
     let attempts = 0;
+    let chunkResult: UpsertPagesRes | null = null;
     while (attempts < 3) {
       try {
         const res = await db!
           .from("pages")
-          .upsert(uniquePages, { onConflict: "url" })
+          .upsert(chunk, { onConflict: "url" })
           .select("id, url");
-        upsertResult = res as unknown as typeof upsertResult;
-        const maybeError = (res as unknown as { error?: unknown }).error;
-        if (!maybeError) break;
+        chunkResult = res as unknown as UpsertPagesRes;
+        if (!chunkResult.error) break;
       } catch (err) {
-        upsertResult = { error: err, data: null };
+        chunkResult = { error: err };
       }
       attempts++;
-      if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
+      if (attempts < 3) await new Promise((r) => setTimeout(r, 500 * attempts));
     }
-  }
-
-  const { data: upsertedPages, error: upsertError } = upsertResult as {
-    data: Array<{ id?: number; url?: string }> | null;
-    error: unknown | null;
-  };
-
-  if (upsertError) {
-    console.error("Error bulk upserting pages:", upsertError);
+    if (chunkResult && chunkResult.data) {
+      upsertedPagesAll.push(
+        ...(chunkResult.data as Array<{ id?: number; url?: string }>),
+      );
+    } else if (chunkResult?.error) {
+      console.error("Error bulk upserting pages chunk:", chunkResult.error);
+    }
   }
 
   // Map url -> id for image inserts
   const urlToId = new Map<string, number>();
-  (upsertedPages || []).forEach((p) => {
+  upsertedPagesAll.forEach((p) => {
     if (p && p.url && p.id) urlToId.set(p.url, p.id);
   });
 
@@ -125,72 +126,56 @@ export async function bulkUpsertPagesAndImages(options: {
     const imagesFoundArray = Array.from(uniqueAllowedImageUrls);
     if (imagesFoundArray.length > 0) {
       const pageIdSet = new Set<number>(Array.from(urlToId.values()));
-      const matchedByNormalized = new Map<
-        string,
-        Array<{ original_url?: string; page_id?: number | null }>
-      >();
-
       for (const norm of imagesFoundArray) {
         try {
           const { data: qdata, error: qerr } = await db!
             .from("images")
             .select("original_url, page_id")
             .ilike("original_url", `${norm}%`);
-          if (qerr) continue;
-          if (qdata && qdata.length > 0)
-            matchedByNormalized.set(
-              norm,
-              qdata as Array<{
-                original_url?: string;
-                page_id?: number | null;
-              }>,
-            );
+          if (qerr || !qdata) continue;
+          if (
+            (qdata as Array<{ page_id?: number | null }>).some(
+              (r) =>
+                typeof r.page_id === "number" &&
+                pageIdSet.has(r.page_id as number),
+            )
+          ) {
+            imagesAlreadyAssociatedCount++;
+          }
         } catch {
           // continue
         }
       }
-
-      let matchCount = 0;
-      for (const rows of matchedByNormalized.values()) {
-        if (
-          rows.some(
-            (r) => typeof r.page_id === "number" && pageIdSet.has(r.page_id),
-          )
-        )
-          matchCount++;
-      }
-      imagesAlreadyAssociatedCount = matchCount;
     }
   } catch (e) {
     console.warn("DEBUG: failed to compute imagesAlreadyAssociatedCount:", e);
   }
 
-  // Insert images in bulk (retry loop)
+  // Insert images in chunks to avoid very large inserts
+  const imageChunkSize = Number(process.env.SCRAPER_IMAGE_INSERT_CHUNK || 500);
   if (imagesToInsert.length > 0) {
-    let insertResult: { data: unknown | null; error: unknown | null } = {
-      data: null,
-      error: null,
-    };
-    {
+    for (let i = 0; i < imagesToInsert.length; i += imageChunkSize) {
+      const chunk = imagesToInsert.slice(i, i + imageChunkSize);
       let attempts = 0;
-      while (attempts < 3) {
+      let inserted = false;
+      while (attempts < 3 && !inserted) {
         try {
-          const res = await db!.from("images").insert(imagesToInsert);
-          insertResult = res as unknown as typeof insertResult;
-          const maybeError = (res as unknown as { error?: unknown }).error;
-          if (!maybeError) break;
+          const res = await db!.from("images").insert(chunk);
+          const insertRes = res as unknown as InsertRes;
+          if (!insertRes.error) {
+            inserted = true;
+            break;
+          }
         } catch (err) {
-          insertResult = { error: err, data: null };
+          console.error("Error inserting image chunk attempt:", err);
         }
         attempts++;
-        if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
+        if (attempts < 3)
+          await new Promise((r) => setTimeout(r, 500 * attempts));
       }
-    }
-    const { error: insertImagesError } = insertResult as {
-      error: unknown | null;
-    };
-    if (insertImagesError) {
-      console.error("Error bulk inserting images:", insertImagesError);
+      if (!inserted) {
+        console.error("Failed to insert image chunk after retries");
+      }
     }
   }
 
@@ -200,7 +185,7 @@ export async function bulkUpsertPagesAndImages(options: {
   const updatedCount = existingCount;
   const skippedCount =
     providedCount > 0 ? Math.max(0, providedCount - totalUniquePages) : 0;
-  const pagesAnalyzed = /* pagesProcessed */ 0 + pagesFailed; // caller prints processed count separately
+  const pagesAnalyzed = /* pagesProcessed */ 0 + pagesFailed;
 
   const imagesUploadedCount = pendingImageRecords.length;
   const imagesDbInsertedCount = imagesToInsert.length;

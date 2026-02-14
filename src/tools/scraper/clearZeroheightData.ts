@@ -1,5 +1,9 @@
-import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "@/lib/toolResponses";
 import { getClient } from "@/lib/common/supabaseClients";
+import { getSupabaseAdminClient } from "@/lib/common";
 import { performBucketClear } from "@/lib/image-utils";
 
 async function clearZeroheightData() {
@@ -7,16 +11,26 @@ async function clearZeroheightData() {
     console.log("Clearing existing Zeroheight data...");
 
     const { client: supabase, storage } = getClient();
+    const adminClient = getSupabaseAdminClient();
 
     console.log("Supabase client available:", !!supabase);
+    console.log("Supabase admin client available:", !!adminClient);
     console.log("Admin-capable storage available:", !!storage.listBuckets);
+
+    if (!adminClient) {
+      const errMsg =
+        "Supabase admin client (service role key) not configured - cannot perform destructive clear operations";
+      console.error(errMsg);
+      return createErrorResponse(errMsg);
+    }
 
     if (supabase) {
       const imagesTable = "images" as const;
       const pagesTable = "pages" as const;
       // Clear images table
       console.log("Clearing images table...");
-      const { error: imagesError } = await supabase
+      // Use admin client to bypass RLS for destructive operations
+      const { data: imagesData, error: imagesError } = await adminClient
         .from(imagesTable)
         .delete()
         .neq("id", 0); // Delete all rows
@@ -27,12 +41,14 @@ async function clearZeroheightData() {
           "Error clearing images table: " + imagesError.message,
         );
       } else {
-        console.log("Images table cleared");
+        console.log(
+          `Images table cleared (${Array.isArray(imagesData) ? imagesData.length : 0} rows)`,
+        );
       }
 
       // Clear pages table
       console.log("Clearing pages table...");
-      const { error: pagesError } = await supabase
+      const { data: pagesData, error: pagesError } = await adminClient
         .from(pagesTable)
         .delete()
         .neq("id", 0); // Delete all rows
@@ -43,7 +59,9 @@ async function clearZeroheightData() {
           "Error clearing pages table: " + pagesError.message,
         );
       } else {
-        console.log("Pages table cleared");
+        console.log(
+          `Pages table cleared (${Array.isArray(pagesData) ? pagesData.length : 0} rows)`,
+        );
       }
 
       // Clear finished/terminal scrape_jobs rows (completed, failed, cancelled)
@@ -51,21 +69,23 @@ async function clearZeroheightData() {
         "Clearing terminal scrape_jobs rows (completed, failed, cancelled)...",
       );
       try {
-        const { error: jobsError } = await supabase
+        const { data: jobsData, error: jobsError } = await adminClient
           .from("scrape_jobs")
           .delete()
           .in("status", ["completed", "failed", "cancelled"]);
         if (jobsError) {
           console.error("Error clearing terminal scrape_jobs:", jobsError);
         } else {
-          console.log("Terminal scrape_jobs rows cleared");
+          console.log(
+            `Terminal scrape_jobs rows cleared (${Array.isArray(jobsData) ? jobsData.length : 0} rows)`,
+          );
         }
       } catch (err) {
         console.error("Unexpected error while clearing scrape_jobs:", err);
       }
 
       // Clear storage bucket (use configured bucket name if provided)
-      const bucketResult = await performBucketClear(supabase);
+      const bucketResult = await performBucketClear(adminClient);
 
       console.log("All Zeroheight data cleared successfully");
       return createSuccessResponse({

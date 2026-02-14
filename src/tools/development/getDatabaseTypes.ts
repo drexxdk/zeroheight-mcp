@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "@/lib/toolResponses";
 
 export const databaseTypesTool = {
   title: "get-database-types",

@@ -1,7 +1,10 @@
 import { z } from "zod";
 import puppeteer from "puppeteer";
 import type { Page } from "puppeteer";
-import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "@/lib/toolResponses";
 import { JobCancelled } from "@/lib/common/errors";
 import {
   getClient,
@@ -10,7 +13,6 @@ import {
 import { createProgressHelpers } from "./shared";
 import { tryLogin } from "@/lib/common/scraperHelpers";
 
-import { processImagesForPage } from "./pageProcessors";
 import type { PagesType, ImagesType } from "@/lib/database.types";
 // Page extraction handles excluded image formats.
 
@@ -265,236 +267,244 @@ export async function scrapeZeroheightProject(
     let processedCount = 0;
     let pagesFailed = 0;
 
-    // Discover all pages and collect image URLs
-    while (processedCount < maxPages) {
-      // Get the next link to process (remove it from the set)
-      const linkValue = allLinks.values().next().value;
-      if (!linkValue) break; // No more links to process
-      let link = linkValue;
-      allLinks.delete(link);
+    // Discover all pages and collect image URLs using a bounded worker pool
+    const concurrency = Number(process.env.SCRAPER_CONCURRENCY || 4);
+    const processingLinks = new Set<string>();
 
-      // Cooperative cancellation check: stop promptly if requested
-      if (shouldCancel && shouldCancel()) {
-        markAttempt(
-          "cancelled",
-          "⏹️",
-          `Cancellation requested - stopping scrape`,
-        );
-        throw new JobCancelled();
-      }
+    const workers: Promise<void>[] = [];
 
-      if (processedLinks.has(link)) {
-        markAttempt(
-          "skip already processed link",
-          "🚫",
-          `Skipping ${getUrlPath(link)} - already processed`,
-        );
-        continue;
-      }
+    for (let i = 0; i < concurrency; i++) {
+      workers.push(
+        (async () => {
+          const workerPage = await browser.newPage();
+          await workerPage.setViewport({ width: 1280, height: 1024 });
 
-      try {
-        await page.goto(link, { waitUntil: "networkidle2", timeout: 30000 });
+          try {
+            while (processedCount < maxPages) {
+              // Cooperative cancellation
+              if (shouldCancel && shouldCancel()) {
+                markAttempt(
+                  "cancelled",
+                  "⏹️",
+                  `Cancellation requested - stopping scrape`,
+                );
+                throw new JobCancelled();
+              }
 
-        // Check for redirects and normalize URL
-        const finalUrl = page.url();
-        if (finalUrl !== link) {
-          if (processedLinks.has(finalUrl)) {
-            markAttempt(
-              "skip redirect already processed",
-              "🚫",
-              "Skipping page - already processed (redirected)",
-            );
-            continue;
-          }
-          // Use the final URL for processing instead of the original link
-          link = finalUrl;
-        }
+              const iter = allLinks.values().next();
+              const linkValue = iter.value;
+              if (!linkValue) break; // No more links
+              const linkCandidate = linkValue;
+              allLinks.delete(linkCandidate);
 
-        processedLinks.add(link);
+              if (
+                processedLinks.has(linkCandidate) ||
+                processingLinks.has(linkCandidate)
+              ) {
+                continue;
+              }
 
-        processedCount++;
-        overallProgress.pagesProcessed = processedCount;
-        overallProgress.current++; // Increment current for each page processed
-        checkProgressInvariant(overallProgress, "page processed");
+              processingLinks.add(linkCandidate);
+              let link = linkCandidate;
 
-        const {
-          title: pageTitle,
-          content: pageContent,
-          supportedImages,
-          normalizedImages,
-          pageLinks,
-        } = await import("./pageExtraction").then((m) =>
-          m.extractPageData(page, link, allowedHostname),
-        );
+              try {
+                await workerPage.goto(link, {
+                  waitUntil: "networkidle2",
+                  timeout: 30000,
+                });
 
-        const title = pageTitle;
-        const content = pageContent;
-
-        // Only discover additional links if we're not using specific URLs
-        if (!pageUrls || pageUrls.length === 0) {
-          pageLinks.forEach((newLink) => {
-            if (
-              !allLinks.has(newLink) &&
-              !processedLinks.has(newLink) &&
-              processedCount < maxPages
-            ) {
-              allLinks.add(newLink);
-              overallProgress.total++; // Update total to include newly discovered links
-              checkProgressInvariant(
-                overallProgress,
-                "new discovered page (pageLinks)",
-              );
-            }
-          });
-        }
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        // Update unique image URL sets (normalized src values)
-        for (const img of normalizedImages) uniqueAllImageUrls.add(img.src);
-        for (const img of normalizedImages) {
-          if (supportedImages.find((s) => s.src === img.src)) {
-            uniqueAllowedImageUrls.add(img.src);
-          } else {
-            uniqueUnsupportedImageUrls.add(img.src);
-          }
-        }
-
-        // Defer page DB writes; collect for bulk upsert
-        pagesToUpsert.push({ url: link, title, content });
-
-        // Log images found on this page and update total
-        if (supportedImages.length > 0) {
-          // Update total to include these images
-          overallProgress.total += supportedImages.length;
-          checkProgressInvariant(overallProgress, "after adding images");
-          logProgress(
-            "📷",
-            `Found ${supportedImages.length} supported image${
-              supportedImages.length === 1 ? "" : "s"
-            } on this page (${normalizedImages.length - supportedImages.length} filtered out)`,
-          );
-        }
-
-        // Track for return value
-        processedPages.push({
-          url: link,
-          title,
-          content,
-          images: supportedImages.map((img) => ({
-            src: img.src,
-            alt: img.alt,
-          })),
-        });
-
-        // Process images for this page (delegated to helper)
-        const imgStats = await processImagesForPage({
-          supportedImages,
-          link,
-          storage,
-          overallProgress,
-          allExistingImageUrls,
-          pendingImageRecords,
-          logProgress,
-          shouldCancel,
-        });
-
-        // aggregate image stats
-        imagesStats.processed += imgStats.processed || 0;
-        imagesStats.uploaded += imgStats.uploaded || 0;
-        imagesStats.skipped += imgStats.skipped || 0;
-        imagesStats.failed += imgStats.failed || 0;
-
-        logProgress(
-          "📄",
-          `Processing page ${processedCount}: ${getUrlPath(link)}`,
-        );
-
-        // Only discover new links if we're not using specific URLs
-        if (!pageUrls || pageUrls.length === 0) {
-          // Discover new links on this page
-          const newLinks = await page.$$eval(
-            "a[href]",
-            (links, projUrl, host) =>
-              links
-                .map((link) => link.href)
-                .filter((href) => {
+                // Check for redirects and normalize URL
+                const finalUrl = workerPage.url();
+                if (finalUrl !== link) {
                   if (
-                    !href ||
-                    href.startsWith("#") ||
-                    href.startsWith("mailto:") ||
-                    href.startsWith("tel:")
-                  )
-                    return false;
-                  try {
-                    const linkUrl = new URL(href, projUrl);
-                    return (
-                      linkUrl.hostname === host &&
-                      linkUrl.href !== projUrl &&
-                      linkUrl.href !== window.location.href
-                    );
-                  } catch {
-                    return false;
+                    processedLinks.has(finalUrl) ||
+                    processingLinks.has(finalUrl)
+                  ) {
+                    processingLinks.delete(linkCandidate);
+                    continue;
                   }
-                }),
-            url,
-            allowedHostname,
-          );
+                  link = finalUrl;
+                }
 
-          let actuallyNewLinksCount = 0;
+                processedLinks.add(link);
 
-          if (shouldCancel && shouldCancel()) {
-            markAttempt(
-              "cancelled",
-              "⏹️",
-              `Cancellation requested - stopping after discovery`,
-            );
-            throw new JobCancelled();
-          }
-          newLinks.forEach((newLink) => {
-            if (
-              !allLinks.has(newLink) &&
-              !processedLinks.has(newLink) &&
-              processedCount < maxPages
-            ) {
-              allLinks.add(newLink);
-              overallProgress.total++; // Update total to include newly discovered links
-              checkProgressInvariant(
-                overallProgress,
-                "new discovered page (newLinks)",
-              );
-              actuallyNewLinksCount++;
+                processedCount++;
+                overallProgress.pagesProcessed = processedCount;
+                overallProgress.current++; // Increment current for each page processed
+                checkProgressInvariant(overallProgress, "page processed");
+
+                // Delegate page extraction + image processing to helper
+                const {
+                  usedLink,
+                  pageUpsert,
+                  processedPageEntry,
+                  pageLinks,
+                  normalizedImages,
+                  supportedImages,
+                  imgStats,
+                } = await import("./processPageAndImages").then((m) =>
+                  m.processPageAndImages({
+                    page: workerPage,
+                    link,
+                    allowedHostname,
+                    storage,
+                    overallProgress,
+                    allExistingImageUrls,
+                    pendingImageRecords,
+                    logProgress,
+                    shouldCancel,
+                    checkProgressInvariant,
+                  }),
+                );
+
+                // Only discover additional links if we're not using specific URLs
+                if (!pageUrls || pageUrls.length === 0) {
+                  pageLinks.forEach((newLink) => {
+                    if (
+                      !allLinks.has(newLink) &&
+                      !processedLinks.has(newLink) &&
+                      processedCount < maxPages
+                    ) {
+                      allLinks.add(newLink);
+                      overallProgress.total++; // Update total to include newly discovered links
+                      checkProgressInvariant(
+                        overallProgress,
+                        "new discovered page (pageLinks)",
+                      );
+                    }
+                  });
+                }
+
+                // Update unique image URL sets (normalized src values)
+                for (const img of normalizedImages)
+                  uniqueAllImageUrls.add(img.src);
+                for (const img of normalizedImages) {
+                  if (supportedImages.find((s) => s.src === img.src)) {
+                    uniqueAllowedImageUrls.add(img.src);
+                  } else {
+                    uniqueUnsupportedImageUrls.add(img.src);
+                  }
+                }
+
+                // Defer page DB writes; collect for bulk upsert
+                pagesToUpsert.push(pageUpsert);
+
+                // Track for return value
+                processedPages.push(processedPageEntry);
+
+                // aggregate image stats
+                imagesStats.processed += imgStats.processed || 0;
+                imagesStats.uploaded += imgStats.uploaded || 0;
+                imagesStats.skipped += imgStats.skipped || 0;
+                imagesStats.failed += imgStats.failed || 0;
+
+                logProgress(
+                  "📄",
+                  `Processing page ${processedCount}: ${getUrlPath(usedLink)}`,
+                );
+
+                // Only discover new links if we're not using specific URLs
+                if (!pageUrls || pageUrls.length === 0) {
+                  // Discover new links on this page
+                  const newLinks = await workerPage.$$eval(
+                    "a[href]",
+                    (links, projUrl, host) =>
+                      links
+                        .map((link) => link.href)
+                        .filter((href) => {
+                          if (
+                            !href ||
+                            href.startsWith("#") ||
+                            href.startsWith("mailto:") ||
+                            href.startsWith("tel:")
+                          )
+                            return false;
+                          try {
+                            const linkUrl = new URL(href, projUrl);
+                            return (
+                              linkUrl.hostname === host &&
+                              linkUrl.href !== projUrl &&
+                              linkUrl.href !== window.location.href
+                            );
+                          } catch {
+                            return false;
+                          }
+                        }),
+                    url,
+                    allowedHostname,
+                  );
+
+                  let actuallyNewLinksCount = 0;
+
+                  if (shouldCancel && shouldCancel()) {
+                    markAttempt(
+                      "cancelled",
+                      "⏹️",
+                      `Cancellation requested - stopping after discovery`,
+                    );
+                    throw new JobCancelled();
+                  }
+                  newLinks.forEach((newLink) => {
+                    if (
+                      !allLinks.has(newLink) &&
+                      !processedLinks.has(newLink) &&
+                      processedCount < maxPages
+                    ) {
+                      allLinks.add(newLink);
+                      overallProgress.total++; // Update total to include newly discovered links
+                      checkProgressInvariant(
+                        overallProgress,
+                        "new discovered page (newLinks)",
+                      );
+                      actuallyNewLinksCount++;
+                    }
+                  });
+
+                  if (actuallyNewLinksCount > 0) {
+                    logProgress(
+                      "🔍",
+                      `${actuallyNewLinksCount} new links discovered on this page (automatic mode)`,
+                    );
+                  }
+                }
+              } catch (e) {
+                // If this is a cooperative cancellation, rethrow so the outer
+                // handler can handle it cleanly (avoid noisy stack traces here).
+                if (e instanceof JobCancelled) {
+                  markAttempt(
+                    "cancelled",
+                    "⏹️",
+                    `Cancellation requested - stopping scrape during ${getUrlPath(link)}`,
+                  );
+                  throw e;
+                }
+
+                console.error(`Failed to scrape ${getUrlPath(link)}:`, e);
+                // Count the failed attempt and record as a failed page
+                pagesFailed++;
+                markAttempt(
+                  "failed scrape catch",
+                  "❌",
+                  `Failed to scrape ${getUrlPath(link)}`,
+                );
+              } finally {
+                processingLinks.delete(linkCandidate);
+                processedLinks.add(link);
+              }
             }
-          });
-
-          if (actuallyNewLinksCount > 0) {
-            logProgress(
-              "🔍",
-              `${actuallyNewLinksCount} new links discovered on this page (automatic mode)`,
-            );
+          } finally {
+            try {
+              await workerPage.close();
+            } catch {
+              /* ignore close errors */
+            }
           }
-        }
-      } catch (e) {
-        // If this is a cooperative cancellation, rethrow so the outer
-        // handler can handle it cleanly (avoid noisy stack traces here).
-        if (e instanceof JobCancelled) {
-          markAttempt(
-            "cancelled",
-            "⏹️",
-            `Cancellation requested - stopping scrape during ${getUrlPath(link)}`,
-          );
-          throw e;
-        }
-
-        console.error(`Failed to scrape ${getUrlPath(link)}:`, e);
-        // Count the failed attempt and record as a failed page
-        pagesFailed++;
-        markAttempt(
-          "failed scrape catch",
-          "❌",
-          `Failed to scrape ${getUrlPath(link)}`,
-        );
-      }
+        })(),
+      );
     }
+
+    // Wait for all workers to finish
+    await Promise.all(workers);
 
     console.log(
       `Scraping completed. Final progress: [${overallProgress.current}/${overallProgress.total}]`,

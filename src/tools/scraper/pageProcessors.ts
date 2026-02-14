@@ -3,6 +3,7 @@ import { JobCancelled } from "@/lib/common/errors";
 import type { StorageHelper } from "@/lib/common/scraperHelpers";
 import { normalizeImageUrl } from "./imageHelpers";
 import { processAndUploadImage } from "./imagePipeline";
+import { mapWithConcurrency } from "./concurrency";
 
 export type Progress = {
   current: number;
@@ -44,43 +45,39 @@ export async function processImagesForPage(options: {
     allExistingImageUrls,
     pendingImageRecords,
     logProgress,
-
     shouldCancel,
   } = options;
 
-  let processed = 0;
-  let uploaded = 0;
-  let skipped = 0;
-  let failed = 0;
+  const concurrency = Number(process.env.SCRAPER_IMAGE_CONCURRENCY || 4);
 
-  for (const img of supportedImages) {
-    if (shouldCancel && shouldCancel()) {
-      logProgress("⏹️", "Cancellation requested - stopping image processing");
-      try {
-        // Emit a clear cancellation log with context so we can correlate
-        // the stack and job lifecycle in logs when diagnosing cancellation
-        console.log(
-          `[${new Date().toISOString()}] Cancellation detected in processImagesForPage for page=${link}`,
-        );
-      } catch {
-        // best-effort logging only
+  const results = await mapWithConcurrency(
+    supportedImages,
+    async (img) => {
+      if (shouldCancel && shouldCancel()) {
+        logProgress("⏹️", "Cancellation requested - stopping image processing");
+        try {
+          console.log(
+            `[${new Date().toISOString()}] Cancellation detected in processImagesForPage for page=${link}`,
+          );
+        } catch {
+          // best-effort
+        }
+        throw new JobCancelled();
       }
-      throw new JobCancelled();
-    }
-    overallProgress.current++;
+      overallProgress.current++;
 
-    if (img.src && img.src.startsWith("http")) {
-      // Normalize the image URL for comparison (strip querystring/params)
+      if (!(img.src && img.src.startsWith("http"))) {
+        console.error(`❌ Invalid image source: ${img.src}`);
+        return { processed: 0, uploaded: 0, skipped: 0, failed: 1 };
+      }
+
       const normalizedSrc = normalizeImageUrl(img.src);
-
       if (allExistingImageUrls.has(normalizedSrc)) {
         logProgress("🚫", "Skipping image - already processed");
-        skipped++;
-        continue;
+        return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
       }
 
       overallProgress.imagesProcessed++;
-      processed++;
       logProgress(
         "📷",
         `Processing image ${overallProgress.imagesProcessed}: ${img.src.split("/").pop()}`,
@@ -97,19 +94,26 @@ export async function processImagesForPage(options: {
         shouldCancel,
       });
 
-      if (result.uploaded) {
-        uploaded++;
-      } else {
-        failed++;
-        console.error(
-          `❌ Failed to process image ${img.src.split("/").pop()}: ${result.error}`,
-        );
-      }
-    } else {
-      console.error(`❌ Invalid image source: ${img.src}`);
-      failed++;
-    }
-  }
+      if (result.uploaded)
+        return { processed: 1, uploaded: 1, skipped: 0, failed: 0 };
+      console.error(
+        `❌ Failed to process image ${img.src.split("/").pop()}: ${result.error}`,
+      );
+      return { processed: 1, uploaded: 0, skipped: 0, failed: 1 };
+    },
+    concurrency,
+  );
 
-  return { processed, uploaded, skipped, failed };
+  const totals = results.reduce(
+    (acc, r) => {
+      acc.processed += r.processed;
+      acc.uploaded += r.uploaded;
+      acc.skipped += r.skipped;
+      acc.failed += r.failed;
+      return acc;
+    },
+    { processed: 0, uploaded: 0, skipped: 0, failed: 0 },
+  );
+
+  return totals;
 }

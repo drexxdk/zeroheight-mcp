@@ -30,25 +30,7 @@ export function getSupabaseAdminClient(): ReturnType<
 }
 
 // Common error response helper
-export function createErrorResponse(message: string) {
-  return {
-    content: [{ type: "text" as const, text: message }],
-  };
-}
-
-// Common success response helper
-export function createSuccessResponse(data: unknown) {
-  try {
-    const text = JSON.stringify(data, null, 2);
-    return {
-      content: [{ type: "text" as const, text }],
-    };
-  } catch {
-    return {
-      content: [{ type: "text" as const, text: String(data) }],
-    };
-  }
-}
+export { createErrorResponse, createSuccessResponse } from "./toolResponses";
 
 // Map SQL types to TypeScript types
 export function mapSqlTypeToTs(sqlType: string): string {

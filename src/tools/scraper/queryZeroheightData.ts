@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "@/lib/toolResponses";
 import { getClient } from "@/lib/common/supabaseClients";
 import { IMAGE_BUCKET } from "@/lib/config";
 import { PageData } from "./shared";

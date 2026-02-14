@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "@/lib/toolResponses";
 
 export const getProjectUrlTool = {
   title: "get-project-url",

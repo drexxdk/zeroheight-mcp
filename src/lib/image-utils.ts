@@ -202,16 +202,33 @@ export async function performBucketClear(
 
   const maybeClient = getSupabaseClient();
 
+  // Prefer the explicitly provided client instance, otherwise fall back to the global client
+  const storageClientToUse = (clientInstance || maybeClient) as
+    | ReturnType<typeof createClient<Database>>
+    | null;
+
   const buckets: string[] = [];
   const files: Array<{ name: string }> = [];
 
-  // proceed with clearing the bucket (non-debug mode)
+  // Gather debug info about the bucket/files (helps explain zero-results)
+  try {
+    if (storageClientToUse) {
+      const debug = await getBucketDebugInfo(storageClientToUse, targetBucket);
+      buckets.push(...debug.buckets);
+      files.push(...debug.files);
+    } else {
+      console.warn("No Supabase client available to list buckets/files");
+    }
+  } catch (err) {
+    console.error("Error getting bucket debug info:", err);
+  }
+
+  // proceed with clearing the bucket
   let deleteSummary = { deletedCount: 0, deleteErrors: [] as unknown[] };
   try {
-    const storageClientToUse = (maybeClient || clientInstance) as ReturnType<
-      typeof createClient<Database>
-    >;
-    deleteSummary = await clearStorageBucket(storageClientToUse!, targetBucket);
+    if (storageClientToUse) {
+      deleteSummary = await clearStorageBucket(storageClientToUse, targetBucket);
+    }
   } catch (err) {
     console.error("Error during storage clear:", err);
   }
