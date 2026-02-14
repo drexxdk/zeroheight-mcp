@@ -131,6 +131,20 @@ export async function finishJob(
   }
 }
 
+export async function markJobCancelledInDb(jobId: string) {
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase
+      .from("scrape_jobs")
+      .update({ status: "cancelled", finished_at: new Date().toISOString() })
+      .eq("id", jobId);
+    if (error) console.warn("markJobCancelledInDb error:", error);
+  } catch (e) {
+    console.warn("markJobCancelledInDb failed:", e);
+  }
+}
+
 export async function getJobFromDb(jobId: string) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;

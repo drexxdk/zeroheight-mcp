@@ -4,7 +4,7 @@ import {
   createSuccessResponse,
 } from "@/lib/toolResponses";
 import { JobCancelled } from "@/lib/common/errors";
-import serverApi from "./serverApi";
+import { finishJob as finishJobInDb, markJobCancelledInDb } from "./jobStore";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
@@ -60,22 +60,14 @@ export function createJob(
         logger("Job cancelled");
         if (job.externalId) {
           try {
-            logger(
-              `Notifying server of cancellation for externalId=${job.externalId}`,
-            );
-            const res = await serverApi.markJobCancelled(job.externalId);
-            logger(`Server notified of cancellation for ${job.externalId}`);
-            console.log(
-              `serverApi.markJobCancelled response: ${JSON.stringify(res)}`,
-            );
+            logger(`Marking external job ${job.externalId} cancelled in DB`);
+            await markJobCancelledInDb(job.externalId);
+            logger(`External job ${job.externalId} marked cancelled`);
           } catch (notifyErr) {
             logger(
-              `Failed to notify server of cancellation for ${job.externalId}: ${String(notifyErr)}`,
+              `Failed to mark external job cancelled: ${String(notifyErr)}`,
             );
-            console.error(
-              `Failed to notify server of cancellation for ${job.externalId}:`,
-              notifyErr,
-            );
+            console.error(`Failed to mark external job cancelled:`, notifyErr);
           }
         }
       } else {
@@ -84,22 +76,14 @@ export function createJob(
         logger("Job completed");
         if (job.externalId) {
           try {
-            logger(
-              `Notifying server of completion for externalId=${job.externalId}`,
-            );
-            await serverApi.callServer(
-              `/api/jobs/${encodeURIComponent(job.externalId)}/finish`,
-              { success: true },
-            );
-            logger(`Server notified of completion for ${job.externalId}`);
+            logger(`Marking external job ${job.externalId} completed in DB`);
+            await finishJobInDb(job.externalId, true);
+            logger(`External job ${job.externalId} marked completed`);
           } catch (notifyErr) {
             logger(
-              `Failed to notify server of completion for ${job.externalId}: ${String(notifyErr)}`,
+              `Failed to mark external job completed: ${String(notifyErr)}`,
             );
-            console.error(
-              `Failed to notify server of completion for ${job.externalId}:`,
-              notifyErr,
-            );
+            console.error(`Failed to mark external job completed:`, notifyErr);
           }
         }
       }
@@ -111,7 +95,7 @@ export function createJob(
         logger("Job cancelled");
         if (job.externalId) {
           try {
-            await serverApi.markJobCancelled(job.externalId);
+            await markJobCancelledInDb(job.externalId);
           } catch {
             // ignore
           }
@@ -123,10 +107,7 @@ export function createJob(
         logger(`Job failed: ${job.error}`);
         if (job.externalId) {
           try {
-            await serverApi.callServer(
-              `/api/jobs/${encodeURIComponent(job.externalId)}/finish`,
-              { success: false, error: job.error },
-            );
+            await finishJobInDb(job.externalId, false, job.error);
           } catch {
             // ignore
           }

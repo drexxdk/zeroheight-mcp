@@ -19,15 +19,6 @@ export function hashFilenameFromUrl(url: string, ext = "jpg"): string {
   return `${h}.${ext}`;
 }
 
-import { uploadFileToServer } from "./serverApi";
-
-export async function uploadViaServer(
-  bucket: string,
-  filename: string,
-  base64: string,
-  contentType = "application/octet-stream",
-) {
-  const res = await uploadFileToServer(bucket, filename, base64, contentType);
-  if (res && typeof res.path === "string") return res.path;
-  throw new Error("server upload returned no path");
-}
+// Note: uploading via the server API was removed in favor of direct admin
+// Supabase uploads. If fallback upload is needed, `storageHelper` will call
+// the admin client directly.

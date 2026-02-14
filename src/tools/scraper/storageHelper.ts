@@ -4,7 +4,7 @@ import type {
 } from "@/lib/common/scraperHelpers";
 import { uploadWithRetry } from "@/lib/common/scraperHelpers";
 import { IMAGE_BUCKET, ALLOWED_MIME_TYPES } from "@/lib/config";
-import { uploadViaServer } from "./imageHelpers";
+import { getSupabaseAdminClient } from "@/lib/common";
 
 export async function ensureBucket(
   storage: StorageHelper,
@@ -47,13 +47,21 @@ export async function uploadWithFallback(
     )
   ) {
     try {
+      // Attempt to use the Supabase admin client to perform the upload as
+      // a fallback when the runtime client lacks permission (RLS).
+      const admin = getSupabaseAdminClient();
+      if (!admin) throw new Error("Supabase admin client not configured");
       const base64 = file.toString("base64");
-      const path = await uploadViaServer(
-        IMAGE_BUCKET,
-        filename,
-        base64,
-        contentType,
-      );
+      const buffer = Buffer.from(base64, "base64");
+      const { error: upErr } = await admin.storage
+        .from(IMAGE_BUCKET)
+        .upload(filename, buffer, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType,
+        });
+      if (upErr) throw upErr;
+      const path = `${filename}`;
       return { data: { path } };
     } catch (e) {
       return { error: { message: String(e) } };
