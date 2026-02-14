@@ -19,7 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*", "./public/assets/*"]
     }
   },
   "include": [
@@ -27,9 +27,9 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
     "**/*.mts",
-    "scripts/scrape-all.ts"
+    "scripts/scrape-all.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules", "scripts/**/*"]
 }

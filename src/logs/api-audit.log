@@ -1,0 +1,9 @@
+{"ts":"2026-02-14T14:06:54.915Z","route":"/api/jobs POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{"name":"scrape-zeroheight-project","args":{"pageUrls":null,"password":"Design4allQ4"}}}
+{"ts":"2026-02-14T14:14:04.673Z","route":"/api/jobs POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{"name":"scrape-zeroheight-project","args":{"pageUrls":null,"password":"Design4allQ4"}}}
+{"ts":"2026-02-14T15:29:52.574Z","route":"/api/jobs POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{"name":"scrape-zeroheight-project","args":{"pageUrls":null,"password":"Design4allQ4"}}}
+{"ts":"2026-02-14T16:20:21.993Z","route":"/api/jobs POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{"name":"scrape-zeroheight-project","args":{"pageUrls":null,"password":"Design4allQ4"}}}
+{"ts":"2026-02-14T16:25:57.459Z","route":"/api/jobs POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{"name":"scrape-zeroheight-project","args":{"pageUrls":null,"password":"Design4allQ4"}}}
+{"ts":"2026-02-14T16:32:59.949Z","route":"/api/jobs POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{"name":"scrape-zeroheight-project","args":{"pageUrls":null,"password":"Design4allQ4"}}}
+{"ts":"2026-02-14T16:35:25.454Z","route":"/api/jobs/:id/cancel POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{}}
+{"ts":"2026-02-14T16:39:37.724Z","route":"/api/jobs POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{"name":"scrape-zeroheight-project","args":{"pageUrls":null,"password":"Design4allQ4"}}}
+{"ts":"2026-02-14T16:40:34.831Z","route":"/api/jobs/:id/cancel POST","method":"POST","apiKey":"uVqt...ag57","ip":"::1","details":{},"body":{}}
