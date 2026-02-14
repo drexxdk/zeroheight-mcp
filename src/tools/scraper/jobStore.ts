@@ -1,18 +1,25 @@
 import type { Scrape_jobsType } from "@/lib/database.types";
+import type { Json } from "@/lib/database.schema";
 import { getSupabaseAdminClient } from "@/lib/common";
-import serverApi from "./serverApi";
 
 export type JobRecord = Scrape_jobsType;
 
 export async function createJobInDb(
   name: string,
-  args?: Record<string, unknown>,
+  args?: Record<string, unknown> | null,
 ) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;
 
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  const payload = { id, name, status: "queued", args: args ?? null };
+  // Ensure `args` is compatible with the DB `Json` type expected by the
+  // generated Supabase client types.
+  const payload = {
+    id,
+    name,
+    status: "queued",
+    args: (args ? (args as unknown as Json) : null) as Json | null,
+  };
 
   const { error } = await supabase.from("scrape_jobs").insert([payload]);
   if (error) {
