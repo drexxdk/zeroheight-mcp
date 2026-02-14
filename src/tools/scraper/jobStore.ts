@@ -29,6 +29,18 @@ export async function createJobInDb(
   return id;
 }
 
+export async function createTestJobInDb(
+  name: string,
+  args?: Record<string, unknown> | null,
+  testRunId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+) {
+  const merged = { ...(args || {}), __testRunId: testRunId } as Record<
+    string,
+    unknown
+  >;
+  return createJobInDb(name, merged);
+}
+
 export async function claimNextJob(): Promise<JobRecord | null> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;
@@ -57,6 +69,25 @@ export async function claimNextJob(): Promise<JobRecord | null> {
     } as JobRecord;
   } catch (e) {
     console.error("claimNextJob error:", e);
+    return null;
+  }
+}
+
+export async function claimJobById(jobId: string): Promise<JobRecord | null> {
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("scrape_jobs")
+      .update({ status: "running", started_at: new Date().toISOString() })
+      .eq("id", jobId)
+      .eq("status", "queued")
+      .select()
+      .maybeSingle();
+    if (error || !data) return null;
+    return { ...(data as JobRecord), status: "running" } as JobRecord;
+  } catch (e) {
+    console.error("claimJobById error:", e);
     return null;
   }
 }
@@ -142,6 +173,34 @@ export async function markJobCancelledInDb(jobId: string) {
     if (error) console.warn("markJobCancelledInDb error:", error);
   } catch (e) {
     console.warn("markJobCancelledInDb failed:", e);
+  }
+}
+
+export async function deleteJobInDb(jobId: string) {
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase
+      .from("scrape_jobs")
+      .delete()
+      .eq("id", jobId);
+    if (error) console.warn("deleteJobInDb error:", error);
+  } catch (e) {
+    console.warn("deleteJobInDb failed:", e);
+  }
+}
+
+export async function deleteJobsByTestRun(testRunId: string) {
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase
+      .from("scrape_jobs")
+      .delete()
+      .contains("args", { __testRunId: testRunId });
+    if (error) console.warn("deleteJobsByTestRun error:", error);
+  } catch (e) {
+    console.warn("deleteJobsByTestRun failed:", e);
   }
 }
 

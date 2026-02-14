@@ -3,12 +3,13 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import {
-  createJobInDb,
-  claimNextJob,
+  createTestJobInDb,
+  claimJobById,
   appendJobLog,
   finishJob,
   getJobFromDb,
   markJobCancelledInDb,
+  deleteJobInDb,
 } from "@/tools/scraper/jobStore";
 
 function sleep(ms: number) {
@@ -17,7 +18,7 @@ function sleep(ms: number) {
 
 async function run() {
   console.log("Creating test job...");
-  const id = await createJobInDb("test-job-full-flow", { foo: "bar" });
+  const id = await createTestJobInDb("test-job-full-flow", { foo: "bar" });
   if (!id) {
     console.error("Failed to create job");
     process.exit(1);
@@ -40,8 +41,8 @@ async function run() {
 
   // Start a background "worker" that will claim and run the job.
   const worker = (async () => {
-    console.log("Worker: claiming next job...");
-    const claimed = await claimNextJob();
+    console.log("Worker: claiming job by id...");
+    const claimed = await claimJobById(id);
     if (!claimed) {
       console.error("Worker: no job claimed");
       return;
@@ -108,6 +109,14 @@ async function run() {
   console.log(
     "Test successful: job was claimed, cancelled, and worker respected cancellation.",
   );
+
+  // cleanup test job
+  try {
+    await deleteJobInDb(id);
+    console.log("Cleaned up test job", id);
+  } catch (e) {
+    console.warn("Cleanup failed:", e instanceof Error ? e.message : e);
+  }
 }
 
 run().catch((e) => {

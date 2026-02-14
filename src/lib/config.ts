@@ -2,7 +2,7 @@
 export const IMAGE_BUCKET =
   process.env.SUPABASE_IMAGE_BUCKET ||
   process.env.NEXT_PUBLIC_SUPABASE_IMAGE_BUCKET ||
-  "zeroheight-images";
+  "images";
 
 export const EXCLUDE_IMAGE_FORMATS = (
   (process.env.IMAGE_EXCLUDE_FORMATS as string | undefined) || "svg,gif"

@@ -5,6 +5,7 @@ import { IMAGE_BUCKET } from "@/lib/config";
 dotenvConfig({ path: ".env.local" });
 
 const BUCKET = IMAGE_BUCKET;
+const TEST_BUCKET = `${BUCKET}_test`;
 
 function extFromContentType(ct: string | null) {
   if (!ct) return "png";
@@ -26,22 +27,29 @@ async function downloadAndUpload(url: string) {
     resp.headers.get("content-type") || "application/octet-stream";
   const ext = extFromContentType(contentType);
 
-  // ensure bucket exists
+  // Prefer a test bucket to avoid touching production images.
   const listResult = await client.storage.listBuckets();
   const buckets = listResult.data;
-  if (!buckets?.some((b) => b.name === BUCKET)) {
-    throw new Error(
-      `Bucket ${BUCKET} missing and no admin client available to create it`,
+  const targetBucket = buckets?.some((b) => b.name === TEST_BUCKET)
+    ? TEST_BUCKET
+    : null;
+
+  if (!targetBucket) {
+    console.log(
+      `Test bucket ${TEST_BUCKET} not found; skipping upload to avoid touching production bucket ${BUCKET}`,
     );
+    return null as unknown as { path: string; publicUrl: string };
   }
 
   const uploader = client;
   const filename = `test_image_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`;
 
-  const result = await uploader.storage.from(BUCKET).upload(filename, buffer, {
-    upsert: false,
-    contentType,
-  });
+  const result = await uploader.storage
+    .from(targetBucket)
+    .upload(filename, buffer, {
+      upsert: false,
+      contentType,
+    });
 
   const uploadError = (result as unknown as { error?: unknown }).error;
   const uploadData = (result as unknown as { data?: { path?: string } }).data;
