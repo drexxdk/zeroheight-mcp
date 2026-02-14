@@ -1,6 +1,12 @@
 import sharp from "sharp";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./database.schema";
+import {
+  EXCLUDE_IMAGE_FORMATS,
+  IMAGE_MAX_DIM,
+  IMAGE_JPEG_QUALITY,
+  IMAGE_BUCKET,
+} from "./config";
 
 export async function downloadImage(
   url: string,
@@ -38,16 +44,20 @@ export async function downloadImage(
       return null;
     }
 
-    // Skip SVG and GIF images - don't upload them to storage
-    if (metadata.format === "svg" || metadata.format === "gif") {
+    // Skip excluded formats from configuration
+    const fmt = (metadata.format || "").toLowerCase();
+    if (EXCLUDE_IMAGE_FORMATS.includes(fmt)) {
       return null;
     }
 
     // Process image with sharp: resize to max 600x600, convert to JPEG, optimize
     const processedBuffer = await sharp(Buffer.from(buffer))
-      .resize(600, 600, { fit: "inside", withoutEnlargement: true })
+      .resize(IMAGE_MAX_DIM, IMAGE_MAX_DIM, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
       .flatten({ background: { r: 255, g: 255, b: 255 } }) // Fill transparent areas with white
-      .jpeg({ quality: 80 })
+      .jpeg({ quality: IMAGE_JPEG_QUALITY })
       .toBuffer();
 
     return processedBuffer.toString("base64");
@@ -59,19 +69,20 @@ export async function downloadImage(
 
 export async function clearStorageBucket(
   client: ReturnType<typeof createClient<Database>>,
+  bucketName?: string,
 ): Promise<void> {
   try {
     // List all files in the bucket
     let allFiles: string[] = [];
     let continuationToken: string | null = null;
 
+    const targetBucket = bucketName || IMAGE_BUCKET || "zeroheight-images";
+
     do {
-      const { data, error } = await client.storage
-        .from("zeroheight-images")
-        .list("", {
-          limit: 1000,
-          offset: continuationToken ? parseInt(continuationToken) : 0,
-        });
+      const { data, error } = await client.storage.from(targetBucket).list("", {
+        limit: 1000,
+        offset: continuationToken ? parseInt(continuationToken) : 0,
+      });
 
       if (error) {
         console.error("Error listing files:", error);
@@ -97,7 +108,7 @@ export async function clearStorageBucket(
         const batch = allFiles.slice(i, i + batchSize);
 
         const { error: deleteError } = await client.storage
-          .from("zeroheight-images")
+          .from(targetBucket)
           .remove(batch);
 
         if (deleteError) {

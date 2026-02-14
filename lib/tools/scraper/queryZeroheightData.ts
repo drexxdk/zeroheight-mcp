@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createErrorResponse, createSuccessResponse } from "../../common";
 import { getClient } from "../../common/supabaseClients";
+import { IMAGE_BUCKET } from "../../config";
 import { PageData } from "./shared";
 
 // Get the Supabase project URL for constructing storage URLs
@@ -136,7 +137,7 @@ export const queryZeroheightDataTool = {
             ? Object.fromEntries(
                 page.images.map((img) => [
                   img.original_url,
-                  `${supabaseUrl}/storage/v1/object/public/zeroheight-images/${img.storage_path}`,
+                  `${supabaseUrl}/storage/v1/object/public/${IMAGE_BUCKET}/${img.storage_path}`,
                 ]),
               )
             : {},

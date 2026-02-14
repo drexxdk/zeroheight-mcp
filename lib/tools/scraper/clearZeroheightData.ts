@@ -46,9 +46,10 @@ async function clearZeroheightData() {
         console.log("Pages table cleared");
       }
 
-      // Clear storage bucket
-      console.log("Clearing zeroheight-images storage bucket...");
-      await clearStorageBucket(client);
+      // Clear storage bucket (use configured bucket name if provided)
+      const bucketName = process.env.SUPABASE_IMAGE_BUCKET || undefined;
+      console.log("Clearing storage bucket...", bucketName || "(default)");
+      await clearStorageBucket(client, bucketName);
 
       console.log("All Zeroheight data cleared successfully");
       return createSuccessResponse("Zeroheight data cleared successfully");

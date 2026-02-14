@@ -14,6 +14,7 @@ import {
 
 import { processImagesForPage } from "./pageProcessors";
 import type { PagesType, ImagesType } from "../../database.types";
+import { EXCLUDE_IMAGE_FORMATS } from "../../config";
 
 // Helper function to get URL path without host
 function getUrlPath(url: string): string {
@@ -219,7 +220,8 @@ export async function scrapeZeroheightProject(
     );
 
     // Phase 1: Discover all pages and collect page data; upload images immediately
-    const pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">> = [];
+    const pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">> =
+      [];
 
     // Images uploaded during scraping; DB records will be inserted in bulk after pages are upserted
     const pendingImageRecords: Array<{
@@ -405,10 +407,14 @@ export async function scrapeZeroheightProject(
           return { ...img, src: normalizedSrc, originalSrc: img.src };
         });
 
-        // Filter out unsupported image formats
+        // Filter out excluded image formats (configurable)
         const supportedImages = normalizedImages.filter((img) => {
           const lowerSrc = img.src.toLowerCase();
-          return !lowerSrc.includes(".gif") && !lowerSrc.includes(".svg");
+          // Check file extension against configured excluded formats
+          for (const ext of EXCLUDE_IMAGE_FORMATS) {
+            if (lowerSrc.includes(`.${ext}`)) return false;
+          }
+          return true;
         });
 
         // Defer page DB writes; collect for bulk upsert

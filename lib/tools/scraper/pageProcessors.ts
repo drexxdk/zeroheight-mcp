@@ -1,4 +1,5 @@
 import { downloadImage } from "../../image-utils";
+import { IMAGE_BUCKET, ALLOWED_MIME_TYPES } from "../../config";
 import type {
   StorageHelper,
   StorageUploadResult,
@@ -79,14 +80,14 @@ export async function processImagesForPage(options: {
               console.error("Error listing buckets:", bucketError);
             } else {
               const bucketExists = buckets?.some(
-                (b: { name: string }) => b.name === "zeroheight-images",
+                (b: { name: string }) => b.name === IMAGE_BUCKET,
               );
               if (!bucketExists && storage.createBucket) {
                 const { error: createError } = await storage.createBucket(
-                  "zeroheight-images",
+                  IMAGE_BUCKET,
                   {
                     public: true,
-                    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+                    allowedMimeTypes: ALLOWED_MIME_TYPES,
                     fileSizeLimit: 10485760,
                   },
                 );

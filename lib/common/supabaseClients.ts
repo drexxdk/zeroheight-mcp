@@ -1,4 +1,5 @@
 import { getSupabaseClient, getSupabaseAdminClient } from "../common";
+import { IMAGE_BUCKET } from "../config";
 
 // Provide a single wrapper that exposes the regular client and a storage helper
 // which will prefer admin capabilities when an admin client is available.
@@ -10,21 +11,21 @@ export function getClient() {
     // upload a buffer to the configured bucket
     upload: async (filename: string, file: Buffer) => {
       if (adminClient) {
-        return await adminClient.storage
-          .from("zeroheight-images")
+          return await adminClient.storage
+            .from(IMAGE_BUCKET)
+            .upload(filename, file, {
+              cacheControl: "3600",
+              upsert: true,
+              contentType: "image/jpeg",
+            });
+        }
+        return await client!.storage
+          .from(IMAGE_BUCKET)
           .upload(filename, file, {
             cacheControl: "3600",
             upsert: true,
             contentType: "image/jpeg",
           });
-      }
-      return await client!.storage
-        .from("zeroheight-images")
-        .upload(filename, file, {
-          cacheControl: "3600",
-          upsert: true,
-          contentType: "image/jpeg",
-        });
     },
     // list buckets only available with admin client
     listBuckets: adminClient
