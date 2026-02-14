@@ -2,7 +2,7 @@
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-import { createSuccessResponse } from "../lib/common";
+import { createSuccessResponse } from "@/lib/common";
 
 const obj = {
   jobId: "mllid85iz528gu",

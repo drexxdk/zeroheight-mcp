@@ -8,12 +8,16 @@ import {
   appendJobLog,
   finishJob,
   getJobFromDb,
-} from "../lib/tools/scraper/jobStore";
+} from "@/lib/tools/scraper/jobStore";
 
 async function run() {
   try {
     console.log("Creating test job...");
     const id = await createJobInDb("test-job-run", { foo: "bar" });
+    if (!id) {
+      console.error("Failed to create job in DB");
+      process.exit(1);
+    }
     console.log("Created job id:", id);
 
     console.log("Claiming next job...");

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getClient } from "../lib/common/supabaseClients";
+import { getClient } from "@/lib/common/supabaseClients";
 
 async function main() {
   const { client: supabase } = getClient();

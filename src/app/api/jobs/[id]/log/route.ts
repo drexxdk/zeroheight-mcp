@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdminClient } from "../../../../../lib/common";
-import {
-  checkRateLimit,
-  auditRequest,
-} from "../../../../../lib/server/apiHelpers";
+import { getSupabaseAdminClient } from "@/lib/common";
+import { checkRateLimit, auditRequest } from "@/lib/server/apiHelpers";
 
 async function checkApiKey(req: NextRequest) {
   const key = req.headers.get("x-server-api-key") || "";
@@ -22,20 +19,19 @@ export async function POST(req: NextRequest, { params }: { params: unknown }) {
     return new NextResponse("Unauthorized", { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const success = body.success === undefined ? true : Boolean(body.success);
-  const errorMsg = body.error || null;
+  const line = (body.line as string) || "";
 
   const apiKey = req.headers.get("x-server-api-key") || "anon";
   if (!checkRateLimit(apiKey)) {
     await auditRequest(
       req,
-      "/api/jobs/:id/finish POST",
+      "/api/jobs/:id/log POST",
       { reason: "rate_limited" },
       body,
     );
     return new NextResponse("Rate limited", { status: 429 });
   }
-  await auditRequest(req, "/api/jobs/:id/finish POST", {}, body);
+  await auditRequest(req, "/api/jobs/:id/log POST", {}, body);
 
   const supabase = getSupabaseAdminClient();
   if (!supabase)
@@ -49,37 +45,25 @@ export async function POST(req: NextRequest, { params }: { params: unknown }) {
       : await (params as Promise<{ id: string }>);
   const id = resolvedParams.id;
 
-  const payload: Record<string, unknown> = {
-    finished_at: new Date().toISOString(),
-    status: success ? "completed" : "failed",
-  };
-  if (errorMsg) payload.error = errorMsg;
-
-  // If the job is already marked cancelled, do not overwrite that status.
-  const { data: existingData, error: readError } = await supabase
+  const { data, error } = await supabase
     .from("scrape_jobs")
-    .select("status")
+    .select("logs")
     .eq("id", id)
-    .maybeSingle();
-  if (readError)
-    return new NextResponse(String(readError.message || readError), {
-      status: 500,
-    });
-
-  if (
-    existingData &&
-    (existingData as { status?: string }).status === "cancelled"
-  ) {
-    // Avoid overwriting cancelled status
-    return NextResponse.json({ ok: true, skipped: true });
-  }
-
-  const { error } = await supabase
-    .from("scrape_jobs")
-    .update(payload)
-    .eq("id", id);
+    .single();
   if (error)
     return new NextResponse(String(error.message || error), { status: 500 });
+
+  const current = (data && (data as { logs?: string }).logs) || "";
+  const updated = current + (current ? "\n" : "") + line;
+
+  const { error: updateErr } = await supabase
+    .from("scrape_jobs")
+    .update({ logs: updated })
+    .eq("id", id);
+  if (updateErr)
+    return new NextResponse(String(updateErr.message || updateErr), {
+      status: 500,
+    });
 
   return NextResponse.json({ ok: true });
 }

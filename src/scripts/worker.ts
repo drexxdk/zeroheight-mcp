@@ -6,9 +6,9 @@ import {
   claimNextJob,
   appendJobLog,
   finishJob,
-} from "../lib/tools/scraper/jobStore";
-import { scrapeZeroheightProject } from "../lib/tools/scraper/scrapeZeroheightProject";
-import { JobCancelled } from "../lib/common/errors";
+} from "@/lib/tools/scraper/jobStore";
+import { scrapeZeroheightProject } from "@/lib/tools/scraper/scrapeZeroheightProject";
+import { JobCancelled } from "@/lib/common/errors";
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdminClient } from "../../../../../lib/common";
-import {
-  checkRateLimit,
-  auditRequest,
-} from "../../../../../lib/server/apiHelpers";
+import { getSupabaseAdminClient } from "@/lib/common";
+import { checkRateLimit, auditRequest } from "@/lib/server/apiHelpers";
 
 async function checkApiKey(req: NextRequest) {
   const key = req.headers.get("x-server-api-key") || "";

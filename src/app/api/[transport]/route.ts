@@ -1,31 +1,31 @@
 import { createMcpHandler } from "mcp-handler";
 import { NextRequest } from "next/server";
-import { authenticateRequest } from "../../../lib/auth";
+import { authenticateRequest } from "@/lib/auth";
 import {
   listTablesTool,
   executeSqlTool,
   listMigrationsTool,
   getLogsTool,
-} from "../../../lib/tools/database";
+} from "@/lib/tools/database";
 import {
   getDatabaseSchemaTool,
   getProjectUrlTool,
   getPublishableKeysTool,
   getDatabaseTypesTool,
-} from "../../../lib/tools/development";
+} from "@/lib/tools/development";
 import {
   scrapeZeroheightProjectTool,
   queryZeroheightDataTool,
   clearZeroheightDataTool,
   getJobStatusTool,
   getJobLogsTool,
-} from "../../../lib/tools/scraper";
+} from "@/lib/tools/scraper";
 import {
   inspectJobTool,
   tailJobTool,
   countRunTool,
   cancelJobTool,
-} from "../../../lib/tools/scraper";
+} from "@/lib/tools/scraper";
 // removed unused imports (kept tooling lightweight)
 
 const handler = createMcpHandler(

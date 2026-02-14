@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdminClient } from "../../../lib/common";
-import { checkRateLimit, auditRequest } from "../../../lib/server/apiHelpers";
+import { getSupabaseAdminClient } from "@/lib/common";
+import { checkRateLimit, auditRequest } from "@/lib/server/apiHelpers";
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
