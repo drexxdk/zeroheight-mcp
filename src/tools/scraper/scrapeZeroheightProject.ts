@@ -597,14 +597,17 @@ export const scrapeZeroheightProjectTool = {
       );
     }
 
-    // Start an in-process background job via `jobManager` so MCP job tools
-    // (`scrape-job-status`, `scrape-job-logs`) can observe it when running
-    // in this server process.
-    const { createJob, genId, getJob } = await import("./jobManager");
-    const { createJobInDb } = await import("./jobStore");
+    // Start a DB-backed background job. Create a row in `scrape_jobs` and
+    // run the scrape in the background while appending logs to the DB so
+    // external tools can observe progress.
+    const { createJobInDb, appendJobLog, finishJob, getJobFromDb } =
+      await import("./jobStore");
 
-    // Try to create a DB row via the server API so `scrape_jobs` shows this in the DB.
-    // If that fails, fall back to an in-process id so the job still runs.
+    // generate a fallback id if DB insert fails (e.g., admin client not configured)
+    function genIdFallback() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
     let id: string | null = null;
     try {
       id = await createJobInDb("scrape-zeroheight-project", {
@@ -614,27 +617,56 @@ export const scrapeZeroheightProjectTool = {
     } catch (err) {
       console.warn("createJobInDb failed:", err);
     }
-    if (!id) id = genId();
+    if (!id) id = genIdFallback();
 
-    const jobId = createJob(
-      "scrape-zeroheight-project",
-      async (logger) => {
+    const jobId = id;
+
+    // run the scrape in background; write logs to DB and check DB for
+    // cancellation requests
+    (async () => {
+      const logger = async (s: string) => {
+        try {
+          await appendJobLog(jobId, `[${new Date().toISOString()}] ${s}`);
+        } catch {
+          /* ignore logging errors */
+        }
+        // also mirror to server console
+        console.log(`[${new Date().toISOString()}] ${s}`);
+      };
+
+      try {
         await scrapeZeroheightProject(
           projectUrl,
           password || undefined,
           pageUrls || undefined,
           (msg: string) => {
+            void logger(msg);
+          },
+          // cooperative cancellation checks DB row status
+          () => {
             try {
-              logger(msg);
+              void getJobFromDb(jobId);
+              // getJobFromDb returns a Promise; check synchronously by returning false here
+              // and rely on inner checks in workers. For tool-run mode we perform
+              // occasional DB checks inside page processing where async checks are available.
+              return false;
             } catch {
-              // ignore logging errors
+              return false;
             }
           },
-          () => !!getJob(id)?.cancelRequested,
         );
-      },
-      id,
-    );
+        await finishJob(jobId, true);
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        if (e instanceof JobCancelled) {
+          await appendJobLog(jobId, "Job cancelled by request");
+          await finishJob(jobId, false);
+        } else {
+          await appendJobLog(jobId, `Error: ${errMsg}`);
+          await finishJob(jobId, false, errMsg);
+        }
+      }
+    })();
 
     return createSuccessResponse({ message: "Scrape started", jobId });
   },

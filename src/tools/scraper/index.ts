@@ -1,7 +1,7 @@
 export { clearZeroheightDataTool } from "./clearZeroheightData";
 export { scrapeZeroheightProjectTool } from "./scrapeZeroheightProject";
 export { queryZeroheightDataTool } from "./queryZeroheightData";
-export { getJobStatusTool, getJobLogsTool } from "./jobManager";
+// jobManager removed; job status/logs are now stored in DB via jobStore
 export { inspectJobTool } from "./inspectJob";
 export { tailJobTool } from "./tailJob";
 export { countRunTool } from "./countRun";

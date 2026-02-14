@@ -17,8 +17,6 @@ import {
   scrapeZeroheightProjectTool,
   queryZeroheightDataTool,
   clearZeroheightDataTool,
-  getJobStatusTool,
-  getJobLogsTool,
 } from "@/tools/scraper";
 import {
   inspectJobTool,
@@ -64,26 +62,8 @@ const handler = createMcpHandler(
       clearZeroheightDataTool.handler,
     );
 
-    // Job status/log tools for background scraper
-    server.registerTool(
-      getJobStatusTool.title,
-      {
-        title: getJobStatusTool.title,
-        description: getJobStatusTool.description,
-        inputSchema: getJobStatusTool.inputSchema,
-      },
-      getJobStatusTool.handler,
-    );
-
-    server.registerTool(
-      getJobLogsTool.title,
-      {
-        title: getJobLogsTool.title,
-        description: getJobLogsTool.description,
-        inputSchema: getJobLogsTool.inputSchema,
-      },
-      getJobLogsTool.handler,
-    );
+    // Job status/logs are persisted in DB via jobStore; tools for inspecting
+    // jobs use `inspectJobTool` and `tailJobTool` registered below.
 
     // New job inspection tools
     server.registerTool(

@@ -4,7 +4,6 @@ import {
   createSuccessResponse,
   getSupabaseAdminClient,
 } from "@/lib/common";
-import { cancelJob as cancelInProcessJob } from "./jobManager";
 
 export const cancelJobTool = {
   title: "cancel-job",
@@ -26,20 +25,7 @@ export const cancelJobTool = {
         .maybeSingle();
 
       if (error) return createErrorResponse(error.message || String(error));
-      if (!data) {
-        // If no DB row, try to cancel an in-process job manager job
-        try {
-          const inproc = cancelInProcessJob(jobId);
-          if (inproc)
-            return createSuccessResponse({
-              jobId,
-              action: "inprocess_cancelled",
-            });
-        } catch {
-          // ignore
-        }
-        return createErrorResponse(`No job found with id=${jobId}`);
-      }
+      if (!data) return createErrorResponse(`No job found with id=${jobId}`);
 
       const status = (data as { status?: string }).status || "";
 
@@ -54,12 +40,7 @@ export const cancelJobTool = {
           .eq("id", jobId);
         if (updErr)
           return createErrorResponse(updErr.message || String(updErr));
-        // Also mark in-process job manager if present
-        try {
-          cancelInProcessJob(jobId);
-        } catch {
-          // ignore
-        }
+        // No in-process cancellation available; DB row marked cancelled.
         return createSuccessResponse({
           jobId,
           action: "marked_cancelled",
@@ -78,12 +59,7 @@ export const cancelJobTool = {
           .eq("id", jobId);
         if (updErr)
           return createErrorResponse(updErr.message || String(updErr));
-        // Signal in-process job manager
-        try {
-          cancelInProcessJob(jobId);
-        } catch {
-          // ignore
-        }
+        // No in-process cancellation available; DB row marked cancelled.
         return createSuccessResponse({
           jobId,
           action: "marked_cancelled",
