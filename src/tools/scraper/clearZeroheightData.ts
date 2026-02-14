@@ -27,6 +27,8 @@ async function clearZeroheightData() {
     if (supabase) {
       const imagesTable = "images" as const;
       const pagesTable = "pages" as const;
+      const getRowCount = (d: unknown): number =>
+        Array.isArray(d) ? d.length : 0;
       // Clear images table
       console.log("Clearing images table...");
       // Use admin client to bypass RLS for destructive operations
@@ -41,9 +43,7 @@ async function clearZeroheightData() {
           "Error clearing images table: " + imagesError.message,
         );
       } else {
-        console.log(
-          `Images table cleared (${Array.isArray(imagesData) ? imagesData.length : 0} rows)`,
-        );
+        console.log(`Images table cleared (${getRowCount(imagesData)} rows)`);
       }
 
       // Clear pages table
@@ -59,9 +59,7 @@ async function clearZeroheightData() {
           "Error clearing pages table: " + pagesError.message,
         );
       } else {
-        console.log(
-          `Pages table cleared (${Array.isArray(pagesData) ? pagesData.length : 0} rows)`,
-        );
+        console.log(`Pages table cleared (${getRowCount(pagesData)} rows)`);
       }
 
       // Clear finished/terminal scrape_jobs rows (completed, failed, cancelled)
@@ -77,7 +75,7 @@ async function clearZeroheightData() {
           console.error("Error clearing terminal scrape_jobs:", jobsError);
         } else {
           console.log(
-            `Terminal scrape_jobs rows cleared (${Array.isArray(jobsData) ? jobsData.length : 0} rows)`,
+            `Terminal scrape_jobs rows cleared (${getRowCount(jobsData)} rows)`,
           );
         }
       } catch (err) {

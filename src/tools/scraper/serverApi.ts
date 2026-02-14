@@ -2,8 +2,6 @@ const SERVER_BASE =
   process.env.SERVER_API_BASE ||
   process.env.NEXT_PUBLIC_SERVER_API_BASE ||
   "http://localhost:3000";
-const SERVER_API_KEY =
-  process.env.SERVER_API_KEY || process.env.MCP_API_KEY || "";
 
 async function callServer<T = unknown>(
   path: string,
@@ -13,7 +11,8 @@ async function callServer<T = unknown>(
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
-  if (SERVER_API_KEY) headers["x-server-api-key"] = SERVER_API_KEY;
+  const key = process.env.SERVER_API_KEY || process.env.MCP_API_KEY || "";
+  if (key) headers["x-server-api-key"] = key;
 
   const res = await fetch(url, {
     method: body ? "POST" : "GET",
@@ -23,8 +22,13 @@ async function callServer<T = unknown>(
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
+    console.error(
+      `serverApi.callServer error for ${path}: status=${res.status} body=${txt}`,
+    );
     throw new Error(txt || `server call failed ${res.status}`);
   }
+
+  if (res.status === 204) return null as unknown as T;
 
   const json = await res.json().catch(() => ({}));
   return json as T;

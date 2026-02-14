@@ -1,6 +1,6 @@
 import { downloadImage } from "@/lib/image-utils";
 import type { StorageHelper } from "@/lib/common/scraperHelpers";
-import { hashFilenameFromUrl } from "./imageHelpers";
+import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
 import { uploadBufferToStorage } from "./uploadHelpers";
 import { addPendingImageRecord } from "./pendingRecords";
 import { retryWithBackoff } from "./retryHelpers";
@@ -42,6 +42,7 @@ export async function processAndUploadImage(options: {
     shouldCancel,
   } = options;
   const filename = options.filename ?? hashFilenameFromUrl(downloadUrl, "jpg");
+  const sanitizedUrl = normalizeImageUrl(downloadUrl);
 
   try {
     if (shouldCancel && shouldCancel()) {
@@ -76,14 +77,13 @@ export async function processAndUploadImage(options: {
     addPendingImageRecord(
       pendingImageRecords,
       link,
-      downloadUrl,
+      sanitizedUrl,
       path,
       allExistingImageUrls,
     );
-    logProgress(
-      "✅",
-      `Successfully uploaded image: ${downloadUrl.split("/").pop()}`,
-    );
+    const visibleName =
+      sanitizedUrl.split("/").filter(Boolean).pop() ?? filename;
+    logProgress("✅", `Successfully uploaded image: ${visibleName}`);
     return { uploaded: true, path };
   } catch (e) {
     return {

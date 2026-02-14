@@ -1,4 +1,5 @@
 import type { Scrape_jobsType } from "@/lib/database.types";
+import { getSupabaseAdminClient } from "@/lib/common";
 import serverApi from "./serverApi";
 
 export type JobRecord = Scrape_jobsType;
@@ -7,23 +8,79 @@ export async function createJobInDb(
   name: string,
   args?: Record<string, unknown>,
 ) {
-  const payload = { name, args };
-  const data = await serverApi.createJobInDb(payload);
-  if (!data || typeof data !== "object" || data === null) return null;
-  const idVal = (data as Record<string, unknown>)["id"];
-  return typeof idVal === "string" ? idVal : null;
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return null;
+
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const payload = { id, name, status: "queued", args: args ?? null };
+
+  const { error } = await supabase.from("scrape_jobs").insert([payload]);
+  if (error) {
+    console.error("createJobInDb supabase error:", error);
+    return null;
+  }
+  return id;
 }
 
 export async function claimNextJob(): Promise<JobRecord | null> {
-  const data = await serverApi.callServer(`/api/jobs/claim`, {});
-  if (!data) return null;
-  return data as JobRecord;
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return null;
+
+  try {
+    const { data: rows, error } = await supabase
+      .from("scrape_jobs")
+      .select("*")
+      .eq("status", "queued")
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (error || !rows || rows.length === 0) return null;
+    const job = rows[0] as JobRecord;
+    const { error: updErr } = await supabase
+      .from("scrape_jobs")
+      .update({ status: "running", started_at: new Date().toISOString() })
+      .eq("id", job.id);
+    if (updErr) {
+      console.error("claimNextJob update error:", updErr);
+      return null;
+    }
+    return {
+      ...(job as JobRecord),
+      status: "running",
+      started_at: new Date().toISOString(),
+    } as JobRecord;
+  } catch (e) {
+    console.error("claimNextJob error:", e);
+    return null;
+  }
 }
 
 export async function appendJobLog(jobId: string, line: string) {
-  await serverApi.callServer(`/api/jobs/${encodeURIComponent(jobId)}/log`, {
-    line,
-  });
+  if (!jobId) {
+    console.warn("appendJobLog called with empty jobId - skipping");
+    return;
+  }
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase
+      .from("scrape_jobs")
+      .select("logs")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (error) {
+      console.warn("appendJobLog select error:", error);
+      return;
+    }
+    const current = (data && (data as { logs?: string }).logs) || "";
+    const updated = current + (current ? "\n" : "") + line;
+    const { error: updateErr } = await supabase
+      .from("scrape_jobs")
+      .update({ logs: updated })
+      .eq("id", jobId);
+    if (updateErr) console.warn("appendJobLog update error:", updateErr);
+  } catch (e) {
+    console.warn(`appendJobLog failed for jobId=${jobId}: ${String(e)}`);
+  }
 }
 
 export async function finishJob(
@@ -33,16 +90,56 @@ export async function finishJob(
 ) {
   const body: Record<string, unknown> = { success };
   if (errorMsg) body.error = errorMsg;
-  await serverApi.callServer(
-    `/api/jobs/${encodeURIComponent(jobId)}/finish`,
-    body,
-  );
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return;
+  const payload: Record<string, unknown> = {
+    finished_at: new Date().toISOString(),
+    status: success ? "completed" : "failed",
+  };
+  if (errorMsg) payload.error = errorMsg;
+
+  try {
+    const { data: existingData, error: readError } = await supabase
+      .from("scrape_jobs")
+      .select("status")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (readError) {
+      console.warn("finishJob read error:", readError);
+      return;
+    }
+    if (
+      existingData &&
+      (existingData as { status?: string }).status === "cancelled"
+    ) {
+      return;
+    }
+    const { error } = await supabase
+      .from("scrape_jobs")
+      .update(payload)
+      .eq("id", jobId);
+    if (error) console.warn("finishJob update error:", error);
+  } catch (e) {
+    console.warn("finishJob failed:", e);
+  }
 }
 
 export async function getJobFromDb(jobId: string) {
-  const data = await serverApi.callServer(
-    `/api/jobs/${encodeURIComponent(jobId)}`,
-  );
-  if (!data) return null;
-  return data as JobRecord;
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("scrape_jobs")
+      .select("*")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (error) {
+      console.error("getJobFromDb error:", error);
+      return null;
+    }
+    return data as JobRecord | null;
+  } catch (e) {
+    console.error("getJobFromDb failed:", e);
+    return null;
+  }
 }

@@ -25,10 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: unknown }) {
   }
   await auditRequest(req, "/api/jobs/:id GET");
 
-  const resolvedParams =
-    typeof (params as { id?: string }).id === "string"
-      ? (params as { id: string })
-      : await (params as Promise<{ id: string }>);
+  const resolvedParams = (await params) as { id: string };
   const id = resolvedParams.id;
   const supabase = getSupabaseAdminClient();
   if (!supabase)

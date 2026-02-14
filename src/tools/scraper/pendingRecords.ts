@@ -15,7 +15,7 @@ export function addPendingImageRecord(
 ) {
   pendingImageRecords.push({
     pageUrl,
-    original_url: downloadUrl,
+    original_url: normalizeImageUrl(downloadUrl),
     storage_path: storagePath,
   });
   allExistingImageUrls.add(normalizeImageUrl(downloadUrl));

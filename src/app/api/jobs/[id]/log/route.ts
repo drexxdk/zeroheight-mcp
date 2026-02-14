@@ -39,10 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: unknown }) {
       status: 500,
     });
 
-  const resolvedParams =
-    typeof (params as { id?: string }).id === "string"
-      ? (params as { id: string })
-      : await (params as Promise<{ id: string }>);
+  const resolvedParams = (await params) as { id: string };
   const id = resolvedParams.id;
 
   const { data, error } = await supabase

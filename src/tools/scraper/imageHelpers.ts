@@ -10,7 +10,12 @@ export function normalizeImageUrl(src: string): string {
 }
 
 export function hashFilenameFromUrl(url: string, ext = "jpg"): string {
-  const h = crypto.createHash("md5").update(url).digest("hex").substring(0, 8);
+  const normalized = normalizeImageUrl(url);
+  const h = crypto
+    .createHash("md5")
+    .update(normalized)
+    .digest("hex")
+    .substring(0, 8);
   return `${h}.${ext}`;
 }
 
