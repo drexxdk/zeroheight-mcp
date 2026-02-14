@@ -1,6 +1,6 @@
 import { createErrorResponse, createSuccessResponse } from "../../common";
 import { getClient } from "../../common/supabaseClients";
-import { clearStorageBucket } from "../../image-utils";
+import { performBucketClear } from "../../image-utils";
 
 async function clearZeroheightData() {
   try {
@@ -46,13 +46,38 @@ async function clearZeroheightData() {
         console.log("Pages table cleared");
       }
 
+      // Clear finished/terminal scrape_jobs rows (completed, failed, cancelled)
+      console.log(
+        "Clearing terminal scrape_jobs rows (completed, failed, cancelled)...",
+      );
+      try {
+        const { error: jobsError } = await client
+          .from("scrape_jobs")
+          .delete()
+          .in("status", ["completed", "failed", "cancelled"]);
+        if (jobsError) {
+          console.error("Error clearing terminal scrape_jobs:", jobsError);
+        } else {
+          console.log("Terminal scrape_jobs rows cleared");
+        }
+      } catch (err) {
+        console.error("Unexpected error while clearing scrape_jobs:", err);
+      }
+
       // Clear storage bucket (use configured bucket name if provided)
-      const bucketName = process.env.SUPABASE_IMAGE_BUCKET || undefined;
-      console.log("Clearing storage bucket...", bucketName || "(default)");
-      await clearStorageBucket(client, bucketName);
+      const bucketResult = await performBucketClear(client);
 
       console.log("All Zeroheight data cleared successfully");
-      return createSuccessResponse("Zeroheight data cleared successfully");
+      return createSuccessResponse({
+        message: "Zeroheight data cleared successfully",
+        bucket: bucketResult.bucket,
+        foundCount: bucketResult.foundCount,
+        foundFiles: bucketResult.foundFiles,
+        usedAdmin: bucketResult.usedAdmin,
+        availableBuckets: bucketResult.availableBuckets,
+        deletedCount: bucketResult.deletedCount,
+        deleteErrors: bucketResult.deleteErrors,
+      });
     } else {
       const errorMsg = "Supabase clients not available, cannot clear data";
       console.log(errorMsg);

@@ -5,8 +5,6 @@ import { scrapeZeroheightProject } from "../lib/tools/scraper/scrapeZeroheightPr
 config({ path: ".env.local" });
 
 async function testScrapeSpecificPages() {
-  console.log("Scraping specific Zeroheight pages...");
-
   await scrapeZeroheightProject(
     "https://designsystem.lruddannelse.dk",
     "Design4allQ4",
@@ -15,8 +13,6 @@ async function testScrapeSpecificPages() {
       "https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system",
     ],
   );
-
-  console.log("Scraping completed!");
 }
 
 testScrapeSpecificPages().catch(console.error);

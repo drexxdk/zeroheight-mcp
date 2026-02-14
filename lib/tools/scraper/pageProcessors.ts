@@ -31,7 +31,12 @@ export async function processImagesForPage(options: {
     filename: string,
     file: Buffer,
   ) => Promise<StorageUploadResult>;
-}) {
+}): Promise<{
+  processed: number;
+  uploaded: number;
+  skipped: number;
+  failed: number;
+}> {
   const {
     supportedImages,
     link,
@@ -43,16 +48,32 @@ export async function processImagesForPage(options: {
     uploadWithRetry,
   } = options;
 
+  let processed = 0;
+  let uploaded = 0;
+  let skipped = 0;
+  let failed = 0;
+
   for (const img of supportedImages) {
     overallProgress.current++;
 
     if (img.src && img.src.startsWith("http")) {
-      if (allExistingImageUrls.has(img.src)) {
+      // Normalize the image URL for comparison (strip querystring/params)
+      let normalizedSrc = img.src;
+      try {
+        const u = new URL(img.src);
+        normalizedSrc = `${u.protocol}//${u.hostname}${u.pathname}`;
+      } catch {
+        // leave as-is if parsing fails
+      }
+
+      if (allExistingImageUrls.has(normalizedSrc)) {
         logProgress("🚫", "Skipping image - already processed");
+        skipped++;
         continue;
       }
 
       overallProgress.imagesProcessed++;
+      processed++;
       logProgress(
         "📷",
         `Processing image ${overallProgress.imagesProcessed}: ${img.src.split("/").pop()}`,
@@ -109,6 +130,7 @@ export async function processImagesForPage(options: {
               `❌ Failed to upload image ${img.src.split("/").pop()}:`,
               error.message,
             );
+            failed++;
           } else if (data && data.path) {
             const storagePath = data.path;
             pendingImageRecords.push({
@@ -116,7 +138,16 @@ export async function processImagesForPage(options: {
               original_url: downloadUrl,
               storage_path: storagePath,
             });
-            allExistingImageUrls.add(img.src);
+            // Add normalized URL to existing set to match DB normalization logic
+            let normalizedDownload = downloadUrl;
+            try {
+              const u2 = new URL(downloadUrl);
+              normalizedDownload = `${u2.protocol}//${u2.hostname}${u2.pathname}`;
+            } catch {
+              // leave as-is
+            }
+            allExistingImageUrls.add(normalizedDownload);
+            uploaded++;
             logProgress(
               "✅",
               `Successfully uploaded image: ${img.src.split("/").pop()}`,
@@ -125,20 +156,26 @@ export async function processImagesForPage(options: {
             console.error(
               `❌ Upload returned no path for image ${img.src.split("/").pop()}`,
             );
+            failed++;
           }
         } else {
           console.error(
             `❌ Failed to download image: ${img.src.split("/").pop()}`,
           );
+          failed++;
         }
       } catch (e) {
         console.error(
           `❌ Error processing image ${img.src.split("/").pop()}:`,
           e instanceof Error ? e.message : String(e),
         );
+        failed++;
       }
     } else {
       console.error(`❌ Invalid image source: ${img.src}`);
+      failed++;
     }
   }
+
+  return { processed, uploaded, skipped, failed };
 }
