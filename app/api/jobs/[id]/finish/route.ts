@@ -55,6 +55,25 @@ export async function POST(req: NextRequest, { params }: { params: unknown }) {
   };
   if (errorMsg) payload.error = errorMsg;
 
+  // If the job is already marked cancelled, do not overwrite that status.
+  const { data: existingData, error: readError } = await supabase
+    .from("scrape_jobs")
+    .select("status")
+    .eq("id", id)
+    .maybeSingle();
+  if (readError)
+    return new NextResponse(String(readError.message || readError), {
+      status: 500,
+    });
+
+  if (
+    existingData &&
+    (existingData as { status?: string }).status === "cancelled"
+  ) {
+    // Avoid overwriting cancelled status
+    return NextResponse.json({ ok: true, skipped: true });
+  }
+
   const { error } = await supabase
     .from("scrape_jobs")
     .update(payload)

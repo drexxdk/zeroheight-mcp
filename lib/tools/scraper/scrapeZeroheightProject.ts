@@ -1,6 +1,7 @@
 import { z } from "zod";
 import puppeteer from "puppeteer";
 import { createErrorResponse, createSuccessResponse } from "../../common";
+import { JobCancelled } from "../../common/errors";
 import {
   getClient,
   checkProgressInvariant,
@@ -39,6 +40,7 @@ export async function scrapeZeroheightProject(
     console.log("Starting Zeroheight project scrape...");
 
     const { client: supabase, storage } = getClient();
+    const db = supabase;
     const imagesTable = "images" as const;
     const pagesTable = "pages" as const;
 
@@ -153,8 +155,9 @@ export async function scrapeZeroheightProject(
     }
 
     // Get all existing image URLs globally to prevent duplicates (do this once at the start)
-    const { data: allExistingImages, error: allExistingImagesError } =
-      await supabase!.from(imagesTable).select("original_url");
+    const { data: allExistingImages, error: allExistingImagesError } = await db!
+      .from(imagesTable)
+      .select("original_url");
 
     if (allExistingImagesError) {
       console.error(
@@ -258,7 +261,7 @@ export async function scrapeZeroheightProject(
           "⏹️",
           `Cancellation requested - stopping scrape`,
         );
-        throw new Error("Job cancelled");
+        throw new JobCancelled();
       }
 
       if (processedLinks.has(link)) {
@@ -538,7 +541,7 @@ export async function scrapeZeroheightProject(
               "⏹️",
               `Cancellation requested - stopping after discovery`,
             );
-            throw new Error("Job cancelled");
+            throw new JobCancelled();
           }
           newLinks.forEach((newLink) => {
             if (
@@ -595,7 +598,7 @@ export async function scrapeZeroheightProject(
       const uniqueUrls = uniquePages.map((p) => p.url);
       let existingPagesBefore: Array<{ url?: string } | null> = [];
       try {
-        const { data: existingData } = await supabase!
+        const { data: existingData } = await db!
           .from(pagesTable)
           .select("url")
           .in("url", uniqueUrls);
@@ -618,7 +621,7 @@ export async function scrapeZeroheightProject(
         while (attempts < 3) {
           try {
             // Await the Postgrest response directly
-            const res = await supabase!
+            const res = await db!
               .from(pagesTable)
               .upsert(uniquePages, { onConflict: "url" })
               .select("id, url");
@@ -733,7 +736,7 @@ export async function scrapeZeroheightProject(
           // Run queries sequentially to avoid overwhelming DB; counts are small.
           for (const norm of imagesFoundArray) {
             try {
-              const { data: qdata, error: qerr } = await supabase!
+              const { data: qdata, error: qerr } = await db!
                 .from(imagesTable)
                 .select("original_url, page_id")
                 .ilike("original_url", `${norm}%`);
@@ -798,9 +801,7 @@ export async function scrapeZeroheightProject(
           let attempts = 0;
           while (attempts < 3) {
             try {
-              const res = await supabase!
-                .from(imagesTable)
-                .insert(imagesToInsert);
+              const res = await db!.from(imagesTable).insert(imagesToInsert);
               insertResult = res as SupabaseResult<unknown>;
               if (!res.error) break;
             } catch (err) {
@@ -913,6 +914,10 @@ export async function scrapeZeroheightProject(
       scrapedPages: processedPages,
     });
   } catch (error) {
+    if (error instanceof JobCancelled) {
+      console.log("Job cancelled");
+      return createSuccessResponse({ message: "Job cancelled" });
+    }
     console.error("Scraping error:", error);
     return createErrorResponse(
       "Error scraping project: " +
@@ -947,26 +952,20 @@ export const scrapeZeroheightProjectTool = {
     // (`scrape-job-status`, `scrape-job-logs`) can observe it when running
     // in this server process.
     const { createJob, genId, getJob } = await import("./jobManager");
-    const { getSupabaseAdminClient } = await import("../../common");
-    const supabase = getSupabaseAdminClient();
-    const id = genId();
+    const { createJobInDb } = await import("./jobStore");
 
-    // Insert a DB row for visibility (so `scrape_jobs` shows this in the DB)
-    if (supabase) {
-      const payload = {
-        id,
-        name: "scrape-zeroheight-project",
-        status: "running",
-        args: { pageUrls: pageUrls || null, password: password || null },
-        started_at: new Date().toISOString(),
-      } as const;
-      try {
-        await supabase.from("scrape_jobs").insert([payload]);
-      } catch (err) {
-        // If DB insert fails, log but continue with in-process job
-        console.warn("Failed to insert scrape_jobs row:", err);
-      }
+    // Try to create a DB row via the server API so `scrape_jobs` shows this in the DB.
+    // If that fails, fall back to an in-process id so the job still runs.
+    let id: string | null = null;
+    try {
+      id = await createJobInDb("scrape-zeroheight-project", {
+        pageUrls: pageUrls || null,
+        password: password || null,
+      });
+    } catch (err) {
+      console.warn("createJobInDb failed:", err);
     }
+    if (!id) id = genId();
 
     const jobId = createJob(
       "scrape-zeroheight-project",

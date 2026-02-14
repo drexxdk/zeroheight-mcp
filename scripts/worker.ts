@@ -8,6 +8,7 @@ import {
   finishJob,
 } from "../lib/tools/scraper/jobStore";
 import { scrapeZeroheightProject } from "../lib/tools/scraper/scrapeZeroheightProject";
+import { JobCancelled } from "../lib/common/errors";
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -53,8 +54,14 @@ async function runLoop() {
         await finishJob(jobId, true);
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
-        await appendJobLog(jobId, `Error: ${errMsg}`);
-        await finishJob(jobId, false, errMsg);
+        if (e instanceof JobCancelled) {
+          await appendJobLog(jobId, "Job cancelled by request");
+          // finish endpoint will respect cancelled status, so calling finish is optional
+          await finishJob(jobId, false);
+        } else {
+          await appendJobLog(jobId, `Error: ${errMsg}`);
+          await finishJob(jobId, false, errMsg);
+        }
       }
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createErrorResponse, createSuccessResponse } from "../../common";
+import { JobCancelled } from "../../common/errors";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
@@ -57,8 +58,8 @@ export function createJob(
         logger("Job completed");
       }
     } catch (e) {
-      // If cancellation was requested, preserve cancelled status instead of marking failed
-      if (job.cancelRequested) {
+      // If the runner threw a JobCancelled, treat it as cancellation
+      if (e instanceof JobCancelled || job.cancelRequested) {
         job.status = "cancelled";
         job.finishedAt = Date.now();
         logger("Job cancelled");
