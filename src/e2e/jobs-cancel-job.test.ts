@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * Test script to enqueue a scrape via the MCP `scrape-zeroheight-project` tool.
- * Usage: npx tsx scripts/test-enqueue-scrape.ts [pageUrl1 pageUrl2 ...]
+ * Test script to call the `cancel-job` MCP tool on the local server.
+ * Usage: npx tsx src/e2e/jobs-cancel-job.test.ts <jobId>
  */
 
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
 
-const args = process.argv.slice(2);
-const pageUrls = args.length > 0 ? args : undefined;
+const jobId = process.argv[2];
 
-async function runEnqueue() {
+async function runCancel() {
   const API_URL = "http://localhost:3000/api/mcp";
   const API_KEY = process.env.MCP_API_KEY;
 
@@ -20,15 +19,20 @@ async function runEnqueue() {
     process.exit(1);
   }
 
-  console.log(`Enqueueing scrape (pageUrls=${pageUrls ? pageUrls.length : 0})`);
+  if (!jobId) {
+    console.error("Usage: npx tsx src/e2e/jobs-cancel-job.test.ts <jobId>");
+    process.exit(2);
+  }
+
+  console.log(`Calling cancel-job for id=${jobId}...`);
 
   const body = JSON.stringify({
     jsonrpc: "2.0",
     id: 1,
     method: "tools/call",
     params: {
-      name: "scrape-zeroheight-project",
-      arguments: { pageUrls },
+      name: "cancel-job",
+      arguments: { jobId },
     },
   });
 
@@ -42,6 +46,7 @@ async function runEnqueue() {
       },
       body,
     });
+
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     const text = await res.text();
     console.log("Response:\n", text);
@@ -54,4 +59,4 @@ async function runEnqueue() {
   }
 }
 
-runEnqueue();
+runCancel();

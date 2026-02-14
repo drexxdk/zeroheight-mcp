@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * Test script to call the `clear-zeroheight-data` MCP tool on the local server.
- * Usage: npx tsx src/scripts/test-clear-data.ts
+ * Test script to enqueue a scrape via the MCP `scrape-zeroheight-project` tool.
+ * Usage: npx tsx src/e2e/scraper-enqueue-scrape.test.ts [pageUrl1 pageUrl2 ...]
  */
 
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
 
-async function runClear() {
+const args = process.argv.slice(2);
+const pageUrls = args.length > 0 ? args : undefined;
+
+async function runEnqueue() {
   const API_URL = "http://localhost:3000/api/mcp";
   const API_KEY = process.env.MCP_API_KEY;
 
@@ -17,15 +20,15 @@ async function runClear() {
     process.exit(1);
   }
 
-  console.log(`Calling clear-zeroheight-data (destructive) ...`);
+  console.log(`Enqueueing scrape (pageUrls=${pageUrls ? pageUrls.length : 0})`);
 
   const body = JSON.stringify({
     jsonrpc: "2.0",
     id: 1,
     method: "tools/call",
     params: {
-      name: "clear-zeroheight-data",
-      arguments: { apiKey: API_KEY },
+      name: "scrape-zeroheight-project",
+      arguments: { pageUrls },
     },
   });
 
@@ -51,4 +54,4 @@ async function runClear() {
   }
 }
 
-runClear();
+runEnqueue();

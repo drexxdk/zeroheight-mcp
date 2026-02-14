@@ -3,7 +3,7 @@
 /**
  * Test script for Zeroheight MCP API Query functionality
  * This tests the Query Zeroheight Data tool (assumes data was already scraped)
- * Run with: npx tsx scripts/test-api.ts
+ * Run with: npx tsx src/e2e/api-mcp.test.ts
  */
 
 async function testApi() {

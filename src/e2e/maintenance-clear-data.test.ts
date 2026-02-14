@@ -1,16 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Test script to call the `cancel-job` MCP tool on the local server.
- * Usage: npx tsx scripts/test-cancel-job.ts <jobId>
+ * Test script to call the `clear-zeroheight-data` MCP tool on the local server.
+ * Usage: npx tsx src/e2e/maintenance-clear-data.test.ts
  */
 
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
 
-const jobId = process.argv[2];
-
-async function runCancel() {
+async function runClear() {
   const API_URL = "http://localhost:3000/api/mcp";
   const API_KEY = process.env.MCP_API_KEY;
 
@@ -19,20 +17,15 @@ async function runCancel() {
     process.exit(1);
   }
 
-  if (!jobId) {
-    console.error("Usage: npx tsx scripts/test-cancel-job.ts <jobId>");
-    process.exit(2);
-  }
-
-  console.log(`Calling cancel-job for id=${jobId}...`);
+  console.log(`Calling clear-zeroheight-data (destructive) ...`);
 
   const body = JSON.stringify({
     jsonrpc: "2.0",
     id: 1,
     method: "tools/call",
     params: {
-      name: "cancel-job",
-      arguments: { jobId },
+      name: "clear-zeroheight-data",
+      arguments: { apiKey: API_KEY },
     },
   });
 
@@ -46,7 +39,6 @@ async function runCancel() {
       },
       body,
     });
-
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     const text = await res.text();
     console.log("Response:\n", text);
@@ -59,4 +51,4 @@ async function runCancel() {
   }
 }
 
-runCancel();
+runClear();

@@ -27,8 +27,6 @@ async function downloadAndUpload(url: string) {
   const ext = extFromContentType(contentType);
 
   // ensure bucket exists
-  // List buckets and uploads will use the regular client only. Bucket creation
-  // is not available without admin privileges.
   const listResult = await client.storage.listBuckets();
   const buckets = listResult.data;
   if (!buckets?.some((b) => b.name === BUCKET)) {

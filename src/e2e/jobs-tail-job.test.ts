@@ -11,7 +11,7 @@ const interval =
 
 if (!jobId) {
   console.error(
-    "Usage: npx tsx scripts/test-tail-job.ts <jobId> [--interval N]",
+    "Usage: npx tsx src/e2e/jobs-tail-job.test.ts <jobId> [--interval N]",
   );
   process.exit(2);
 }

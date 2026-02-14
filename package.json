@@ -11,15 +11,17 @@
     "test-api": "npx tsx src/scripts/test-api.ts",
     "test-console-log": "npx tsx src/scripts/test-console-log.ts",
     "test-image-upload": "npx tsx src/scripts/test-image-upload.ts",
-    "test-inspect-job": "npx tsx src/scripts/test-inspect-job.ts",
-    "test-tail-job": "npx tsx src/scripts/test-tail-job.ts",
+    "test-inspect-job": "npx tsx src/e2e/test-inspect-job.ts",
+    "test-tail-job": "npx tsx src/e2e/test-tail-job.ts",
     "test-count-run": "npx tsx src/scripts/test-count-run.ts",
-    "scrape-all": "npx tsx src/scripts/scrape-all.ts",
-    "test-scrape-specific-pages": "npx tsx src/scripts/test-scrape-specific-pages.ts",
+    "scrape-all": "npx tsx src/e2e/scrape-all.ts",
+    "test-scrape-specific-pages": "npx tsx src/e2e/test-scrape-specific-pages.ts",
     "restart-ts-server": "node -e \"const cp=require('child_process');try{cp.execSync('npx tsc --noEmit',{stdio:'inherit'})}catch(e){};console.log('If using VS Code, run \\\"TypeScript: Restart TS Server\\\" from Command Palette (Ctrl+Shift+P)')\"",
     "supabase-login": "npx -y supabase@2.72.8 login",
     "generate-database-schema": "npx -y supabase@2.72.8 gen types typescript --project-id qyoexslrsblaphbcvjdk --schema public > lib/database.schema.ts",
-    "generate-database-types": "npx tsx src/scripts/generate-database-types.ts"
+    "generate-database-types": "npx tsx src/scripts/generate-database-types.ts",
+    "worker": "npx tsx src/worker.ts",
+    "e2e": "npx tsx src/e2e/run-all.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
