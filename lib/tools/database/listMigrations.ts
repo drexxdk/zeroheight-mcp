@@ -7,15 +7,15 @@ export const listMigrationsTool = {
   description: "List all database migrations in chronological order.",
   inputSchema: z.object({}),
   handler: async () => {
-    const { client } = getClient();
-    if (!client) {
+    const { client: supabase } = getClient();
+    if (!supabase) {
       return createErrorResponse("Error: Supabase client not configured");
     }
 
     try {
       // Use untyped client for system tables
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const untypedClient = client as any;
+      const untypedClient = supabase as any;
       const migrationsTable = "schema_migrations" as const;
       const { data: migrations, error } = await untypedClient
         .from(migrationsTable)

@@ -25,17 +25,12 @@ export const IMAGE_JPEG_QUALITY = parseInt(
   10,
 );
 
-export const CLEAR_BUCKET_DEBUG = (
-  (process.env.CLEAR_BUCKET_DEBUG as string | undefined) || "false"
-).toLowerCase() === "true";
-
 const config = {
   IMAGE_BUCKET,
   EXCLUDE_IMAGE_FORMATS,
   ALLOWED_MIME_TYPES,
   IMAGE_MAX_DIM,
   IMAGE_JPEG_QUALITY,
-  CLEAR_BUCKET_DEBUG,
 };
 
 export default config;

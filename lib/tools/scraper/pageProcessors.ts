@@ -31,6 +31,9 @@ export async function processImagesForPage(options: {
     filename: string,
     file: Buffer,
   ) => Promise<StorageUploadResult>;
+  // Optional cooperative cancellation callback. If it returns true, processing
+  // should stop promptly by throwing an error.
+  shouldCancel?: () => boolean;
 }): Promise<{
   processed: number;
   uploaded: number;
@@ -46,6 +49,7 @@ export async function processImagesForPage(options: {
     pendingImageRecords,
     logProgress,
     uploadWithRetry,
+    shouldCancel,
   } = options;
 
   let processed = 0;
@@ -54,6 +58,10 @@ export async function processImagesForPage(options: {
   let failed = 0;
 
   for (const img of supportedImages) {
+    if (shouldCancel && shouldCancel()) {
+      logProgress("⏹️", "Cancellation requested - stopping image processing");
+      throw new Error("Job cancelled");
+    }
     overallProgress.current++;
 
     if (img.src && img.src.startsWith("http")) {

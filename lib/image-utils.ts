@@ -6,7 +6,6 @@ import {
   IMAGE_MAX_DIM,
   IMAGE_JPEG_QUALITY,
   IMAGE_BUCKET,
-  CLEAR_BUCKET_DEBUG,
 } from "./config";
 
 export async function downloadImage(
@@ -93,7 +92,8 @@ export async function clearStorageBucket(
       if (data) {
         const fileNames = data.map((file: { name: string }) => file.name);
         allFiles = allFiles.concat(fileNames);
-        continuationToken = data.length === 1000 ? allFiles.length.toString() : null;
+        continuationToken =
+          data.length === 1000 ? allFiles.length.toString() : null;
       } else {
         continuationToken = null;
       }
@@ -110,14 +110,21 @@ export async function clearStorageBucket(
       for (let i = 0; i < allFiles.length; i += batchSize) {
         const batch = allFiles.slice(i, i + batchSize);
 
-        const { error: deleteError } = await client.storage.from(targetBucket).remove(batch);
+        const { error: deleteError } = await client.storage
+          .from(targetBucket)
+          .remove(batch);
 
         if (deleteError) {
-          console.error(`Error deleting batch ${i / batchSize + 1}:`, deleteError);
+          console.error(
+            `Error deleting batch ${i / batchSize + 1}:`,
+            deleteError,
+          );
           deleteErrors.push({ batch: i / batchSize + 1, error: deleteError });
         } else {
           deletedCount += batch.length;
-          console.log(`Deleted batch ${i / batchSize + 1} (${batch.length} files)`);
+          console.log(
+            `Deleted batch ${i / batchSize + 1} (${batch.length} files)`,
+          );
         }
       }
     }
@@ -141,7 +148,10 @@ export async function getBucketDebugInfo(
     // Try listing buckets (may require admin client)
     const maybe = client as unknown as {
       storage?: {
-        listBuckets?: () => Promise<{ data?: Array<{ name: string }>; error?: unknown }>;
+        listBuckets?: () => Promise<{
+          data?: Array<{ name: string }>;
+          error?: unknown;
+        }>;
       };
     };
 
@@ -178,36 +188,29 @@ export async function performBucketClear(
   bucket: string;
   foundCount: number;
   foundFiles: string[];
-  usedAdmin: boolean;
   availableBuckets: string[];
   deletedCount: number;
   deleteErrors: unknown[];
 }> {
-  const { getSupabaseAdminClient } = await import("./common");
+  const { getSupabaseClient } = await import("./common");
   const bucketName = process.env.SUPABASE_IMAGE_BUCKET || undefined;
   const targetBucket = bucketName || IMAGE_BUCKET;
-  console.log("Preparing to clear storage bucket...", bucketName || "(default)");
+  console.log(
+    "Preparing to clear storage bucket...",
+    bucketName || "(default)",
+  );
 
-  const admin = getSupabaseAdminClient();
-  const storageClient = (admin || clientInstance) as ReturnType<typeof createClient<Database>>;
+  const maybeClient = getSupabaseClient();
 
-  let buckets: string[] = [];
-  let files: Array<{ name: string }> = [];
+  const buckets: string[] = [];
+  const files: Array<{ name: string }> = [];
 
-  if (CLEAR_BUCKET_DEBUG) {
-    const info = await getBucketDebugInfo(storageClient!, targetBucket);
-    buckets = info.buckets;
-    files = info.files;
-    if (buckets.length > 0) console.log("Available buckets:", buckets.join(", "));
-    console.log(`Storage client used: ${admin ? "admin" : "regular client"}`);
-    console.log(`Found ${files.length} files in bucket ${targetBucket}; showing up to 50:`);
-    files.slice(0, 50).forEach((f, idx) => console.log(`${idx + 1}. ${f.name}`));
-  }
-
-  if (CLEAR_BUCKET_DEBUG) console.log("Clearing storage bucket now...");
+  // proceed with clearing the bucket (non-debug mode)
   let deleteSummary = { deletedCount: 0, deleteErrors: [] as unknown[] };
   try {
-    const storageClientToUse = (admin || clientInstance) as ReturnType<typeof createClient<Database>>;
+    const storageClientToUse = (maybeClient || clientInstance) as ReturnType<
+      typeof createClient<Database>
+    >;
     deleteSummary = await clearStorageBucket(storageClientToUse!, targetBucket);
   } catch (err) {
     console.error("Error during storage clear:", err);
@@ -217,7 +220,6 @@ export async function performBucketClear(
     bucket: targetBucket,
     foundCount: files.length,
     foundFiles: files.slice(0, 50).map((f) => f.name),
-    usedAdmin: !!admin,
     availableBuckets: buckets,
     deletedCount: deleteSummary.deletedCount,
     deleteErrors: deleteSummary.deleteErrors,

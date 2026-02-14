@@ -9,10 +9,11 @@ export const inspectJobTool = {
   inputSchema: z.object({ jobId: z.string() }),
   handler: async ({ jobId }: { jobId: string }) => {
     try {
-      const { client } = getClient();
-      if (!client) return createErrorResponse("Supabase client not configured");
+      const { client: supabase } = getClient();
+      if (!supabase)
+        return createErrorResponse("Supabase client not configured");
 
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from("scrape_jobs")
         .select("*")
         .eq("id", jobId)

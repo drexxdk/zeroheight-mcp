@@ -5,6 +5,9 @@
  * Usage: npx tsx scripts/test-cancel-job.ts <jobId>
  */
 
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig({ path: ".env.local" });
+
 const jobId = process.argv[2];
 
 async function runCancel() {

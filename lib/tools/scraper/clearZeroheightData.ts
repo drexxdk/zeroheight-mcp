@@ -6,17 +6,17 @@ async function clearZeroheightData() {
   try {
     console.log("Clearing existing Zeroheight data...");
 
-    const { client, storage } = getClient();
+    const { client: supabase, storage } = getClient();
 
-    console.log("Client available:", !!client);
+    console.log("Supabase client available:", !!supabase);
     console.log("Admin-capable storage available:", !!storage.listBuckets);
 
-    if (client) {
+    if (supabase) {
       const imagesTable = "images" as const;
       const pagesTable = "pages" as const;
       // Clear images table
       console.log("Clearing images table...");
-      const { error: imagesError } = await client
+      const { error: imagesError } = await supabase
         .from(imagesTable)
         .delete()
         .neq("id", 0); // Delete all rows
@@ -32,7 +32,7 @@ async function clearZeroheightData() {
 
       // Clear pages table
       console.log("Clearing pages table...");
-      const { error: pagesError } = await client
+      const { error: pagesError } = await supabase
         .from(pagesTable)
         .delete()
         .neq("id", 0); // Delete all rows
@@ -51,7 +51,7 @@ async function clearZeroheightData() {
         "Clearing terminal scrape_jobs rows (completed, failed, cancelled)...",
       );
       try {
-        const { error: jobsError } = await client
+        const { error: jobsError } = await supabase
           .from("scrape_jobs")
           .delete()
           .in("status", ["completed", "failed", "cancelled"]);
@@ -65,7 +65,7 @@ async function clearZeroheightData() {
       }
 
       // Clear storage bucket (use configured bucket name if provided)
-      const bucketResult = await performBucketClear(client);
+      const bucketResult = await performBucketClear(supabase);
 
       console.log("All Zeroheight data cleared successfully");
       return createSuccessResponse({
@@ -73,7 +73,6 @@ async function clearZeroheightData() {
         bucket: bucketResult.bucket,
         foundCount: bucketResult.foundCount,
         foundFiles: bucketResult.foundFiles,
-        usedAdmin: bucketResult.usedAdmin,
         availableBuckets: bucketResult.availableBuckets,
         deletedCount: bucketResult.deletedCount,
         deleteErrors: bucketResult.deleteErrors,

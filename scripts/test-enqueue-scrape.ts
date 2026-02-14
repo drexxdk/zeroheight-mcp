@@ -5,6 +5,9 @@
  * Usage: npx tsx scripts/test-enqueue-scrape.ts [pageUrl1 pageUrl2 ...]
  */
 
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig({ path: ".env.local" });
+
 const args = process.argv.slice(2);
 const pageUrls = args.length > 0 ? args : undefined;
 

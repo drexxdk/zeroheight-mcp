@@ -25,10 +25,11 @@ export const countRunTool = {
   inputSchema: z.object({ jobId: z.string() }),
   handler: async ({ jobId }: { jobId: string }) => {
     try {
-      const { client } = getClient();
-      if (!client) return createErrorResponse("Supabase client not configured");
+      const { client: supabase } = getClient();
+      if (!supabase)
+        return createErrorResponse("Supabase client not configured");
 
-      const { data: job, error: jobErr } = await client
+      const { data: job, error: jobErr } = await supabase
         .from("scrape_jobs")
         .select("started_at, finished_at")
         .eq("id", jobId)
@@ -45,36 +46,33 @@ export const countRunTool = {
       if (!finished)
         return createErrorResponse("Job has no finished_at timestamp");
 
-      const { count: pagesCount, error: pagesErr } = await client
+      const { count: pagesCount, error: pagesErr } = await supabase
         .from("pages")
         .select("id", { count: "exact", head: true })
         .gte("scraped_at", started)
         .lte("scraped_at", finished);
 
-      if (pagesErr)
-        return createErrorResponse(formatError(pagesErr));
+      if (pagesErr) return createErrorResponse(formatError(pagesErr));
 
       // Get page ids inserted in window to count linked images
-      const { data: pagesData, error: pagesDataErr } = await client
-          .from("pages")
-          .select("id")
-          .gte("scraped_at", started)
-          .lte("scraped_at", finished);
+      const { data: pagesData, error: pagesDataErr } = await supabase
+        .from("pages")
+        .select("id")
+        .gte("scraped_at", started)
+        .lte("scraped_at", finished);
 
-      if (pagesDataErr)
-        return createErrorResponse(formatError(pagesDataErr));
+      if (pagesDataErr) return createErrorResponse(formatError(pagesDataErr));
 
       const pageIds = Array.isArray(pagesData)
         ? pagesData.map((p) => p.id)
         : [];
       let imagesCount = 0;
       if (pageIds.length > 0) {
-        const { count: imgsCount, error: imgsErr } = await client
+        const { count: imgsCount, error: imgsErr } = await supabase
           .from("images")
           .select("id", { count: "exact", head: true })
           .in("page_id", pageIds);
-        if (imgsErr)
-          return createErrorResponse(formatError(imgsErr));
+        if (imgsErr) return createErrorResponse(formatError(imgsErr));
         imagesCount = imgsCount ?? 0;
       }
 
@@ -87,7 +85,11 @@ export const countRunTool = {
       };
 
       // Return explicit envelope with JSON text to avoid any cross-module coercion issues
-      const envelope = { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      const envelope = {
+        content: [
+          { type: "text" as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
 
       return envelope;
     } catch (e: unknown) {

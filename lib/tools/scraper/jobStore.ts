@@ -1,73 +1,69 @@
-import { getSupabaseAdminClient } from "../../common";
 import type { Scrape_jobsType } from "../../database.types";
-import type { Json } from "../../database.schema";
 
 export type JobRecord = Scrape_jobsType;
 
-const table = "scrape_jobs" as const;
+const SERVER_BASE =
+  process.env.SERVER_API_BASE ||
+  process.env.NEXT_PUBLIC_SERVER_API_BASE ||
+  "http://localhost:3000";
+const SERVER_API_KEY =
+  process.env.SERVER_API_KEY || process.env.MCP_API_KEY || "";
 
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+async function callApi(path: string, opts: RequestInit = {}) {
+  const url = `${SERVER_BASE}${path}`;
+  const headers = new Headers(opts.headers || {});
+  if (SERVER_API_KEY) headers.set("x-server-api-key", SERVER_API_KEY);
+  headers.set("content-type", "application/json");
+  const res = await fetch(url, { ...opts, headers });
+  if (res.status === 204) return null;
+  const text = await res.text();
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = text;
+  }
+  if (!res.ok) {
+    let msg = text;
+    if (
+      json &&
+      typeof json === "object" &&
+      json !== null &&
+      "message" in json
+    ) {
+      const m = (json as Record<string, unknown>)["message"];
+      if (typeof m === "string") msg = m;
+    }
+    throw new Error(`API ${path} failed: ${msg}`);
+  }
+  return json as unknown;
 }
 
 export async function createJobInDb(
   name: string,
   args?: Record<string, unknown>,
 ) {
-  const id = genId();
-  const supabase = getSupabaseAdminClient();
-  if (!supabase) throw new Error("Supabase admin client not configured");
-  const payloadArgs: Json | null = args
-    ? (JSON.parse(JSON.stringify(args)) as Json)
-    : null;
-  const { error } = await supabase
-    .from(table)
-    .insert([{ id, name, status: "queued", args: payloadArgs }]);
-  if (error) throw error;
-  return id;
+  const payload = { name, args };
+  const data = await callApi(`/api/jobs`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!data || typeof data !== "object" || data === null) return null;
+  const idVal = (data as Record<string, unknown>)["id"];
+  return typeof idVal === "string" ? idVal : null;
 }
 
 export async function claimNextJob(): Promise<JobRecord | null> {
-  const supabase = getSupabaseAdminClient();
-  if (!supabase) throw new Error("Supabase admin client not configured");
-  // Attempt to find a queued job and mark it running (simple optimistic flow)
-  const { data: rows, error } = await supabase
-    .from(table)
-    .select("*")
-    .eq("status", "queued")
-    .order("created_at", { ascending: true })
-    .limit(1);
-
-  if (error) throw error;
-  if (!rows || rows.length === 0) return null;
-
-  const job = (rows as JobRecord[])[0];
-
-  const { error: updErr } = await supabase
-    .from(table)
-    .update({ status: "running", started_at: new Date().toISOString() })
-    .eq("id", job.id);
-  if (updErr) throw updErr;
-  return { ...job, status: "running", started_at: new Date().toISOString() };
+  const data = await callApi(`/api/jobs/claim`, { method: "POST" });
+  if (!data) return null;
+  return data as JobRecord;
 }
 
 export async function appendJobLog(jobId: string, line: string) {
-  const supabase = getSupabaseAdminClient();
-  if (!supabase) throw new Error("Supabase admin client not configured");
-  // Read current logs and append
-  const { data, error } = await supabase
-    .from(table)
-    .select("logs")
-    .eq("id", jobId)
-    .single();
-  if (error) throw error;
-  const current = (data && (data as JobRecord).logs) || "";
-  const updated = current + (current ? "\n" : "") + line;
-  const { error: updateErr } = await supabase
-    .from(table)
-    .update({ logs: updated })
-    .eq("id", jobId);
-  if (updateErr) throw updateErr;
+  await callApi(`/api/jobs/${encodeURIComponent(jobId)}/log`, {
+    method: "POST",
+    body: JSON.stringify({ line }),
+  });
 }
 
 export async function finishJob(
@@ -75,26 +71,18 @@ export async function finishJob(
   success: boolean,
   errorMsg?: string,
 ) {
-  const supabase = getSupabaseAdminClient();
-  if (!supabase) throw new Error("Supabase admin client not configured");
-  const payload: Record<string, unknown> = {
-    finished_at: new Date().toISOString(),
-    status: success ? "completed" : "failed",
-  };
-  if (errorMsg) (payload as Record<string, unknown>)["error"] = errorMsg;
-
-  const { error } = await supabase.from(table).update(payload).eq("id", jobId);
-  if (error) throw error;
+  const body: Record<string, unknown> = { success };
+  if (errorMsg) body.error = errorMsg;
+  await callApi(`/api/jobs/${encodeURIComponent(jobId)}/finish`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export async function getJobFromDb(jobId: string) {
-  const supabase = getSupabaseAdminClient();
-  if (!supabase) throw new Error("Supabase admin client not configured");
-  const { data, error } = await supabase
-    .from(table)
-    .select("*")
-    .eq("id", jobId)
-    .single();
-  if (error) return null;
+  const data = await callApi(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    method: "GET",
+  });
+  if (!data) return null;
   return data as JobRecord;
 }

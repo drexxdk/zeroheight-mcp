@@ -31,11 +31,14 @@ export async function scrapeZeroheightProject(
   password?: string,
   pageUrls?: string[],
   logger?: (msg: string) => void,
+  // Optional cooperative cancellation callback. When it returns true the
+  // scraper should stop promptly by throwing an error.
+  shouldCancel?: () => boolean,
 ) {
   try {
     console.log("Starting Zeroheight project scrape...");
 
-    const { client, storage } = getClient();
+    const { client: supabase, storage } = getClient();
     const imagesTable = "images" as const;
     const pagesTable = "pages" as const;
 
@@ -151,7 +154,7 @@ export async function scrapeZeroheightProject(
 
     // Get all existing image URLs globally to prevent duplicates (do this once at the start)
     const { data: allExistingImages, error: allExistingImagesError } =
-      await client!.from(imagesTable).select("original_url");
+      await supabase!.from(imagesTable).select("original_url");
 
     if (allExistingImagesError) {
       console.error(
@@ -247,6 +250,16 @@ export async function scrapeZeroheightProject(
       if (!linkValue) break; // No more links to process
       let link = linkValue;
       allLinks.delete(link);
+
+      // Cooperative cancellation check: stop promptly if requested
+      if (shouldCancel && shouldCancel()) {
+        markAttempt(
+          "cancelled",
+          "⏹️",
+          `Cancellation requested - stopping scrape`,
+        );
+        throw new Error("Job cancelled");
+      }
 
       if (processedLinks.has(link)) {
         markAttempt(
@@ -472,6 +485,7 @@ export async function scrapeZeroheightProject(
           pendingImageRecords,
           logProgress,
           uploadWithRetry,
+          shouldCancel,
         });
 
         // aggregate image stats
@@ -517,6 +531,15 @@ export async function scrapeZeroheightProject(
           );
 
           let actuallyNewLinksCount = 0;
+
+          if (shouldCancel && shouldCancel()) {
+            markAttempt(
+              "cancelled",
+              "⏹️",
+              `Cancellation requested - stopping after discovery`,
+            );
+            throw new Error("Job cancelled");
+          }
           newLinks.forEach((newLink) => {
             if (
               !allLinks.has(newLink) &&
@@ -572,7 +595,7 @@ export async function scrapeZeroheightProject(
       const uniqueUrls = uniquePages.map((p) => p.url);
       let existingPagesBefore: Array<{ url?: string } | null> = [];
       try {
-        const { data: existingData } = await client!
+        const { data: existingData } = await supabase!
           .from(pagesTable)
           .select("url")
           .in("url", uniqueUrls);
@@ -595,7 +618,7 @@ export async function scrapeZeroheightProject(
         while (attempts < 3) {
           try {
             // Await the Postgrest response directly
-            const res = await client!
+            const res = await supabase!
               .from(pagesTable)
               .upsert(uniquePages, { onConflict: "url" })
               .select("id, url");
@@ -629,9 +652,14 @@ export async function scrapeZeroheightProject(
 
       // Debug: report mapping and pending image records to diagnose association mismatches
       try {
-        console.log(`DEBUG: pendingImageRecords.length = ${pendingImageRecords.length}`);
+        console.log(
+          `DEBUG: pendingImageRecords.length = ${pendingImageRecords.length}`,
+        );
         if (pendingImageRecords.length > 0) {
-          console.log("DEBUG: pendingImageRecords sample:", pendingImageRecords.slice(0, 10));
+          console.log(
+            "DEBUG: pendingImageRecords sample:",
+            pendingImageRecords.slice(0, 10),
+          );
         }
         console.log(`DEBUG: urlToId.size = ${urlToId.size}`);
         if (urlToId.size > 0) {
@@ -665,10 +693,17 @@ export async function scrapeZeroheightProject(
       // Debug: report imagesToInsert and any pending records that couldn't be mapped to page_id
       try {
         console.log(`DEBUG: imagesToInsert.length = ${imagesToInsert.length}`);
-        const missingRecords = pendingImageRecords.filter((r) => !urlToId.has(r.pageUrl));
-        console.log(`DEBUG: pendingImageRecords missing page_id = ${missingRecords.length}`);
+        const missingRecords = pendingImageRecords.filter(
+          (r) => !urlToId.has(r.pageUrl),
+        );
+        console.log(
+          `DEBUG: pendingImageRecords missing page_id = ${missingRecords.length}`,
+        );
         if (missingRecords.length > 0) {
-          console.log("DEBUG: missingRecords sample:", missingRecords.slice(0, 10));
+          console.log(
+            "DEBUG: missingRecords sample:",
+            missingRecords.slice(0, 10),
+          );
         }
       } catch (e) {
         console.warn("DEBUG logging failed:", e);
@@ -680,7 +715,9 @@ export async function scrapeZeroheightProject(
       let imagesAlreadyAssociatedCount = 0;
       try {
         const imagesFoundArray = Array.from(uniqueAllowedImageUrls);
-        console.log(`DEBUG: uniqueAllowedImageUrls.size = ${imagesFoundArray.length}`);
+        console.log(
+          `DEBUG: uniqueAllowedImageUrls.size = ${imagesFoundArray.length}`,
+        );
 
         if (imagesFoundArray.length > 0) {
           // For robustness against signed URLs and querystrings, query the DB
@@ -688,24 +725,34 @@ export async function scrapeZeroheightProject(
           // followed by any query string). This handles cases where stored
           // `original_url` contains signature/query parameters.
           const pageIdSet = new Set<number>(Array.from(urlToId.values()));
-          const matchedByNormalized = new Map<string, Array<{ original_url?: string; page_id?: number | null }>>();
+          const matchedByNormalized = new Map<
+            string,
+            Array<{ original_url?: string; page_id?: number | null }>
+          >();
 
           // Run queries sequentially to avoid overwhelming DB; counts are small.
           for (const norm of imagesFoundArray) {
             try {
-              const { data: qdata, error: qerr } = await client!
+              const { data: qdata, error: qerr } = await supabase!
                 .from(imagesTable)
                 .select("original_url, page_id")
                 .ilike("original_url", `${norm}%`);
 
               if (qerr) {
-                console.warn("DEBUG: query error for", norm, qerr.message || qerr);
+                console.warn(
+                  "DEBUG: query error for",
+                  norm,
+                  qerr.message || qerr,
+                );
                 continue;
               }
               if (qdata && qdata.length > 0)
                 matchedByNormalized.set(
                   norm,
-                  qdata as Array<{ original_url?: string; page_id?: number | null }>,
+                  qdata as Array<{
+                    original_url?: string;
+                    page_id?: number | null;
+                  }>,
                 );
             } catch (e) {
               console.warn("DEBUG: query exception for", norm, e);
@@ -716,17 +763,32 @@ export async function scrapeZeroheightProject(
           // referencing one of the upserted pages.
           let matchCount = 0;
           for (const rows of matchedByNormalized.values()) {
-            if (rows.some((r) => typeof r.page_id === "number" && pageIdSet.has(r.page_id))) {
+            if (
+              rows.some(
+                (r) =>
+                  typeof r.page_id === "number" && pageIdSet.has(r.page_id),
+              )
+            ) {
               matchCount++;
             }
           }
           imagesAlreadyAssociatedCount = matchCount;
-          const totalMatches = Array.from(matchedByNormalized.values()).reduce((acc, v) => acc + v.length, 0);
-          console.log(`DEBUG: total DB rows matched by ilike queries = ${totalMatches}`);
-          console.log(`DEBUG: imagesAlreadyAssociatedCount = ${imagesAlreadyAssociatedCount}`);
+          const totalMatches = Array.from(matchedByNormalized.values()).reduce(
+            (acc, v) => acc + v.length,
+            0,
+          );
+          console.log(
+            `DEBUG: total DB rows matched by ilike queries = ${totalMatches}`,
+          );
+          console.log(
+            `DEBUG: imagesAlreadyAssociatedCount = ${imagesAlreadyAssociatedCount}`,
+          );
         }
       } catch (e) {
-        console.warn("DEBUG: failed to compute imagesAlreadyAssociatedCount:", e);
+        console.warn(
+          "DEBUG: failed to compute imagesAlreadyAssociatedCount:",
+          e,
+        );
       }
 
       if (imagesToInsert.length > 0) {
@@ -736,7 +798,7 @@ export async function scrapeZeroheightProject(
           let attempts = 0;
           while (attempts < 3) {
             try {
-              const res = await client!
+              const res = await supabase!
                 .from(imagesTable)
                 .insert(imagesToInsert);
               insertResult = res as SupabaseResult<unknown>;
@@ -801,12 +863,18 @@ export async function scrapeZeroheightProject(
       lines.push(`Unsupported unique images: ${uniqueUnsupported}`);
       lines.push(`Allowed unique images: ${uniqueAllowed}`);
       lines.push(`Images uploaded (instances): ${imagesUploadedCount}`);
-      lines.push(`Images skipped (unique): ${uniqueSkipped} (already uploaded).`);
+      lines.push(
+        `Images skipped (unique): ${uniqueSkipped} (already uploaded).`,
+      );
       lines.push(`Images failed: ${imagesStats.failed}`);
       lines.push("");
       lines.push("");
-      lines.push(`New associations between pages and images: ${imagesDbInsertedCount}`);
-      lines.push(`Images already associated with pages: ${imagesAlreadyAssociatedCount}`);
+      lines.push(
+        `New associations between pages and images: ${imagesDbInsertedCount}`,
+      );
+      lines.push(
+        `Images already associated with pages: ${imagesAlreadyAssociatedCount}`,
+      );
 
       // Determine box dimensions and print
       const contentWidth = Math.max(...lines.map((l) => l.length));
@@ -875,14 +943,51 @@ export const scrapeZeroheightProjectTool = {
       );
     }
 
-    // Start a background job for the scrape and return a job id immediately
-    // Enqueue job in DB for worker to pick up
-    const { createJobInDb } = await import("./jobStore");
-    const jobId = await createJobInDb("scrape-zeroheight-project", {
-      pageUrls: pageUrls || null,
-      password: password || null,
-    });
+    // Start an in-process background job via `jobManager` so MCP job tools
+    // (`scrape-job-status`, `scrape-job-logs`) can observe it when running
+    // in this server process.
+    const { createJob, genId, getJob } = await import("./jobManager");
+    const { getSupabaseAdminClient } = await import("../../common");
+    const supabase = getSupabaseAdminClient();
+    const id = genId();
 
-    return createSuccessResponse({ message: "Scrape enqueued", jobId });
+    // Insert a DB row for visibility (so `scrape_jobs` shows this in the DB)
+    if (supabase) {
+      const payload = {
+        id,
+        name: "scrape-zeroheight-project",
+        status: "running",
+        args: { pageUrls: pageUrls || null, password: password || null },
+        started_at: new Date().toISOString(),
+      } as const;
+      try {
+        await supabase.from("scrape_jobs").insert([payload]);
+      } catch (err) {
+        // If DB insert fails, log but continue with in-process job
+        console.warn("Failed to insert scrape_jobs row:", err);
+      }
+    }
+
+    const jobId = createJob(
+      "scrape-zeroheight-project",
+      async (logger) => {
+        await scrapeZeroheightProject(
+          projectUrl,
+          password || undefined,
+          pageUrls || undefined,
+          (msg: string) => {
+            try {
+              logger(msg);
+            } catch {
+              // ignore logging errors
+            }
+          },
+          () => !!getJob(id)?.cancelRequested,
+        );
+      },
+      id,
+    );
+
+    return createSuccessResponse({ message: "Scrape started", jobId });
   },
 };

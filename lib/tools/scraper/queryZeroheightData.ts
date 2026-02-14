@@ -46,8 +46,8 @@ export const queryZeroheightDataTool = {
     includeImages?: boolean;
     limit?: number;
   }) => {
-    const { client } = getClient();
-    if (!client) {
+    const { client: supabase } = getClient();
+    if (!supabase) {
       return createErrorResponse("Error: Supabase client not configured");
     }
 
@@ -61,11 +61,11 @@ export const queryZeroheightDataTool = {
 
     if (search) {
       // Use separate queries to avoid complex OR conditions that can cause parsing issues
-      const titleQuery = client
+      const titleQuery = supabase
         .from(pagesTable)
         .select("id, title, url, content, images (original_url, storage_path)")
         .ilike("title", `%${search}%`);
-      const contentQuery = client
+      const contentQuery = supabase
         .from(pagesTable)
         .select("id, title, url, content, images (original_url, storage_path)")
         .ilike("content", `%${search}%`);
@@ -99,7 +99,7 @@ export const queryZeroheightDataTool = {
       );
     } else if (url) {
       // Query by URL
-      const { data: urlPages, error: urlError } = await client
+      const { data: urlPages, error: urlError } = await supabase
         .from(pagesTable)
         .select("id, title, url, content, images (original_url, storage_path)")
         .eq("url", url)
@@ -113,7 +113,7 @@ export const queryZeroheightDataTool = {
       pages = urlPages || [];
     } else {
       // Get all pages with limit
-      const { data: allPages, error: allError } = await client
+      const { data: allPages, error: allError } = await supabase
         .from(pagesTable)
         .select("id, title, url, content, images (original_url, storage_path)")
         .limit(effectiveLimit);

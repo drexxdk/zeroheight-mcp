@@ -11,7 +11,7 @@ export async function commitPagesAndImages(options: {
     storage_path: ImagesType["storage_path"];
   }>;
 }) {
-  const { client, pagesToUpsert, pendingImageRecords } = options;
+  const { client: supabase, pagesToUpsert, pendingImageRecords } = options;
   // Deduplicate pages
   const pageMap = new Map<
     string,
@@ -32,7 +32,7 @@ export async function commitPagesAndImages(options: {
     while (attempts < 3) {
       try {
         // Await the Postgrest response directly
-        const res = await client
+        const res = await supabase
           .from(pagesTable)
           .upsert(uniquePages, { onConflict: "url" })
           .select("id, url");
@@ -82,7 +82,7 @@ export async function commitPagesAndImages(options: {
       let insertResult: { error?: unknown } = { error: null };
       while (attempts < 3) {
         try {
-          const res = await client.from(imagesTable).insert(imagesToInsert);
+          const res = await supabase.from(imagesTable).insert(imagesToInsert);
           insertResult = res;
           if (!res.error) break;
         } catch (err) {

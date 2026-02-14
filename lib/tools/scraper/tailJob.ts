@@ -8,10 +8,11 @@ export const tailJobTool = {
   inputSchema: z.object({ jobId: z.string(), tail: z.number().optional() }),
   handler: async ({ jobId, tail }: { jobId: string; tail?: number }) => {
     try {
-      const { client } = getClient();
-      if (!client) return createErrorResponse("Supabase client not configured");
+      const { client: supabase } = getClient();
+      if (!supabase)
+        return createErrorResponse("Supabase client not configured");
 
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from("scrape_jobs")
         .select("id, status, logs, started_at, finished_at")
         .eq("id", jobId)
@@ -28,7 +29,13 @@ export const tailJobTool = {
         logs = lines.slice(-tail).join("\n");
       }
 
-      return createSuccessResponse({ id: data.id, status: data.status, started_at: data.started_at, finished_at: data.finished_at, logs });
+      return createSuccessResponse({
+        id: data.id,
+        status: data.status,
+        started_at: data.started_at,
+        finished_at: data.finished_at,
+        logs,
+      });
     } catch (e: unknown) {
       return createErrorResponse(String(e instanceof Error ? e.message : e));
     }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createErrorResponse, createSuccessResponse } from "../../common";
 
-type JobStatus = "running" | "completed" | "failed";
+type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
 type Job = {
   id: string;
@@ -11,19 +11,21 @@ type Job = {
   finishedAt?: number;
   error?: string;
   logs: string[];
+  cancelRequested?: boolean;
 };
 
 const jobs = new Map<string, Job>();
 
-function genId() {
+export function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
 export function createJob(
   name: string,
   runner: (log: (s: string) => void) => Promise<unknown>,
+  externalId?: string,
 ) {
-  const id = genId();
+  const id = externalId ?? genId();
   const job: Job = {
     id,
     name,
@@ -44,14 +46,28 @@ export function createJob(
   (async () => {
     try {
       await runner(logger);
-      job.status = "completed";
-      job.finishedAt = Date.now();
-      logger("Job completed");
+      // If the runner finished but a cancel was requested, keep cancelled state
+      if (job.cancelRequested) {
+        job.status = "cancelled";
+        job.finishedAt = Date.now();
+        logger("Job cancelled");
+      } else {
+        job.status = "completed";
+        job.finishedAt = Date.now();
+        logger("Job completed");
+      }
     } catch (e) {
-      job.status = "failed";
-      job.finishedAt = Date.now();
-      job.error = e instanceof Error ? e.message : String(e);
-      logger(`Job failed: ${job.error}`);
+      // If cancellation was requested, preserve cancelled status instead of marking failed
+      if (job.cancelRequested) {
+        job.status = "cancelled";
+        job.finishedAt = Date.now();
+        logger("Job cancelled");
+      } else {
+        job.status = "failed";
+        job.finishedAt = Date.now();
+        job.error = e instanceof Error ? e.message : String(e);
+        logger(`Job failed: ${job.error}`);
+      }
     }
   })();
 
@@ -60,6 +76,29 @@ export function createJob(
 
 export function getJob(id: string) {
   return jobs.get(id) || null;
+}
+
+export function cancelJob(id: string) {
+  const j = jobs.get(id);
+  if (!j) return false;
+  if (j.status === "running") {
+    j.cancelRequested = true;
+    j.status = "cancelled" as JobStatus;
+    j.finishedAt = Date.now();
+    const line = `[${new Date().toISOString()}] Job cancelled via MCP`;
+    j.logs.push(line);
+    console.log(line);
+    return true;
+  }
+  if (j.status === "queued") {
+    j.status = "cancelled" as JobStatus;
+    j.finishedAt = Date.now();
+    const line = `[${new Date().toISOString()}] Queued job cancelled via MCP`;
+    j.logs.push(line);
+    console.log(line);
+    return true;
+  }
+  return false;
 }
 
 export function listJobs() {

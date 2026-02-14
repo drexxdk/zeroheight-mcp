@@ -7,8 +7,8 @@ export const getLogsTool = {
   description: "Retrieve recent logs from the Supabase project database.",
   inputSchema: z.object({}),
   handler: async () => {
-    const { client } = getClient();
-    if (!client) {
+    const { client: supabase } = getClient();
+    if (!supabase) {
       return createErrorResponse("Error: Supabase client not configured");
     }
 

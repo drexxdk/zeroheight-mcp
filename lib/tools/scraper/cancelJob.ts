@@ -4,6 +4,7 @@ import {
   createSuccessResponse,
   getSupabaseAdminClient,
 } from "../../common";
+import { cancelJob as cancelInProcessJob } from "./jobManager";
 
 export const cancelJobTool = {
   title: "cancel-job",
@@ -12,12 +13,12 @@ export const cancelJobTool = {
   inputSchema: z.object({ jobId: z.string() }),
   handler: async ({ jobId }: { jobId: string }) => {
     try {
-      const admin = getSupabaseAdminClient();
-      if (!admin)
+      const supabase = getSupabaseAdminClient();
+      if (!supabase)
         return createErrorResponse("Supabase admin client not configured");
 
       // Fetch current status
-      const { data, error } = await admin
+      const { data, error } = await supabase
         .from("scrape_jobs")
         .select("status")
         .eq("id", jobId)
@@ -25,36 +26,67 @@ export const cancelJobTool = {
         .maybeSingle();
 
       if (error) return createErrorResponse(error.message || String(error));
-      if (!data) return createErrorResponse(`No job found with id=${jobId}`);
+      if (!data) {
+        // If no DB row, try to cancel an in-process job manager job
+        try {
+          const inproc = cancelInProcessJob(jobId);
+          if (inproc)
+            return createSuccessResponse({
+              jobId,
+              action: "inprocess_cancelled",
+            });
+        } catch {
+          // ignore
+        }
+        return createErrorResponse(`No job found with id=${jobId}`);
+      }
 
       const status = (data as { status?: string }).status || "";
 
       if (status === "queued") {
-        // Safe fast-path: delete the queued row
-        const { error: delErr } = await admin
+        // Mark queued row as cancelled to preserve history
+        const { error: updErr } = await supabase
           .from("scrape_jobs")
-          .delete()
+          .update({
+            status: "cancelled",
+            finished_at: new Date().toISOString(),
+          })
           .eq("id", jobId);
-        if (delErr)
-          return createErrorResponse(delErr.message || String(delErr));
+        if (updErr)
+          return createErrorResponse(updErr.message || String(updErr));
+        // Also mark in-process job manager if present
+        try {
+          cancelInProcessJob(jobId);
+        } catch {
+          // ignore
+        }
         return createSuccessResponse({
           jobId,
-          action: "deleted",
+          action: "marked_cancelled",
           previousStatus: status,
         });
       }
 
       if (status === "running") {
-        // Mark running job as canceled so workers that check status can notice
-        const { error: updErr } = await admin
+        // Mark running job as cancelled in DB so external workers can see it
+        const { error: updErr } = await supabase
           .from("scrape_jobs")
-          .update({ status: "canceled", finished_at: new Date().toISOString() })
+          .update({
+            status: "cancelled",
+            finished_at: new Date().toISOString(),
+          })
           .eq("id", jobId);
         if (updErr)
           return createErrorResponse(updErr.message || String(updErr));
+        // Signal in-process job manager
+        try {
+          cancelInProcessJob(jobId);
+        } catch {
+          // ignore
+        }
         return createSuccessResponse({
           jobId,
-          action: "marked_canceled",
+          action: "marked_cancelled",
           previousStatus: status,
         });
       }

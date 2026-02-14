@@ -2,5 +2,16 @@
   "cSpell.words": ["networkidle", "Supabase", "zeroheight"],
   "css.lint.unknownAtRules": "ignore",
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode"
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  // Prefer the workspace TypeScript and give the TS server more memory
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTs": true,
+  "typescript.tsserver.maxTsServerMemory": 4096,
+  "typescript.tsserver.trace": "off",
+  "typescript.preferences.importModuleSpecifier": "relative",
+
+  // Ensure ESLint and TS validate common file types
+  "eslint.validate": ["javascript", "typescript", "typescriptreact"]
 }
+

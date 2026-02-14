@@ -8,8 +8,8 @@ export const listTablesTool = {
     "List all tables in the database schemas to understand the data structure.",
   inputSchema: z.object({}),
   handler: async () => {
-    const { client } = getClient();
-    if (!client) {
+    const { client: supabase } = getClient();
+    if (!supabase) {
       return createErrorResponse("Error: Supabase client not configured");
     }
 
