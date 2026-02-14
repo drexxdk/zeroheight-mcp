@@ -1,5 +1,6 @@
 import { z } from "zod";
 import puppeteer from "puppeteer";
+import type { Page } from "puppeteer";
 import { createErrorResponse, createSuccessResponse } from "../../common";
 import { JobCancelled } from "../../common/errors";
 import {
@@ -7,15 +8,11 @@ import {
   checkProgressInvariant,
 } from "../../common/supabaseClients";
 import { createProgressHelpers } from "./shared";
-import {
-  tryLogin,
-  uploadWithRetry,
-  SupabaseResult,
-} from "../../common/scraperHelpers";
+import { tryLogin } from "../../common/scraperHelpers";
 
 import { processImagesForPage } from "./pageProcessors";
 import type { PagesType, ImagesType } from "../../database.types";
-import { EXCLUDE_IMAGE_FORMATS } from "../../config";
+// Page extraction handles excluded image formats.
 
 // Helper function to get URL path without host
 function getUrlPath(url: string): string {
@@ -25,6 +22,85 @@ function getUrlPath(url: string): string {
   } catch {
     return url; // Return original if parsing fails
   }
+}
+
+// Discover pages on the project or validate provided page URLs.
+async function discoverPages(
+  page: Page,
+  url: string,
+  allowedHostname: string,
+  pageUrls?: string[],
+) {
+  if (pageUrls && pageUrls.length > 0) {
+    // Validate that all provided URLs are on the same hostname
+    const invalidUrls = pageUrls.filter((pageUrl) => {
+      try {
+        const urlObj = new URL(pageUrl);
+        return urlObj.hostname !== allowedHostname;
+      } catch {
+        return true; // Invalid URL
+      }
+    });
+
+    if (invalidUrls.length > 0) {
+      throw new Error(
+        `All page URLs must be on the same hostname as the project (${allowedHostname}). Invalid URLs: ${invalidUrls.join(", ")}`,
+      );
+    }
+
+    return {
+      allLinks: new Set(pageUrls),
+      allLinksOnPage: [] as string[],
+      zhPageLinks: [] as string[],
+      currentPageUrl: "",
+    };
+  }
+
+  // Discover links automatically from the project's main page
+  const allLinksOnPage = await page.$$eval(
+    "a[href]",
+    (links, base) =>
+      links
+        .map((link) => link.href)
+        .filter((href) => {
+          if (
+            !href ||
+            href.startsWith("#") ||
+            href.startsWith("mailto:") ||
+            href.startsWith("tel:")
+          )
+            return false;
+          try {
+            const linkUrl = new URL(href, base);
+            return linkUrl.hostname === new URL(base).hostname;
+          } catch {
+            return false;
+          }
+        }),
+    url,
+  );
+
+  const zhPageLinks = await page.$$eval(
+    'a[href*="/p/"]',
+    (links, base) =>
+      links
+        .map((link) => link.href)
+        .filter((href) => {
+          try {
+            const linkUrl = new URL(href, base);
+            return linkUrl.hostname === new URL(base).hostname;
+          } catch {
+            return false;
+          }
+        }),
+    url,
+  );
+
+  const currentPageUrl = page.url();
+
+  const allLinks = new Set([...allLinksOnPage, ...zhPageLinks, currentPageUrl]);
+
+  return { allLinks, allLinksOnPage, zhPageLinks, currentPageUrl };
 }
 
 export async function scrapeZeroheightProject(
@@ -42,7 +118,6 @@ export async function scrapeZeroheightProject(
     const { client: supabase, storage } = getClient();
     const db = supabase;
     const imagesTable = "images" as const;
-    const pagesTable = "pages" as const;
 
     const browser = await puppeteer.launch({
       headless: true,
@@ -69,89 +144,33 @@ export async function scrapeZeroheightProject(
     let zhPageLinks: string[] = [];
     let currentPageUrl: string = "";
 
-    if (pageUrls && pageUrls.length > 0) {
-      // Use provided specific page URLs
-      console.log(`Using ${pageUrls.length} specific page URLs provided`);
-      console.log(`Page URLs: ${pageUrls.map(getUrlPath).join(", ")}`);
-
-      // Validate that all provided URLs are on the same hostname
-      const invalidUrls = pageUrls.filter((pageUrl) => {
-        try {
-          const urlObj = new URL(pageUrl);
-          return urlObj.hostname !== allowedHostname;
-        } catch {
-          return true; // Invalid URL
-        }
-      });
-
-      if (invalidUrls.length > 0) {
-        console.error(
-          `Invalid URLs provided (wrong hostname or malformed): ${invalidUrls.join(", ")}`,
-        );
-        return createErrorResponse(
-          `All page URLs must be on the same hostname as the project (${allowedHostname}). Invalid URLs: ${invalidUrls.join(", ")}`,
-        );
-      }
-
-      allLinks = new Set(pageUrls);
-    } else {
-      // Original behavior: discover links automatically
-      console.log(
-        "No specific page URLs provided, discovering links automatically...",
+    try {
+      const discovered = await discoverPages(
+        page,
+        url,
+        allowedHostname,
+        pageUrls,
       );
-
-      allLinksOnPage = await page.$$eval("a[href]", (links) =>
-        links
-          .map((link) => link.href)
-          .filter((href) => {
-            if (
-              !href ||
-              href.startsWith("#") ||
-              href.startsWith("mailto:") ||
-              href.startsWith("tel:")
-            )
-              return false;
-            try {
-              const linkUrl = new URL(href, url);
-              // Be more permissive: allow any link on the same hostname, don't exclude the exact projectUrl
-              return linkUrl.hostname === allowedHostname;
-            } catch {
-              return false;
-            }
-          }),
-      );
-
-      if (allLinksOnPage.length) {
+      allLinks = discovered.allLinks;
+      allLinksOnPage = discovered.allLinksOnPage;
+      zhPageLinks = discovered.zhPageLinks;
+      currentPageUrl = discovered.currentPageUrl;
+      if (allLinksOnPage.length)
         console.log(`Found ${allLinksOnPage.length} links on main page`);
-      }
-
-      // Also check for Zeroheight-specific page links
-      zhPageLinks = await page.$$eval('a[href*="/p/"]', (links) =>
-        links
-          .map((link) => link.href)
-          .filter((href) => {
-            try {
-              const linkUrl = new URL(href, url);
-              return linkUrl.hostname === allowedHostname;
-            } catch {
-              return false;
-            }
-          }),
-      );
-      if (zhPageLinks.length) {
+      if (zhPageLinks.length)
         console.log(
           `Found ${zhPageLinks.length} Zeroheight page links (/p/ pattern)`,
         );
+      if (zhPageLinks.length)
         console.log(
           `Sample ZH page links: ${zhPageLinks.slice(0, 5).join(", ")}`,
         );
-      }
-
-      // Always include the current page in scraping
-      currentPageUrl = page.url();
-      console.log(`Current page URL: ${currentPageUrl}`);
-
-      allLinks = new Set([...allLinksOnPage, ...zhPageLinks, currentPageUrl]);
+      if (currentPageUrl) console.log(`Current page URL: ${currentPageUrl}`);
+    } catch (err) {
+      console.error(String(err));
+      return createErrorResponse(
+        String(err instanceof Error ? err.message : err),
+      );
     }
 
     // Get all existing image URLs globally to prevent duplicates (do this once at the start)
@@ -298,52 +317,21 @@ export async function scrapeZeroheightProject(
         overallProgress.current++; // Increment current for each page processed
         checkProgressInvariant(overallProgress, "page processed");
 
-        const title: string = await page.title();
-        const content: string = await page
-          .$eval(
-            ".zh-content, .content, main .content, [data-testid='page-content'], .page-content",
-            (el: Element) => el.textContent?.trim() || "",
-          )
-          .catch(() => {
-            // Fallback: try to get content from the main content area excluding navigation
-            return page.$eval("body", (body) => {
-              // Remove navigation and header elements
-              const clone = body.cloneNode(true) as HTMLElement;
-              const navs = clone.querySelectorAll(
-                "nav, header, .navigation, .header, .sidebar",
-              );
-              navs.forEach((nav) => nav.remove());
+        const {
+          title: pageTitle,
+          content: pageContent,
+          supportedImages,
+          normalizedImages,
+          pageLinks,
+        } = await import("./pageExtraction").then((m) =>
+          m.extractPageData(page, link, allowedHostname),
+        );
 
-              // Try to find the main content area
-              const mainContent = clone.querySelector(
-                "main, .main, .content, .zh-content, [role='main']",
-              );
-              if (mainContent) {
-                return mainContent.textContent?.trim() || "";
-              }
-
-              // Last resort: get all text but limit it
-              return clone.textContent?.trim().substring(0, 10000) || "";
-            });
-          });
+        const title = pageTitle;
+        const content = pageContent;
 
         // Only discover additional links if we're not using specific URLs
         if (!pageUrls || pageUrls.length === 0) {
-          // Discover additional links on this page
-          const pageLinks = await page.$$eval('a[href*="/p/"]', (links) =>
-            links
-              .map((link) => link.href)
-              .filter((href) => {
-                try {
-                  const linkUrl = new URL(href);
-                  return (
-                    linkUrl.hostname === allowedHostname && href.includes("/p/")
-                  );
-                } catch {
-                  return false;
-                }
-              }),
-          );
           pageLinks.forEach((newLink) => {
             if (
               !allLinks.has(newLink) &&
@@ -360,86 +348,6 @@ export async function scrapeZeroheightProject(
           });
         }
         await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        // Process images
-        const images = await page.$$eval("img", (imgs: HTMLImageElement[]) =>
-          imgs.map((img, index) => {
-            let src = img.src;
-            if (!src.startsWith("http")) {
-              src = new URL(src, window.location.href).href;
-            }
-            return { src, alt: img.alt, index };
-          }),
-        );
-
-        // Also find background images
-        const bgImages = await page.$$eval(
-          "*",
-          (elements, imagesLength) => {
-            return elements
-              .map((el, index) => {
-                const style = window.getComputedStyle(el);
-                const bg = style.backgroundImage;
-                if (bg && bg.startsWith("url(")) {
-                  let url = bg.slice(4, -1).replace(/['"]/g, "");
-                  if (!url.startsWith("http")) {
-                    url = new URL(url, window.location.href).href;
-                  }
-                  if (url.startsWith("http")) {
-                    return { src: url, alt: "", index: imagesLength + index };
-                  }
-                }
-              })
-              .filter(Boolean);
-          },
-          images.length,
-        );
-
-        const allImages = [...images, ...bgImages].filter(
-          (img): img is { src: string; alt: string; index: number } =>
-            Boolean(img),
-        );
-
-        // Normalize image URLs to prevent duplicates from signed URLs
-        const normalizedImages = allImages.map((img) => {
-          let normalizedSrc = img.src;
-
-          // For Zeroheight CDN URLs, remove query parameters to normalize
-          if (normalizedSrc.includes("cdn.zeroheight.com")) {
-            try {
-              const url = new URL(normalizedSrc);
-              // Keep only the pathname for zeroheight CDN images
-              normalizedSrc = `${url.protocol}//${url.hostname}${url.pathname}`;
-            } catch {
-              // If URL parsing fails, keep original
-            }
-          }
-
-          // For S3 URLs, remove query parameters to normalize signed URLs
-          if (
-            normalizedSrc.includes("s3.") ||
-            normalizedSrc.includes("amazonaws.com")
-          ) {
-            try {
-              const url = new URL(normalizedSrc);
-              normalizedSrc = `${url.protocol}//${url.hostname}${url.pathname}`;
-            } catch {
-              // If URL parsing fails, keep original
-            }
-          }
-
-          return { ...img, src: normalizedSrc, originalSrc: img.src };
-        });
-
-        // Filter out excluded image formats (configurable)
-        const supportedImages = normalizedImages.filter((img) => {
-          const lowerSrc = img.src.toLowerCase();
-          // Check file extension against configured excluded formats
-          for (const ext of EXCLUDE_IMAGE_FORMATS) {
-            if (lowerSrc.includes(`.${ext}`)) return false;
-          }
-          return true;
-        });
 
         // Update unique image URL sets (normalized src values)
         for (const img of normalizedImages) uniqueAllImageUrls.add(img.src);
@@ -487,7 +395,6 @@ export async function scrapeZeroheightProject(
           allExistingImageUrls,
           pendingImageRecords,
           logProgress,
-          uploadWithRetry,
           shouldCancel,
         });
 
@@ -567,6 +474,17 @@ export async function scrapeZeroheightProject(
           }
         }
       } catch (e) {
+        // If this is a cooperative cancellation, rethrow so the outer
+        // handler can handle it cleanly (avoid noisy stack traces here).
+        if (e instanceof JobCancelled) {
+          markAttempt(
+            "cancelled",
+            "⏹️",
+            `Cancellation requested - stopping scrape during ${getUrlPath(link)}`,
+          );
+          throw e;
+        }
+
         console.error(`Failed to scrape ${getUrlPath(link)}:`, e);
         // Count the failed attempt and record as a failed page
         pagesFailed++;
@@ -583,303 +501,24 @@ export async function scrapeZeroheightProject(
     );
     console.log();
 
-    // Bulk upsert pages
+    // Bulk upsert pages + images (delegated)
     if (pagesToUpsert.length > 0) {
-      // Deduplicate pages by URL
-      const pageMap = new Map<
-        string,
-        Pick<PagesType, "url" | "title" | "content">
-      >();
-      for (const p of pagesToUpsert) pageMap.set(p.url, p);
-      const uniquePages = Array.from(pageMap.values());
+      const { bulkUpsertPagesAndImages } = await import("./bulkUpsert");
+      const { lines } = await bulkUpsertPagesAndImages({
+        db,
+        pagesToUpsert,
+        pendingImageRecords,
+        uniqueAllowedImageUrls,
+        uniqueAllImageUrls,
+        uniqueUnsupportedImageUrls,
+        allExistingImageUrls,
+        imagesStats,
+        pagesFailed,
+        providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
+      });
 
-      // Before upserting, check which of the unique pages already exist so we can
-      // report inserted vs updated counts accurately.
-      const uniqueUrls = uniquePages.map((p) => p.url);
-      let existingPagesBefore: Array<{ url?: string } | null> = [];
-      try {
-        const { data: existingData } = await db!
-          .from(pagesTable)
-          .select("url")
-          .in("url", uniqueUrls);
-        existingPagesBefore = (existingData as Array<{ url?: string }>) || [];
-      } catch (err) {
-        console.warn("Could not query existing pages before upsert:", err);
-      }
-
-      const existingUrlSet = new Set(
-        existingPagesBefore.map((p) => (p?.url ? p.url : "")).filter(Boolean),
-      );
-
-      // Manual retry loop for upserting pages to avoid Postgrest builder typing issues
-      let upsertResult: SupabaseResult<Array<{ id?: number; url?: string }>> = {
-        data: null,
-        error: null,
-      };
-      {
-        let attempts = 0;
-        while (attempts < 3) {
-          try {
-            // Await the Postgrest response directly
-            const res = await db!
-              .from(pagesTable)
-              .upsert(uniquePages, { onConflict: "url" })
-              .select("id, url");
-            upsertResult = res as SupabaseResult<
-              Array<{ id?: number; url?: string }>
-            >;
-            if (!res.error) break;
-          } catch (err) {
-            upsertResult = { error: err, data: null } as SupabaseResult<
-              Array<{ id?: number; url?: string }>
-            >;
-          }
-          attempts++;
-          if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
-        }
-      }
-
-      const { data: upsertedPages, error: upsertError } = upsertResult;
-
-      if (upsertError) {
-        console.error("Error bulk upserting pages:", upsertError);
-      }
-
-      // Map url -> id for image inserts
-      const urlToId = new Map<string, number>();
-      (upsertedPages || []).forEach(
-        (p: { id?: number; url?: string } | null) => {
-          if (p && p.url && p.id) urlToId.set(p.url, p.id);
-        },
-      );
-
-      // Debug: report mapping and pending image records to diagnose association mismatches
-      try {
-        console.log(
-          `DEBUG: pendingImageRecords.length = ${pendingImageRecords.length}`,
-        );
-        if (pendingImageRecords.length > 0) {
-          console.log(
-            "DEBUG: pendingImageRecords sample:",
-            pendingImageRecords.slice(0, 10),
-          );
-        }
-        console.log(`DEBUG: urlToId.size = ${urlToId.size}`);
-        if (urlToId.size > 0) {
-          console.log(
-            "DEBUG: urlToId entries sample:",
-            Array.from(urlToId.entries()).slice(0, 10),
-          );
-        }
-      } catch (e) {
-        // Keep debug non-fatal
-        console.warn("DEBUG logging failed:", e);
-      }
-
-      // Prepare image records using resolved page IDs
-      const imagesToInsert = pendingImageRecords
-        .map((r) => {
-          const page_id = urlToId.get(r.pageUrl);
-          if (!page_id) return null;
-          return {
-            page_id,
-            original_url: r.original_url,
-            storage_path: r.storage_path,
-          };
-        })
-        .filter(Boolean) as Array<{
-        page_id: number;
-        original_url: ImagesType["original_url"];
-        storage_path: ImagesType["storage_path"];
-      }>;
-
-      // Debug: report imagesToInsert and any pending records that couldn't be mapped to page_id
-      try {
-        console.log(`DEBUG: imagesToInsert.length = ${imagesToInsert.length}`);
-        const missingRecords = pendingImageRecords.filter(
-          (r) => !urlToId.has(r.pageUrl),
-        );
-        console.log(
-          `DEBUG: pendingImageRecords missing page_id = ${missingRecords.length}`,
-        );
-        if (missingRecords.length > 0) {
-          console.log(
-            "DEBUG: missingRecords sample:",
-            missingRecords.slice(0, 10),
-          );
-        }
-      } catch (e) {
-        console.warn("DEBUG logging failed:", e);
-      }
-
-      // Compute how many of the unique allowed images are already associated
-      // with the processed pages in the DB. Use uniqueAllowedImageUrls set
-      // gathered during processing so counts are deduplicated.
-      let imagesAlreadyAssociatedCount = 0;
-      try {
-        const imagesFoundArray = Array.from(uniqueAllowedImageUrls);
-        console.log(
-          `DEBUG: uniqueAllowedImageUrls.size = ${imagesFoundArray.length}`,
-        );
-
-        if (imagesFoundArray.length > 0) {
-          // For robustness against signed URLs and querystrings, query the DB
-          // per-normalized-url using `ilike` to match prefixes (normalized path
-          // followed by any query string). This handles cases where stored
-          // `original_url` contains signature/query parameters.
-          const pageIdSet = new Set<number>(Array.from(urlToId.values()));
-          const matchedByNormalized = new Map<
-            string,
-            Array<{ original_url?: string; page_id?: number | null }>
-          >();
-
-          // Run queries sequentially to avoid overwhelming DB; counts are small.
-          for (const norm of imagesFoundArray) {
-            try {
-              const { data: qdata, error: qerr } = await db!
-                .from(imagesTable)
-                .select("original_url, page_id")
-                .ilike("original_url", `${norm}%`);
-
-              if (qerr) {
-                console.warn(
-                  "DEBUG: query error for",
-                  norm,
-                  qerr.message || qerr,
-                );
-                continue;
-              }
-              if (qdata && qdata.length > 0)
-                matchedByNormalized.set(
-                  norm,
-                  qdata as Array<{
-                    original_url?: string;
-                    page_id?: number | null;
-                  }>,
-                );
-            } catch (e) {
-              console.warn("DEBUG: query exception for", norm, e);
-            }
-          }
-
-          // Count unique normalized URLs that have at least one DB row with a page_id
-          // referencing one of the upserted pages.
-          let matchCount = 0;
-          for (const rows of matchedByNormalized.values()) {
-            if (
-              rows.some(
-                (r) =>
-                  typeof r.page_id === "number" && pageIdSet.has(r.page_id),
-              )
-            ) {
-              matchCount++;
-            }
-          }
-          imagesAlreadyAssociatedCount = matchCount;
-          const totalMatches = Array.from(matchedByNormalized.values()).reduce(
-            (acc, v) => acc + v.length,
-            0,
-          );
-          console.log(
-            `DEBUG: total DB rows matched by ilike queries = ${totalMatches}`,
-          );
-          console.log(
-            `DEBUG: imagesAlreadyAssociatedCount = ${imagesAlreadyAssociatedCount}`,
-          );
-        }
-      } catch (e) {
-        console.warn(
-          "DEBUG: failed to compute imagesAlreadyAssociatedCount:",
-          e,
-        );
-      }
-
-      if (imagesToInsert.length > 0) {
-        // Manual retry loop for image inserts
-        let insertResult: SupabaseResult<unknown> = { data: null, error: null };
-        {
-          let attempts = 0;
-          while (attempts < 3) {
-            try {
-              const res = await db!.from(imagesTable).insert(imagesToInsert);
-              insertResult = res as SupabaseResult<unknown>;
-              if (!res.error) break;
-            } catch (err) {
-              insertResult = {
-                error: err,
-                data: null,
-              } as SupabaseResult<unknown>;
-            }
-            attempts++;
-            if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
-          }
-        }
-        const { error: insertImagesError } =
-          insertResult as SupabaseResult<unknown>;
-        if (insertImagesError) {
-          console.error("Error bulk inserting images:", insertImagesError);
-        }
-      }
-      // Compute page insert/update/skip counts for reporting
-      const totalUniquePages = uniquePages.length;
-      const existingCount = existingUrlSet.size;
-      const insertedCount = Math.max(0, totalUniquePages - existingCount);
-      const updatedCount = existingCount;
-      const providedCount =
-        pageUrls && pageUrls.length > 0 ? pageUrls.length : 0;
-      const skippedCount =
-        providedCount > 0 ? Math.max(0, providedCount - totalUniquePages) : 0;
-
-      // Pages analyzed includes successfully processed pages plus failures
-      const pagesAnalyzed = processedPages.length + pagesFailed;
-
-      // Images: number uploaded during scraping vs DB records inserted
-      const imagesUploadedCount = pendingImageRecords.length;
-      const imagesDbInsertedCount = imagesToInsert.length;
-      // Unique counts for reporting
-      const uniqueTotalImages = uniqueAllImageUrls.size;
-      const uniqueUnsupported = uniqueUnsupportedImageUrls.size;
-      const uniqueAllowed = uniqueAllowedImageUrls.size;
-      const uniqueSkipped = Array.from(uniqueAllowedImageUrls).filter((u) =>
-        allExistingImageUrls.has(u),
-      ).length;
-
-      // Print a concise, professional summary box with clear separation
-      const lines: string[] = [];
-      lines.push("Scraping Completed");
-      lines.push("");
-      // Pages section
-      if (providedCount > 0) {
-        lines.push(`Pages provided: ${providedCount}`);
-      }
-      lines.push(`Pages analyzed: ${pagesAnalyzed}`);
-      lines.push(`Pages inserted: ${insertedCount}`);
-      lines.push(`Pages updated:  ${updatedCount}`);
-      lines.push(`Pages skipped:  ${skippedCount}`);
-      lines.push(`Pages failed:   ${pagesFailed}`);
-      lines.push("");
-      lines.push("");
-      // Images section
-      lines.push(`Total unique images found: ${uniqueTotalImages}`);
-      lines.push(`Unsupported unique images: ${uniqueUnsupported}`);
-      lines.push(`Allowed unique images: ${uniqueAllowed}`);
-      lines.push(`Images uploaded (instances): ${imagesUploadedCount}`);
-      lines.push(
-        `Images skipped (unique): ${uniqueSkipped} (already uploaded).`,
-      );
-      lines.push(`Images failed: ${imagesStats.failed}`);
-      lines.push("");
-      lines.push("");
-      lines.push(
-        `New associations between pages and images: ${imagesDbInsertedCount}`,
-      );
-      lines.push(
-        `Images already associated with pages: ${imagesAlreadyAssociatedCount}`,
-      );
-
-      // Determine box dimensions and print
       const contentWidth = Math.max(...lines.map((l) => l.length));
-      const innerWidth = contentWidth + 2; // one space padding each side
+      const innerWidth = contentWidth + 2;
       const top = "┌" + "─".repeat(innerWidth) + "┐";
       const bottom = "└" + "─".repeat(innerWidth) + "┘";
       console.log(top);

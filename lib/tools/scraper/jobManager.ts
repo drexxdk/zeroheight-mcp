@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createErrorResponse, createSuccessResponse } from "../../common";
 import { JobCancelled } from "../../common/errors";
+import serverApi from "./serverApi";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
@@ -13,6 +14,7 @@ type Job = {
   error?: string;
   logs: string[];
   cancelRequested?: boolean;
+  externalId?: string | null;
 };
 
 const jobs = new Map<string, Job>();
@@ -33,6 +35,7 @@ export function createJob(
     status: "running",
     startedAt: Date.now(),
     logs: [],
+    externalId: externalId ?? null,
   };
   jobs.set(id, job);
 
@@ -52,10 +55,50 @@ export function createJob(
         job.status = "cancelled";
         job.finishedAt = Date.now();
         logger("Job cancelled");
+        if (job.externalId) {
+          try {
+            logger(
+              `Notifying server of cancellation for externalId=${job.externalId}`,
+            );
+            const res = await serverApi.markJobCancelled(job.externalId);
+            logger(`Server notified of cancellation for ${job.externalId}`);
+            console.log(
+              `serverApi.markJobCancelled response: ${JSON.stringify(res)}`,
+            );
+          } catch (notifyErr) {
+            logger(
+              `Failed to notify server of cancellation for ${job.externalId}: ${String(notifyErr)}`,
+            );
+            console.error(
+              `Failed to notify server of cancellation for ${job.externalId}:`,
+              notifyErr,
+            );
+          }
+        }
       } else {
         job.status = "completed";
         job.finishedAt = Date.now();
         logger("Job completed");
+        if (job.externalId) {
+          try {
+            logger(
+              `Notifying server of completion for externalId=${job.externalId}`,
+            );
+            await serverApi.callServer(
+              `/api/jobs/${encodeURIComponent(job.externalId)}/finish`,
+              { success: true },
+            );
+            logger(`Server notified of completion for ${job.externalId}`);
+          } catch (notifyErr) {
+            logger(
+              `Failed to notify server of completion for ${job.externalId}: ${String(notifyErr)}`,
+            );
+            console.error(
+              `Failed to notify server of completion for ${job.externalId}:`,
+              notifyErr,
+            );
+          }
+        }
       }
     } catch (e) {
       // If the runner threw a JobCancelled, treat it as cancellation
@@ -63,11 +106,28 @@ export function createJob(
         job.status = "cancelled";
         job.finishedAt = Date.now();
         logger("Job cancelled");
+        if (job.externalId) {
+          try {
+            await serverApi.markJobCancelled(job.externalId);
+          } catch {
+            // ignore
+          }
+        }
       } else {
         job.status = "failed";
         job.finishedAt = Date.now();
         job.error = e instanceof Error ? e.message : String(e);
         logger(`Job failed: ${job.error}`);
+        if (job.externalId) {
+          try {
+            await serverApi.callServer(
+              `/api/jobs/${encodeURIComponent(job.externalId)}/finish`,
+              { success: false, error: job.error },
+            );
+          } catch {
+            // ignore
+          }
+        }
       }
     }
   })();
