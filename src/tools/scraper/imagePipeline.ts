@@ -1,9 +1,9 @@
-import { downloadImage } from "../../image-utils";
-import type { StorageHelper } from "../../common/scraperHelpers";
-import { IMAGE_BUCKET } from "../../config";
+import { downloadImage } from "@/lib/image-utils";
+import type { StorageHelper } from "@/lib/common/scraperHelpers";
+import { IMAGE_BUCKET } from "@/lib/config";
 import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
 import { ensureBucket, uploadWithFallback } from "./storageHelper";
-import { JobCancelled } from "../../common/errors";
+import { JobCancelled } from "@/lib/common/errors";
 
 export type LogProgressFn = (icon: string, message: string) => void;
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { createErrorResponse, createSuccessResponse } from "../../common";
-import { getClient } from "../../common/supabaseClients";
-import { IMAGE_BUCKET } from "../../config";
+import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import { getClient } from "@/lib/common/supabaseClients";
+import { IMAGE_BUCKET } from "@/lib/config";
 import { PageData } from "./shared";
 
 // Get the Supabase project URL for constructing storage URLs

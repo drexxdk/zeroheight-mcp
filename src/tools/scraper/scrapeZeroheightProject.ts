@@ -1,17 +1,17 @@
 import { z } from "zod";
 import puppeteer from "puppeteer";
 import type { Page } from "puppeteer";
-import { createErrorResponse, createSuccessResponse } from "../../common";
-import { JobCancelled } from "../../common/errors";
+import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import { JobCancelled } from "@/lib/common/errors";
 import {
   getClient,
   checkProgressInvariant,
-} from "../../common/supabaseClients";
+} from "@/lib/common/supabaseClients";
 import { createProgressHelpers } from "./shared";
-import { tryLogin } from "../../common/scraperHelpers";
+import { tryLogin } from "@/lib/common/scraperHelpers";
 
 import { processImagesForPage } from "./pageProcessors";
-import type { PagesType, ImagesType } from "../../database.types";
+import type { PagesType, ImagesType } from "@/lib/database.types";
 // Page extraction handles excluded image formats.
 
 // Helper function to get URL path without host

@@ -11,5 +11,5 @@ export interface PageData {
 export {
   createProgressBar,
   createProgressHelpers,
-} from "../../common/progress";
-export type { Progress } from "../../common/progress";
+} from "@/lib/common/progress";
+export type { Progress } from "@/lib/common/progress";

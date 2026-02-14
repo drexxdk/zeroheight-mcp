@@ -1,5 +1,5 @@
 import type { Page } from "puppeteer";
-import { EXCLUDE_IMAGE_FORMATS } from "../../config";
+import { EXCLUDE_IMAGE_FORMATS } from "@/lib/config";
 
 export type ExtractedImage = {
   src: string;

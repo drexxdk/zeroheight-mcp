@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { scrapeZeroheightProject } from "@/lib/tools/scraper/scrapeZeroheightProject";
+import { scrapeZeroheightProject } from "@/tools/scraper/scrapeZeroheightProject";
 
 // Load environment variables
 config({ path: ".env.local" });

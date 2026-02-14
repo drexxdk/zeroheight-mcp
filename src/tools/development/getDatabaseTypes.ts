@@ -1,17 +1,16 @@
 import { z } from "zod";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { createErrorResponse, createSuccessResponse } from "../../common";
+import { createErrorResponse, createSuccessResponse } from "@/lib/common";
 
-export const generateTypescriptTypesTool = {
-  title: "get-database-schema",
-  description:
-    "Returns the TypeScript database schema types from the database.schema.ts file.",
+export const databaseTypesTool = {
+  title: "get-database-types",
+  description: "Retrieve TypeScript type definitions for the database schema.",
   inputSchema: z.object({}),
   handler: async () => {
     try {
       // Read the database schema file
-      const schemaPath = join(process.cwd(), "lib", "database.schema.ts");
+      const schemaPath = join(process.cwd(), "lib", "database.types.ts");
       const schemaContent = readFileSync(schemaPath, "utf-8");
 
       return createSuccessResponse(schemaContent);

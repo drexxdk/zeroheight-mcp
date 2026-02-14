@@ -1,9 +1,9 @@
 import type {
   StorageHelper,
   StorageUploadResult,
-} from "../../common/scraperHelpers";
-import { uploadWithRetry } from "../../common/scraperHelpers";
-import { IMAGE_BUCKET, ALLOWED_MIME_TYPES } from "../../config";
+} from "@/lib/common/scraperHelpers";
+import { uploadWithRetry } from "@/lib/common/scraperHelpers";
+import { IMAGE_BUCKET, ALLOWED_MIME_TYPES } from "@/lib/config";
 import { uploadViaServer } from "./imageHelpers";
 
 export async function ensureBucket(

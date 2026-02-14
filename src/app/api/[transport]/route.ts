@@ -6,26 +6,26 @@ import {
   executeSqlTool,
   listMigrationsTool,
   getLogsTool,
-} from "@/lib/tools/database";
+} from "@/tools/database";
 import {
   getDatabaseSchemaTool,
   getProjectUrlTool,
   getPublishableKeysTool,
   getDatabaseTypesTool,
-} from "@/lib/tools/development";
+} from "@/tools/development";
 import {
   scrapeZeroheightProjectTool,
   queryZeroheightDataTool,
   clearZeroheightDataTool,
   getJobStatusTool,
   getJobLogsTool,
-} from "@/lib/tools/scraper";
+} from "@/tools/scraper";
 import {
   inspectJobTool,
   tailJobTool,
   countRunTool,
   cancelJobTool,
-} from "@/lib/tools/scraper";
+} from "@/tools/scraper";
 // removed unused imports (kept tooling lightweight)
 
 const handler = createMcpHandler(

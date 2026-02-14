@@ -1,6 +1,6 @@
-import { createErrorResponse, createSuccessResponse } from "../../common";
-import { getClient } from "../../common/supabaseClients";
-import { performBucketClear } from "../../image-utils";
+import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import { getClient } from "@/lib/common/supabaseClients";
+import { performBucketClear } from "@/lib/image-utils";
 
 async function clearZeroheightData() {
   try {

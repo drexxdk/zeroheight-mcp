@@ -8,7 +8,7 @@ import {
   appendJobLog,
   finishJob,
   getJobFromDb,
-} from "@/lib/tools/scraper/jobStore";
+} from "@/tools/scraper/jobStore";
 
 async function run() {
   try {

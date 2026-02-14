@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createErrorResponse, createSuccessResponse } from "../../common";
-import { getClient } from "../../common/supabaseClients";
+import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import { getClient } from "@/lib/common/supabaseClients";
 
 export const listTablesTool = {
   title: "list-tables",

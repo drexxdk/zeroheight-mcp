@@ -1,5 +1,5 @@
-import type { PagesType, ImagesType } from "../../database.types";
-import { getClient } from "../../common/supabaseClients";
+import type { PagesType, ImagesType } from "@/lib/database.types";
+import { getClient } from "@/lib/common/supabaseClients";
 
 type DbClient = ReturnType<typeof getClient>["client"];
 

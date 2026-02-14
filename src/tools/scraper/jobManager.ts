@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createErrorResponse, createSuccessResponse } from "../../common";
-import { JobCancelled } from "../../common/errors";
+import { createErrorResponse, createSuccessResponse } from "@/lib/common";
+import { JobCancelled } from "@/lib/common/errors";
 import serverApi from "./serverApi";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";

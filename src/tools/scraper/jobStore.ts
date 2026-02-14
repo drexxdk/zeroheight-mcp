@@ -1,4 +1,4 @@
-import type { Scrape_jobsType } from "../../database.types";
+import type { Scrape_jobsType } from "@/lib/database.types";
 import serverApi from "./serverApi";
 
 export type JobRecord = Scrape_jobsType;

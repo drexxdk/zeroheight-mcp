@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { createErrorResponse, createSuccessResponse } from "../../common";
+import { createErrorResponse, createSuccessResponse } from "@/lib/common";
 
 export const generateTypescriptTypesTool = {
   title: "get-database-schema",

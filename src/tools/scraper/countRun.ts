@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createErrorResponse } from "../../common";
-import { getClient } from "../../common/supabaseClients";
+import { createErrorResponse } from "@/lib/common";
+import { getClient } from "@/lib/common/supabaseClients";
 import util from "util";
 
 function formatError(e: unknown): string {

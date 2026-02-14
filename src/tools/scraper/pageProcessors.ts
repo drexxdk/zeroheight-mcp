@@ -1,6 +1,6 @@
 // download is handled by `imagePipeline` now
-import { JobCancelled } from "../../common/errors";
-import type { StorageHelper } from "../../common/scraperHelpers";
+import { JobCancelled } from "@/lib/common/errors";
+import type { StorageHelper } from "@/lib/common/scraperHelpers";
 import { normalizeImageUrl } from "./imageHelpers";
 import { processAndUploadImage } from "./imagePipeline";
 
