@@ -56,13 +56,13 @@
 - **Rationale**: The development server should be managed by the user.
 - **If failures occur**: If operations fail due to the server not being started, inform the user to start it manually and retry when ready.
 
-### Never run the scraper after it has been run
+### Never run scraper scripts from chat (MCP-only)
 
-- **Priority**: Low (changed from High)
-- **Action**: The scraper can be run multiple times safely as it uses upsert logic to handle duplicates. It will update existing data and images without creating duplicates.
-- **Rationale**: The scraper now performs safe upsert operations that add new data and update existing data without clearing content. The database handles duplicates automatically.
-- **When to run**: Run the scraper whenever requested - it will safely update existing pages and add new ones.
-- **No verification needed**: Do not check current data state before running - just execute when asked.
+- **Priority**: Highest
+- **Action**: Under no circumstance should the assistant start or execute any local scraper script or call `scrapeZeroheightProject` directly from the project while interacting in chat. Always invoke scraping via the MCP-exposed tool (`scrape-zeroheight-project`) through the MCP server API. Do not run `npx tsx scripts/test-scrape-specific-pages.ts`, `scripts/worker.ts`, or any other script that executes the scraper from the repository unless the user explicitly and unambiguously instructs you to "run locally" and grants permission.
+- **Rationale**: This prevents inadvertent long-running browser/scraping processes started by the assistant, centralizes control via the MCP API endpoint, and preserves auditability and permissions for destructive or heavy operations.
+- **When to run**: Use the MCP `scrape-zeroheight-project` tool by calling the server API (`tools/call`) with the appropriate `MCP_API_KEY`. Only run local scraper scripts when the user explicitly requests a local run.
+- **Enforcement**: The assistant must refuse to run or start any scraper script from the repository in chat and should instead inform the user how to run it locally or call the MCP tool on their behalf.
 
 ### Stop after completing MCP actions
 
@@ -137,6 +137,8 @@
 
 - **Don't suggest follow-up commands**: Only suggest or execute follow-up commands when explicitly asked, or when it's necessary to complete the current task
 - **Focus on requested actions**: Complete the user's specific request without adding unsolicited suggestions for next steps
+
+- **Run tools via MCP by default**: When a user asks you to "run", "call", or "invoke" a tool, assume they mean the MCP-exposed tool and call it through the MCP server API unless they explicitly specify that they mean a local script from the `scripts/` folder or say "run locally". Always confirm if there's ambiguity.
 
 ### Database Schema & Types
 

@@ -5,4 +5,5 @@ export { getJobStatusTool, getJobLogsTool } from "./jobManager";
 export { inspectJobTool } from "./inspectJob";
 export { tailJobTool } from "./tailJob";
 export { countRunTool } from "./countRun";
+export { cancelJobTool } from "./cancelJob";
 // computeCountRunResult removed — use `countRunTool` via MCP instead

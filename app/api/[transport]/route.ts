@@ -24,6 +24,7 @@ import {
   inspectJobTool,
   tailJobTool,
   countRunTool,
+  cancelJobTool,
 } from "../../../lib/tools/scraper";
 // removed unused imports (kept tooling lightweight)
 
@@ -113,6 +114,16 @@ const handler = createMcpHandler(
         inputSchema: countRunTool.inputSchema,
       },
       countRunTool.handler,
+    );
+
+    server.registerTool(
+      cancelJobTool.title,
+      {
+        title: cancelJobTool.title,
+        description: cancelJobTool.description,
+        inputSchema: cancelJobTool.inputSchema,
+      },
+      cancelJobTool.handler,
     );
 
     // Database Inspection & Management Tools
