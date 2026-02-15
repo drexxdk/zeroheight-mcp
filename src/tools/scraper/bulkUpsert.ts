@@ -1,4 +1,4 @@
-﻿import 'dotenv/config';
+﻿import "dotenv/config";
 import type { PagesType, ImagesType } from "@/lib/database.types";
 import { getClient } from "@/lib/common/supabaseClients";
 import boxen from "boxen";
@@ -187,7 +187,9 @@ export async function bulkUpsertPagesAndImages(options: {
   let dbExistingImageUrls = allExistingImageUrls;
 
   if (debug) {
-    console.log(`[scraper] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`);
+    console.log(
+      `[scraper] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
+    );
 
     // Prefer authoritative DB lookup for whether an original_url already exists.
     if (db && uniqueAllowedImageUrls.size > 0) {
@@ -197,9 +199,14 @@ export async function bulkUpsertPagesAndImages(options: {
           .select("original_url")
           .in("original_url", Array.from(uniqueAllowedImageUrls))
           .limit(1000);
-        const existingData = (existingRes as unknown) as { data?: Array<{ original_url: string }>; error?: unknown };
+        const existingData = existingRes as unknown as {
+          data?: Array<{ original_url: string }>;
+          error?: unknown;
+        };
         if (existingData.data && existingData.data.length > 0) {
-          dbExistingImageUrls = new Set(existingData.data.map((r) => r.original_url));
+          dbExistingImageUrls = new Set(
+            existingData.data.map((r) => r.original_url),
+          );
         } else {
           dbExistingImageUrls = new Set();
         }
@@ -209,15 +216,27 @@ export async function bulkUpsertPagesAndImages(options: {
       }
     }
 
-    const skippedList = Array.from(uniqueAllowedImageUrls).filter((u) => dbExistingImageUrls.has(u));
-    console.log(`[scraper] uniqueAllowed=${uniqueAllowedImageUrls.size} uniqueSkipped(before)=${skippedList.length} sampleSkipped=${skippedList.slice(0,6).join(", ")}`);
-    console.log(`[scraper] sample allExisting (first 12): ${Array.from(allExistingImageUrls).slice(0,12).join(", ")}`);
-    console.log(`[scraper] sample uniqueAllowed (first 12): ${Array.from(uniqueAllowedImageUrls).slice(0,12).join(", ")}`);
-    const intersection = Array.from(uniqueAllowedImageUrls).filter((u) => dbExistingImageUrls.has(u));
-    console.log(`[scraper] intersection sample (first 12): ${intersection.slice(0,12).join(", ")}`);
+    const skippedList = Array.from(uniqueAllowedImageUrls).filter((u) =>
+      dbExistingImageUrls.has(u),
+    );
+    console.log(
+      `[scraper] uniqueAllowed=${uniqueAllowedImageUrls.size} uniqueSkipped(before)=${skippedList.length} sampleSkipped=${skippedList.slice(0, 6).join(", ")}`,
+    );
+    console.log(
+      `[scraper] sample allExisting (first 12): ${Array.from(allExistingImageUrls).slice(0, 12).join(", ")}`,
+    );
+    console.log(
+      `[scraper] sample uniqueAllowed (first 12): ${Array.from(uniqueAllowedImageUrls).slice(0, 12).join(", ")}`,
+    );
+    const intersection = Array.from(uniqueAllowedImageUrls).filter((u) =>
+      dbExistingImageUrls.has(u),
+    );
+    console.log(
+      `[scraper] intersection sample (first 12): ${intersection.slice(0, 12).join(", ")}`,
+    );
 
     // If we have intersection URLs, fetch DB rows for inspection (up to 50)
-      if (intersection.length > 0 && db) {
+    if (intersection.length > 0 && db) {
       try {
         const dbRes = await db
           .from("images")
@@ -225,15 +244,34 @@ export async function bulkUpsertPagesAndImages(options: {
           .in("original_url", intersection)
           .order("created_at", { ascending: false })
           .limit(50);
-        const dbData = (dbRes as unknown) as { data?: Array<{ id?: number; original_url?: string; created_at?: string }>; error?: unknown };
-        console.log(`[scraper] DB inspection for intersection (up to 50 rows): ${JSON.stringify(dbData.data?.slice(0,20) ?? [], null, 2)}`);
+        const dbData = dbRes as unknown as {
+          data?: Array<{
+            id?: number;
+            original_url?: string;
+            created_at?: string;
+          }>;
+          error?: unknown;
+        };
+        console.log(
+          `[scraper] DB inspection for intersection (up to 50 rows): ${JSON.stringify(dbData.data?.slice(0, 20) ?? [], null, 2)}`,
+        );
       } catch (err) {
         console.log(`[scraper] DB inspection error: ${String(err)}`);
       }
     }
 
-    console.log(`[scraper] pendingImageRecords (first 12): ${pendingImageRecords.slice(0,12).map((p) => p.original_url).join(", ")}`);
-    console.log(`[scraper] imagesToInsert (first 12): ${imagesToInsert.slice(0,12).map((i) => i.original_url + ' -> ' + i.storage_path).join(", ")}`);
+    console.log(
+      `[scraper] pendingImageRecords (first 12): ${pendingImageRecords
+        .slice(0, 12)
+        .map((p) => p.original_url)
+        .join(", ")}`,
+    );
+    console.log(
+      `[scraper] imagesToInsert (first 12): ${imagesToInsert
+        .slice(0, 12)
+        .map((i) => i.original_url + " -> " + i.storage_path)
+        .join(", ")}`,
+    );
   }
   let insertedCountTotal = 0;
   const insertedOriginalUrls = new Set<string>();
@@ -244,21 +282,32 @@ export async function bulkUpsertPagesAndImages(options: {
       while (attempts < 3) {
         attempts += 1;
         try {
-          const res = await db!.from("images").insert(chunk).select("id, original_url");
-          const insertRes = res as unknown as { data?: unknown[]; error?: unknown };
+          const res = await db!
+            .from("images")
+            .insert(chunk)
+            .select("id, original_url");
+          const insertRes = res as unknown as {
+            data?: unknown[];
+            error?: unknown;
+          };
           if (insertRes.error) throw insertRes.error;
           if (Array.isArray(insertRes.data)) {
             // Collect original_url values returned by the insert so we can
             // exclude newly-inserted originals from the "skipped before" count.
-            for (const row of insertRes.data as Array<Record<string, unknown>>) {
+            for (const row of insertRes.data as Array<
+              Record<string, unknown>
+            >) {
               const orig = row["original_url"];
               if (typeof orig === "string") insertedOriginalUrls.add(orig);
             }
             insertedCountTotal += insertRes.data.length;
             if (debug) {
-              console.log(`[scraper] inserted chunk: count=${insertRes.data.length} totalInserted=${insertedCountTotal}`);
+              console.log(
+                `[scraper] inserted chunk: count=${insertRes.data.length} totalInserted=${insertedCountTotal}`,
+              );
               try {
-                const first = (insertRes.data[0] as Record<string, unknown>)?.id;
+                const first = (insertRes.data[0] as Record<string, unknown>)
+                  ?.id;
                 console.log(`[scraper] sample inserted id=${String(first)}`);
               } catch {}
             }
@@ -296,8 +345,8 @@ export async function bulkUpsertPagesAndImages(options: {
   const uniqueUnsupported = uniqueUnsupportedImageUrls.size;
   const uniqueAllowed = uniqueAllowedImageUrls.size;
   // Compute uniqueSkipped after inserts so we don't count items we just inserted.
-  const uniqueSkipped = Array.from(uniqueAllowedImageUrls).filter((u) =>
-    dbExistingImageUrls.has(u) && !insertedOriginalUrls.has(u),
+  const uniqueSkipped = Array.from(uniqueAllowedImageUrls).filter(
+    (u) => dbExistingImageUrls.has(u) && !insertedOriginalUrls.has(u),
   ).length;
   const params = {
     providedCount,
@@ -351,13 +400,14 @@ export function formatSummaryBox(p: SummaryParams): string[] {
   lines.push(`Pages failed:   ${p.pagesFailed}`);
   lines.push("");
   lines.push("");
-  lines.push(`Images found (unique): ${p.uniqueTotalImages}`);
-  lines.push(`Supported images (unique): ${p.uniqueAllowed}`);
-  lines.push(`Unsupported images (unique): ${p.uniqueUnsupported}`);
-  lines.push(`Images uploaded (instances): ${p.imagesUploadedCount}`);
-  lines.push(`Unique images newly inserted: ${p.imagesDbInsertedCount}`);
-  lines.push(`Unique images skipped (already present before run): ${p.uniqueSkipped}`);
-  lines.push(`Images failed (instances): ${p.imagesFailed}`);
+  lines.push(`Images found: ${p.uniqueTotalImages} (unique)`);
+  lines.push(`Supported images: ${p.uniqueAllowed} (unique)`);
+  lines.push(`Unsupported images: ${p.uniqueUnsupported} (unique)`);
+  lines.push(`Images uploaded: ${p.imagesUploadedCount}`);
+  lines.push(
+    `Unique images skipped: ${p.uniqueSkipped} (already present before run)`,
+  );
+  lines.push(`Images failed: ${p.imagesFailed}`);
   lines.push("");
   lines.push("");
   lines.push(
