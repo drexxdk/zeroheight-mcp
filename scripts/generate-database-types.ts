@@ -6,7 +6,7 @@ import { join } from "path";
 
 // Function to extract table names from the generated Database type
 function extractTableNames(): string[] {
-  const schemaPath = join(process.cwd(), "lib", "database.schema.ts");
+  const schemaPath = join(process.cwd(), "src", "lib", "database.schema.ts");
   const content = readFileSync(schemaPath, "utf-8");
 
   // Find the Tables section
@@ -110,7 +110,7 @@ function parseTableRow(
 
 // Function to generate Zod schema for a table by parsing the Database type
 function generateZodSchema(tableName: string): string {
-  const schemaPath = join(process.cwd(), "lib", "database.schema.ts");
+  const schemaPath = join(process.cwd(), "src", "lib", "database.schema.ts");
   const content = readFileSync(schemaPath, "utf-8");
 
   const fields = parseTableRow(tableName, content);
@@ -168,7 +168,7 @@ export type SupabaseDatabase = Database;
 `;
 
 // Write to lib/schemas.ts
-const outputPath = join(process.cwd(), "lib", "database.types.ts");
+const outputPath = join(process.cwd(), "src", "lib", "database.types.ts");
 writeFileSync(outputPath, schemasContent, "utf-8");
 
 console.log(
