@@ -17,6 +17,7 @@ import { extractPageData } from "./pageExtraction";
 import type { ExtractedImage } from "./pageExtraction";
 import { processPageAndImages } from "./processPageAndImages";
 import prefetchSeeds, { normalizeUrl } from "./prefetch";
+import { SCRAPER_LOG_LINK_SAMPLE } from "@/lib/config";
 import {
   SCRAPER_CONCURRENCY,
   SCRAPER_IDLE_TIMEOUT_MS,
@@ -399,7 +400,7 @@ export async function scrapeZeroheightProject(
                     `Discovered ${allowed.length} links on ${formatLinkForConsole(
                       processingLink,
                     )}: ${allowed
-                      .slice(0, 6)
+                        .slice(0, SCRAPER_LOG_LINK_SAMPLE)
                       .map(formatLinkForConsole)
                       .join(", ")}`,
                   );

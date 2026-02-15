@@ -1,6 +1,11 @@
 import type { Scrape_jobsType } from "@/lib/database.types";
 import type { Json } from "@/lib/database.schema";
 import { getSupabaseAdminClient } from "@/lib/common";
+import {
+  JOBID_RANDOM_START,
+  JOBID_RANDOM_LEN,
+  TESTRUNID_RANDOM_LEN,
+} from "@/lib/config";
 
 export type JobRecord = Scrape_jobsType;
 
@@ -11,7 +16,9 @@ export async function createJobInDb(
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;
 
-  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const id = Date.now().toString(36) + Math.random()
+      .toString(36)
+      .slice(JOBID_RANDOM_START, JOBID_RANDOM_START + JOBID_RANDOM_LEN);
   // Ensure `args` is compatible with the DB `Json` type expected by the
   // generated Supabase client types.
   const payload = {
@@ -32,7 +39,11 @@ export async function createJobInDb(
 export async function createTestJobInDb(
   name: string,
   args?: Record<string, unknown> | null,
-  testRunId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  testRunId =
+    Date.now().toString(36) +
+    Math.random()
+      .toString(36)
+      .slice(JOBID_RANDOM_START, JOBID_RANDOM_START + TESTRUNID_RANDOM_LEN),
 ) {
   const merged = { ...(args || {}), __testRunId: testRunId } as Record<
     string,

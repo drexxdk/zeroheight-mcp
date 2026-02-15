@@ -175,3 +175,18 @@ export const SCRAPER_DEFAULT_CONCURRENCY = Number(
 export const HASH_TRUNCATE_LENGTH = Number(
   process.env.HASH_TRUNCATE_LENGTH || 8,
 );
+
+// Job ID and logging tuning
+export const JOBID_RANDOM_START = Number(process.env.JOBID_RANDOM_START || 2);
+export const JOBID_RANDOM_LEN = Number(process.env.JOBID_RANDOM_LEN || 6);
+export const TESTRUNID_RANDOM_LEN = Number(
+  process.env.TESTRUNID_RANDOM_LEN || 4,
+);
+
+export const SCRAPER_LOG_LINK_SAMPLE = Number(
+  process.env.SCRAPER_LOG_LINK_SAMPLE || 6,
+);
+
+export const IMAGE_UTILS_SAMPLE_LIMIT = Number(
+  process.env.IMAGE_UTILS_SAMPLE_LIMIT || 50,
+);

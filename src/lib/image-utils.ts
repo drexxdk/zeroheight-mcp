@@ -6,6 +6,7 @@ import {
   IMAGE_MAX_DIM,
   IMAGE_JPEG_QUALITY,
   IMAGE_BUCKET,
+  IMAGE_UTILS_SAMPLE_LIMIT,
 } from "./config";
 
 export async function downloadImage(
@@ -239,7 +240,7 @@ export async function performBucketClear(
   return {
     bucket: targetBucket,
     foundCount: files.length,
-    foundFiles: files.slice(0, 50).map((f) => f.name),
+    foundFiles: files.slice(0, IMAGE_UTILS_SAMPLE_LIMIT).map((f) => f.name),
     availableBuckets: buckets,
     deletedCount: deleteSummary.deletedCount,
     deleteErrors: deleteSummary.deleteErrors,
