@@ -1,8 +1,10 @@
 import { config } from "dotenv";
-import { scrapeZeroheightProject } from "../src/tools/scraper/scrapeZeroheightProject";
 
-// Load environment variables
+// Load environment variables before importing app code that reads them
 config({ path: ".env.local" });
+
+const { scrapeZeroheightProject } =
+  await import("../src/tools/scraper/scrapeZeroheightProject");
 
 async function scrapeAll() {
   console.log("Scraping all Zeroheight pages...");

@@ -16,13 +16,12 @@ import type { OverallProgress } from "./processPageAndImages";
 import { extractPageData } from "./pageExtraction";
 import type { ExtractedImage } from "./pageExtraction";
 import { processPageAndImages } from "./processPageAndImages";
-import { mapWithConcurrency } from "./concurrency";
 import {
   SCRAPER_CONCURRENCY,
   SCRAPER_IDLE_TIMEOUT_MS,
-  SCRAPER_SEED_PREFETCH_CONCURRENCY,
   ZEROHEIGHT_PROJECT_URL,
 } from "@/lib/config";
+import { prefetchSeeds, normalizeUrl } from "./prefetch";
 import {
   bulkUpsertPagesAndImages,
   formatSummaryBox,
@@ -97,20 +96,6 @@ export async function scrapeZeroheightProject(
     const preExtractedMap: Map<string, PreExtracted> = new Map();
 
     const waiters: Array<(val: string | null) => void> = [];
-
-    function normalizeUrl(u: string, base?: string) {
-      try {
-        const parsed = new URL(u, base || rootUrl);
-        parsed.hash = "";
-        const path =
-          parsed.pathname.endsWith("/") && parsed.pathname !== "/"
-            ? parsed.pathname.slice(0, -1)
-            : parsed.pathname;
-        return `${parsed.protocol}//${parsed.hostname}${path}${parsed.search}`;
-      } catch {
-        return u;
-      }
-    }
 
     function formatLinkForConsole(u: string) {
       try {
@@ -194,102 +179,42 @@ export async function scrapeZeroheightProject(
       allExistingImageUrls = new Set<string>();
     }
 
-    // Seed
-    if (pageUrls && pageUrls.length > 0) {
-      const normalized = pageUrls.map((p) => normalizeUrl(p));
-      // Prefetch each seed page (parallelized) to reserve image totals and store pre-extracted data
-      const hostname = new URL(rootUrl).hostname;
-
-      const seedPrefetchConcurrency = SCRAPER_SEED_PREFETCH_CONCURRENCY;
-
-      await mapWithConcurrency(
-        normalized,
-        async (u) => {
-          try {
-            const p = await browser.newPage();
-            await p.setViewport({ width: 1280, height: 1024 });
-            await p.goto(u, { waitUntil: "networkidle2", timeout: 30000 });
-            if (password) {
-              try {
-                await tryLogin(p, password);
-                if (logger) logger(`Login attempt complete on seed ${u}`);
-              } catch (e) {
-                if (logger)
-                  logger(`Login attempt failed on seed ${u}: ${String(e)}`);
-              }
-            }
-            try {
-              const extracted = await extractPageData(p, u, hostname).catch(
-                () => ({
-                  pageLinks: [] as string[],
-                  normalizedImages: [] as ExtractedImage[],
-                  supportedImages: [] as ExtractedImage[],
-                  title: "",
-                  content: "",
-                }),
-              );
-              preExtractedMap.set(u, extracted as PreExtracted);
-              // Do not modify `progress.total` here; workers will reserve image
-              // totals to keep counting consistent and avoid double increments.
-            } finally {
-              try {
-                await p.close();
-              } catch {}
-            }
-          } catch (e) {
-            if (logger) logger(`Seed prefetch failed for ${u}: ${String(e)}`);
-          }
-        },
-        seedPrefetchConcurrency,
-      );
-
-      // preExtractedMap is populated above and will be used by workers
-      enqueueLinks(normalized);
-      logProgress("⚑", `Seeded ${normalized.length} initial links`);
-    } else {
-      const p = await browser.newPage();
-      await p.setViewport({ width: 1280, height: 1024 });
-      await p.goto(rootUrl, { waitUntil: "networkidle2", timeout: 30000 });
-      if (password) {
-        try {
-          await tryLogin(p, password);
-          if (logger) logger("Login attempt complete on root page");
-        } catch (e) {
-          if (logger) logger(`Login attempt failed: ${String(e)}`);
-        }
-      }
-
-      const hostname = new URL(rootUrl).hostname;
-      const extracted = await extractPageData(p, rootUrl, hostname).catch(
-        () => ({
-          pageLinks: [] as string[],
-          normalizedImages: [] as ExtractedImage[],
-          supportedImages: [] as ExtractedImage[],
-          title: "",
-          content: "",
-        }),
-      );
-
-      const anchors = await p
-        .$$eval("a[href]", (links) =>
-          links.map((a) => (a as HTMLAnchorElement).href).filter(Boolean),
-        )
-        .catch(() => [] as string[]);
-
-      const initialSet = new Set<string>();
-      initialSet.add(normalizeUrl(rootUrl));
-      for (const a of anchors) initialSet.add(normalizeUrl(a, rootUrl));
-      for (const a of extracted.pageLinks || [])
-        initialSet.add(normalizeUrl(a, rootUrl));
-      const initial = Array.from(initialSet);
-      if (logger) {
-        logger(`Seeded ${initial.length} initial links from root`);
-      }
-      enqueueLinks(initial);
+    // If a password is provided, visit the root page first and attempt login
+    // so that a session cookie is available for subsequent seed pages.
+    if (password) {
       try {
-        await p.close();
-      } catch {}
+        const loginPage = await browser.newPage();
+        await loginPage.setViewport({ width: 1280, height: 1024 });
+        await loginPage.goto(rootUrl, {
+          waitUntil: "networkidle2",
+          timeout: 30000,
+        });
+        try {
+          await tryLogin(loginPage, password);
+          if (logger) logger("Login attempt complete on root before prefetch");
+        } catch (e) {
+          if (logger) logger(`Login attempt failed on root: ${String(e)}`);
+        }
+        try {
+          await loginPage.close();
+        } catch {}
+      } catch (e) {
+        if (logger) logger(`Root login navigation failed: ${String(e)}`);
+      }
     }
+
+    // Prefetch seeds / root page and populate preExtractedMap + initial links
+    const { preExtractedMap: preFetched, initialLinks } = await prefetchSeeds({
+      browser,
+      rootUrl,
+      pageUrls: pageUrls || undefined,
+      password,
+      logger,
+    });
+    // transfer into local map
+    for (const [k, v] of preFetched) preExtractedMap.set(k, v);
+    enqueueLinks(initialLinks);
+    logProgress("⚑", `Seeded ${initialLinks.length} initial links`);
 
     // Workers
     const workers: Promise<void>[] = [];

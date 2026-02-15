@@ -2,6 +2,35 @@ import type { Page } from "puppeteer";
 
 export async function tryLogin(page: Page, password?: string): Promise<void> {
   if (!password) return;
+  try {
+    // Wait briefly for a password input to appear (some pages render it asynchronously)
+    await page.waitForSelector('input[type="password"]', { timeout: 2000 });
+  } catch {
+    // Try to open a potential login form by clicking common login buttons/links
+    try {
+      const clicked = await page.$$eval("a, button", (els) => {
+        const matcher = /log|sign|login|signin/i;
+        for (const el of els as HTMLElement[]) {
+          try {
+            const text = (el.textContent || "").trim();
+            if (matcher.test(text)) {
+              (el as HTMLElement).click();
+              return true;
+            }
+          } catch {}
+        }
+        return false;
+      });
+      if (!clicked) return;
+      try {
+        await page.waitForSelector('input[type="password"]', { timeout: 3000 });
+      } catch {
+        return;
+      }
+    } catch {
+      return;
+    }
+  }
   const passwordInput = await page.$('input[type="password"]');
   if (!passwordInput) return;
   await passwordInput.type(password);
