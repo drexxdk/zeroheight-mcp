@@ -16,7 +16,9 @@ export async function createJobInDb(
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;
 
-    const id = Date.now().toString(36) + Math.random()
+  const id =
+    Date.now().toString(36) +
+    Math.random()
       .toString(36)
       .slice(JOBID_RANDOM_START, JOBID_RANDOM_START + JOBID_RANDOM_LEN);
   // Ensure `args` is compatible with the DB `Json` type expected by the
@@ -39,8 +41,7 @@ export async function createJobInDb(
 export async function createTestJobInDb(
   name: string,
   args?: Record<string, unknown> | null,
-  testRunId =
-    Date.now().toString(36) +
+  testRunId = Date.now().toString(36) +
     Math.random()
       .toString(36)
       .slice(JOBID_RANDOM_START, JOBID_RANDOM_START + TESTRUNID_RANDOM_LEN),

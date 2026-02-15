@@ -400,7 +400,7 @@ export async function scrapeZeroheightProject(
                     `Discovered ${allowed.length} links on ${formatLinkForConsole(
                       processingLink,
                     )}: ${allowed
-                        .slice(0, SCRAPER_LOG_LINK_SAMPLE)
+                      .slice(0, SCRAPER_LOG_LINK_SAMPLE)
                       .map(formatLinkForConsole)
                       .join(", ")}`,
                   );
