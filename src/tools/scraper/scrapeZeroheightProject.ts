@@ -74,6 +74,16 @@ export async function scrapeZeroheightProject(
       images: Array<{ src: string; alt: string }>;
     }> = [];
 
+    type PreExtracted = {
+      title: string;
+      content: string;
+      supportedImages: ExtractedImage[];
+      normalizedImages: Array<{ src: string; alt: string }>;
+      pageLinks: string[];
+    };
+
+    const preExtractedMap: Map<string, PreExtracted> = new Map();
+
     const waiters: Array<(val: string | null) => void> = [];
 
     function normalizeUrl(u: string, base?: string) {
@@ -139,6 +149,8 @@ export async function scrapeZeroheightProject(
       logger,
     );
 
+    const restrictToSeeds = !!(pageUrls && pageUrls.length > 0);
+
     // Load existing images from DB so image processors can skip duplicates
     const { client: db } = getClient();
     const imagesTable = "images" as const;
@@ -173,6 +185,45 @@ export async function scrapeZeroheightProject(
     // Seed
     if (pageUrls && pageUrls.length > 0) {
       const normalized = pageUrls.map((p) => normalizeUrl(p));
+      // Prefetch each seed page to reserve image totals and store pre-extracted data
+      const hostname = new URL(rootUrl).hostname;
+      for (const u of normalized) {
+        try {
+          const p = await browser.newPage();
+          await p.setViewport({ width: 1280, height: 1024 });
+          await p.goto(u, { waitUntil: "networkidle2", timeout: 30000 });
+          if (password) {
+            try {
+              await tryLogin(p, password);
+              if (logger) logger(`Login attempt complete on seed ${u}`);
+            } catch (e) {
+              if (logger)
+                logger(`Login attempt failed on seed ${u}: ${String(e)}`);
+            }
+          }
+          try {
+            const extracted = await extractPageData(p, u, hostname).catch(
+              () => ({
+                pageLinks: [] as string[],
+                normalizedImages: [] as ExtractedImage[],
+                supportedImages: [] as ExtractedImage[],
+                title: "",
+                content: "",
+              }),
+            );
+            preExtractedMap.set(u, extracted as PreExtracted);
+            // Do not modify `progress.total` here; workers will reserve image
+            // totals to keep counting consistent and avoid double increments.
+          } finally {
+            try {
+              await p.close();
+            } catch {}
+          }
+        } catch (e) {
+          if (logger) logger(`Seed prefetch failed for ${u}: ${String(e)}`);
+        }
+      }
+      // preExtractedMap is populated above and will be used by workers
       enqueueLinks(normalized);
       logProgress("⚑", `Seeded ${normalized.length} initial links`);
     } else {
@@ -241,6 +292,20 @@ export async function scrapeZeroheightProject(
                   waitUntil: "networkidle2",
                   timeout: 30000,
                 });
+                if (password) {
+                  try {
+                    await tryLogin(page, password);
+                    if (logger)
+                      logger(
+                        `Login attempt complete on ${formatLinkForConsole(link)}`,
+                      );
+                  } catch (e) {
+                    if (logger)
+                      logger(
+                        `Login attempt failed on ${formatLinkForConsole(link)}: ${String(e)}`,
+                      );
+                  }
+                }
 
                 // If the page redirected, use the final normalized URL as canonical
                 const finalRaw = page.url();
@@ -252,13 +317,35 @@ export async function scrapeZeroheightProject(
                 }
 
                 const hostname = new URL(rootUrl).hostname;
-                const {
-                  title: pageTitle,
-                  content: pageContent,
-                  supportedImages,
-                  normalizedImages,
-                  pageLinks,
-                } = await extractPageData(page, processingLink, hostname);
+                // If seeds were pre-extracted, use that to avoid double extraction
+                const preExtractedLocal = preExtractedMap;
+                let title: string;
+                let content: string;
+                let supportedImages: ExtractedImage[];
+                let normalizedImages: Array<{ src: string; alt: string }>;
+                let pageLinks: string[];
+                if (
+                  preExtractedLocal &&
+                  preExtractedLocal.has(processingLink)
+                ) {
+                  const e = preExtractedLocal.get(processingLink)!;
+                  title = e.title;
+                  content = e.content;
+                  supportedImages = e.supportedImages || [];
+                  normalizedImages = e.normalizedImages || [];
+                  pageLinks = e.pageLinks || [];
+                } else {
+                  const extracted = await extractPageData(
+                    page,
+                    processingLink,
+                    hostname,
+                  );
+                  title = extracted.title;
+                  content = extracted.content;
+                  supportedImages = extracted.supportedImages || [];
+                  normalizedImages = extracted.normalizedImages || [];
+                  pageLinks = extracted.pageLinks || [];
+                }
 
                 if (supportedImages.length > 0) {
                   progress.total += supportedImages.length;
@@ -290,8 +377,8 @@ export async function scrapeZeroheightProject(
                   shouldCancel: undefined,
                   checkProgressInvariant,
                   preExtracted: {
-                    title: pageTitle,
-                    content: pageContent,
+                    title,
+                    content,
                     supportedImages,
                     normalizedImages,
                     pageLinks,
@@ -324,7 +411,7 @@ export async function scrapeZeroheightProject(
                       .map(formatLinkForConsole)
                       .join(", ")}`,
                   );
-                enqueueLinks(allowed);
+                if (!restrictToSeeds) enqueueLinks(allowed);
 
                 for (const img of retNorm || [])
                   uniqueAllImageUrls.add(img.src);
@@ -399,9 +486,15 @@ export async function scrapeZeroheightProject(
     await Promise.all(workers);
 
     // Bulk upsert
+    let bulkLines: string[] | undefined;
+    let printedBox = false;
     try {
       const { client: db } = getClient();
-      const { lines } = await bulkUpsertPagesAndImages({
+      const printer = (s: string) => {
+        if (logger) logger(s);
+        else console.log(s);
+      };
+      const res = await bulkUpsertPagesAndImages({
         db: db!,
         pagesToUpsert,
         pendingImageRecords,
@@ -413,27 +506,105 @@ export async function scrapeZeroheightProject(
         pagesFailed: 0,
         providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
       });
-      for (const line of lines) if (logger) logger(line);
-      // Print final result box
-      if (logger) {
-        const boxLines: string[] = [];
-        boxLines.push("Scrape result summary");
-        boxLines.push(`Pages processed: ${progress.pagesProcessed}`);
-        boxLines.push(`Images processed: ${imagesStats.processed}`);
-        boxLines.push(`Images uploaded: ${imagesStats.uploaded}`);
-        boxLines.push(`Images skipped: ${imagesStats.skipped}`);
-        boxLines.push(`Unique images found: ${uniqueAllImageUrls.size}`);
-        const width = Math.max(...boxLines.map((l) => l.length)) + 4;
-        const hr = "+" + "-".repeat(width - 2) + "+";
-        logger(hr);
-        for (const l of boxLines) {
-          const padding = width - 2 - l.length;
-          logger(`| ${l}${" ".repeat(padding)}|`);
-        }
-        logger(hr);
-      }
+      bulkLines = res.lines;
+      for (const line of bulkLines) printer(line);
+      // Do not print an additional boxed summary here; rely on the bulkUpsert
+      // output so the console output matches the full-project run exactly.
+      printedBox = true;
     } catch (e) {
       console.warn("V2 bulkUpsert failed:", e);
+    } finally {
+      // If bulk upsert failed or didn't print, attempt to reuse the exact same
+      // formatting logic from bulkUpsert by calling it in dryRun mode. If that
+      // also fails, fall back to a concise in-process box.
+      if (!printedBox) {
+        const printer = (s: string) => {
+          if (logger) logger(s);
+          else console.log(s);
+        };
+        try {
+          const { client: db } = getClient();
+          const res = await bulkUpsertPagesAndImages({
+            db: db!,
+            pagesToUpsert,
+            pendingImageRecords,
+            uniqueAllowedImageUrls,
+            uniqueAllImageUrls,
+            uniqueUnsupportedImageUrls,
+            allExistingImageUrls,
+            imagesStats,
+            pagesFailed: 0,
+            providedCount:
+              pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
+            dryRun: true,
+          });
+          for (const line of res.lines) printer(line);
+        } catch {
+          const boxLines: string[] = [];
+          // Derive page counts from what we have available so the fallback
+          // summary is meaningful when DB reads failed.
+          const uniquePageMap = new Map<
+            string,
+            Pick<
+              import("@/lib/database.types").PagesType,
+              "url" | "title" | "content"
+            >
+          >();
+          for (const p of pagesToUpsert) uniquePageMap.set(p.url, p);
+          const totalUniquePages = uniquePageMap.size;
+          const providedCountVal =
+            pageUrls && pageUrls.length > 0 ? pageUrls.length : 0;
+          const pagesFailedVal = 0;
+          const insertedCountVal = totalUniquePages;
+          const updatedCountVal = 0;
+          const skippedCountVal =
+            providedCountVal > 0
+              ? Math.max(0, providedCountVal - totalUniquePages)
+              : 0;
+
+          boxLines.push("Scraping Completed");
+          boxLines.push("");
+          boxLines.push(
+            `Pages analyzed: ${providedCountVal > 0 ? providedCountVal : totalUniquePages}`,
+          );
+          boxLines.push(`Pages inserted: ${insertedCountVal}`);
+          boxLines.push(`Pages updated:  ${updatedCountVal}`);
+          boxLines.push(`Pages skipped:  ${skippedCountVal}`);
+          boxLines.push(`Pages failed:   ${pagesFailedVal}`);
+          boxLines.push("");
+          boxLines.push("");
+          boxLines.push(
+            `Total unique images found: ${uniqueAllImageUrls.size}`,
+          );
+          boxLines.push(
+            `Unsupported unique images: ${uniqueUnsupportedImageUrls.size}`,
+          );
+          boxLines.push(
+            `Allowed unique images: ${uniqueAllowedImageUrls.size}`,
+          );
+          boxLines.push(`Images uploaded (instances): ${imagesStats.uploaded}`);
+          boxLines.push(
+            `Images skipped (unique): ${Array.from(uniqueAllowedImageUrls).filter((u) => allExistingImageUrls.has(u)).length} (already uploaded).`,
+          );
+          boxLines.push(`Images failed: ${imagesStats.failed}`);
+          boxLines.push("");
+          boxLines.push("");
+          boxLines.push(
+            `New associations between pages and images: ${pendingImageRecords.length}`,
+          );
+          boxLines.push(
+            `Images already associated with pages: ${Array.from(uniqueAllowedImageUrls).filter((u) => allExistingImageUrls.has(u)).length}`,
+          );
+          const width = Math.max(...boxLines.map((l) => l.length)) + 4;
+          const hr = "+" + "-".repeat(width - 2) + "+";
+          printer(hr);
+          for (const l of boxLines) {
+            const padding = width - 2 - l.length;
+            printer(`| ${l}${" ".repeat(padding)}|`);
+          }
+          printer(hr);
+        }
+      }
     }
 
     await browser.close();

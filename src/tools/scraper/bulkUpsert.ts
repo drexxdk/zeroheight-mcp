@@ -29,6 +29,7 @@ export async function bulkUpsertPagesAndImages(options: {
   };
   pagesFailed: number;
   providedCount: number;
+  dryRun?: boolean;
 }): Promise<{ lines: string[] }> {
   const {
     db,
@@ -55,6 +56,9 @@ export async function bulkUpsertPagesAndImages(options: {
   const uniqueUrls = uniquePages.map((p) => p.url);
   let existingPagesBefore: Array<{ url?: string }> = [];
   try {
+    // Always attempt to query existing pages to produce accurate dry-run
+    // summaries. This is a read-only operation and safe even when callers
+    // requested dryRun.
     const { data: existingData } = await db!
       .from("pages")
       .select("url")
@@ -76,12 +80,20 @@ export async function bulkUpsertPagesAndImages(options: {
     let chunkResult: UpsertPagesRes | null = null;
     while (attempts < 3) {
       try {
-        const res = await db!
-          .from("pages")
-          .upsert(chunk, { onConflict: "url" })
-          .select("id, url");
-        chunkResult = res as unknown as UpsertPagesRes;
-        if (!chunkResult.error) break;
+        if (!options.dryRun) {
+          const res = await db!
+            .from("pages")
+            .upsert(chunk, { onConflict: "url" })
+            .select("id, url");
+          chunkResult = res as unknown as UpsertPagesRes;
+          if (!chunkResult.error) break;
+        } else {
+          // Dry run: pretend upsert succeeded and generate ids
+          chunkResult = {
+            data: chunk.map((p, idx) => ({ id: i + idx + 1, url: p.url })),
+          };
+          break;
+        }
       } catch (err) {
         chunkResult = { error: err };
       }
@@ -160,9 +172,15 @@ export async function bulkUpsertPagesAndImages(options: {
       let inserted = false;
       while (attempts < 3 && !inserted) {
         try {
-          const res = await db!.from("images").insert(chunk);
-          const insertRes = res as unknown as InsertRes;
-          if (!insertRes.error) {
+          if (!options.dryRun) {
+            const res = await db!.from("images").insert(chunk);
+            const insertRes = res as unknown as InsertRes;
+            if (!insertRes.error) {
+              inserted = true;
+              break;
+            }
+          } else {
+            // Dry run: assume inserted
             inserted = true;
             break;
           }
@@ -185,9 +203,13 @@ export async function bulkUpsertPagesAndImages(options: {
   const updatedCount = existingCount;
   const skippedCount =
     providedCount > 0 ? Math.max(0, providedCount - totalUniquePages) : 0;
-  const pagesAnalyzed = /* pagesProcessed */ 0 + pagesFailed;
+  // Pages analyzed: prefer providedCount when caller supplied seeds, otherwise
+  // count unique pages we prepared plus any failures observed.
+  const pagesAnalyzed =
+    providedCount > 0 ? providedCount : totalUniquePages + pagesFailed;
 
-  const imagesUploadedCount = pendingImageRecords.length;
+  // Number of storage upload operations performed (instances)
+  const imagesUploadedCount = imagesStats.uploaded;
   const imagesDbInsertedCount = imagesToInsert.length;
   const uniqueTotalImages = uniqueAllImageUrls.size;
   const uniqueUnsupported = uniqueUnsupportedImageUrls.size;
@@ -195,7 +217,6 @@ export async function bulkUpsertPagesAndImages(options: {
   const uniqueSkipped = Array.from(uniqueAllowedImageUrls).filter((u) =>
     allExistingImageUrls.has(u),
   ).length;
-
   const lines: string[] = [];
   lines.push("Scraping Completed");
   lines.push("");
