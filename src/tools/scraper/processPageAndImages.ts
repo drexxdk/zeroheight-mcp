@@ -32,18 +32,35 @@ export type ProcessPageParams = {
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
 };
 
-export async function processPageAndImages({
-  page,
-  link,
-  allowedHostname,
-  storage,
-  overallProgress,
-  allExistingImageUrls,
-  pendingImageRecords,
-  logProgress,
-  shouldCancel,
-  checkProgressInvariant,
-}: ProcessPageParams) {
+export async function processPageAndImages(
+  params: ProcessPageParams & {
+    preExtracted?:
+      | {
+          title: string;
+          content: string;
+          supportedImages: Array<{
+            src: string;
+            alt: string;
+            originalSrc?: string;
+          }>;
+          normalizedImages: Array<{ src: string; alt: string }>;
+          pageLinks: string[];
+        }
+      | undefined;
+  },
+) {
+  const {
+    page,
+    link,
+    allowedHostname,
+    storage,
+    overallProgress,
+    allExistingImageUrls,
+    pendingImageRecords,
+    logProgress,
+    shouldCancel,
+    preExtracted,
+  } = params;
   // Caller is expected to have navigated the `page` to `link` and handled redirects.
   const usedLink = link;
 
@@ -53,12 +70,26 @@ export async function processPageAndImages({
     supportedImages,
     normalizedImages,
     pageLinks,
-  } = await extractPageData(page, usedLink, allowedHostname);
+  } = (preExtracted as
+    | undefined
+    | {
+        title: string;
+        content: string;
+        supportedImages: Array<{
+          src: string;
+          alt: string;
+          originalSrc?: string;
+        }>;
+        normalizedImages: Array<{ src: string; alt: string }>;
+        pageLinks: string[];
+      }) ?? (await extractPageData(page, usedLink, allowedHostname));
 
   // Update progress counters for images
+  // Note: callers should reserve `overallProgress.total` for images before
+  // invoking this function when deterministic totals are required. If the
+  // caller didn't, we still log the discovery but do not mutate `total`
+  // here to avoid race conditions with concurrent workers.
   if (supportedImages.length > 0) {
-    overallProgress.total += supportedImages.length;
-    checkProgressInvariant(overallProgress, "after adding images");
     logProgress(
       "📷",
       `Found ${supportedImages.length} supported image${supportedImages.length === 1 ? "" : "s"} on this page (${normalizedImages.length - supportedImages.length} filtered out)`,

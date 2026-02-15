@@ -273,6 +273,48 @@ export async function scrapeZeroheightProject(
 
     const workers: Promise<void>[] = [];
 
+    // Discovery coordinator: workers will push newly discovered links into
+    // `discoveryQueue` instead of mutating `allLinks`/`overallProgress.total`
+    // directly. The coordinator serializes additions and updates `total` to
+    // prevent races.
+    const discoveryQueue: string[] = [];
+    let discoveryClosed = false;
+
+    function pushDiscovery(links: string[]) {
+      if (!links || links.length === 0) return;
+      discoveryQueue.push(...links);
+    }
+
+    async function discoveryLoop() {
+      while (!discoveryClosed || discoveryQueue.length > 0) {
+        if (discoveryQueue.length === 0) {
+          // Poll with a short delay to avoid busy-waiting. This keeps the
+          // implementation simple and avoids complex promise resolver
+          // narrowing for TypeScript.
+          await new Promise((res) => setTimeout(res, 50));
+          continue;
+        }
+
+        const batch = discoveryQueue.splice(0, discoveryQueue.length);
+        for (const newLink of batch) {
+          if (
+            !allLinks.has(newLink) &&
+            !processedLinks.has(newLink) &&
+            processedCount < maxPages
+          ) {
+            allLinks.add(newLink);
+            overallProgress.total++; // Update total deterministically here
+            checkProgressInvariant(
+              overallProgress,
+              "new discovered page (discoveryLoop)",
+            );
+          }
+        }
+      }
+    }
+
+    const discoveryPromise = discoveryLoop();
+
     for (let i = 0; i < concurrency; i++) {
       workers.push(
         (async () => {
@@ -293,7 +335,14 @@ export async function scrapeZeroheightProject(
 
               const iter = allLinks.values().next();
               const linkValue = iter.value;
-              if (!linkValue) break; // No more links
+              if (!linkValue) {
+                // No link currently available. If discovery is still running,
+                // wait briefly for new links to be added by the discovery
+                // coordinator; otherwise exit the worker loop.
+                if (discoveryClosed) break;
+                await new Promise((res) => setTimeout(res, 50));
+                continue;
+              }
               const linkCandidate = linkValue;
               allLinks.delete(linkCandidate);
 
@@ -333,46 +382,59 @@ export async function scrapeZeroheightProject(
                 overallProgress.current++; // Increment current for each page processed
                 checkProgressInvariant(overallProgress, "page processed");
 
-                // Delegate page extraction + image processing to helper
+                // First, extract page metadata so we can reserve progress totals
+                // (pages + images) deterministically before any concurrent worker
+                // mutates shared counters.
                 const {
-                  usedLink,
-                  pageUpsert,
-                  processedPageEntry,
-                  pageLinks,
-                  normalizedImages,
+                  title: pageTitle,
+                  content: pageContent,
                   supportedImages,
-                  imgStats,
-                } = await import("./processPageAndImages").then((m) =>
-                  m.processPageAndImages({
-                    page: workerPage,
-                    link,
-                    allowedHostname,
-                    storage,
-                    overallProgress,
-                    allExistingImageUrls,
-                    pendingImageRecords,
-                    logProgress,
-                    shouldCancel,
-                    checkProgressInvariant,
-                  }),
+                  normalizedImages,
+                  pageLinks,
+                } = await import("./pageExtraction").then((m) =>
+                  m.extractPageData(workerPage, link, allowedHostname),
                 );
+
+                // Reserve total slots for images discovered on this page to avoid
+                // races where other workers discover links/images after we finish.
+                if (supportedImages.length > 0) {
+                  overallProgress.total += supportedImages.length;
+                  checkProgressInvariant(
+                    overallProgress,
+                    "reserve images for page",
+                  );
+                }
+
+                // Delegate page extraction + image processing to helper, passing
+                // the pre-extracted data to avoid duplicate work.
+                const { usedLink, pageUpsert, processedPageEntry, imgStats } =
+                  await import("./processPageAndImages").then((m) =>
+                    m.processPageAndImages({
+                      page: workerPage,
+                      link,
+                      allowedHostname,
+                      storage,
+                      overallProgress,
+                      allExistingImageUrls,
+                      pendingImageRecords,
+                      logProgress,
+                      shouldCancel,
+                      checkProgressInvariant,
+                      preExtracted: {
+                        title: pageTitle,
+                        content: pageContent,
+                        supportedImages,
+                        normalizedImages,
+                        pageLinks,
+                      },
+                    }),
+                  );
 
                 // Only discover additional links if we're not using specific URLs
                 if (!pageUrls || pageUrls.length === 0) {
-                  pageLinks.forEach((newLink) => {
-                    if (
-                      !allLinks.has(newLink) &&
-                      !processedLinks.has(newLink) &&
-                      processedCount < maxPages
-                    ) {
-                      allLinks.add(newLink);
-                      overallProgress.total++; // Update total to include newly discovered links
-                      checkProgressInvariant(
-                        overallProgress,
-                        "new discovered page (pageLinks)",
-                      );
-                    }
-                  });
+                  // Send discovered links to the discovery coordinator which will
+                  // serialize additions and update totals.
+                  pushDiscovery(pageLinks);
                 }
 
                 // Update unique image URL sets (normalized src values)
@@ -444,21 +506,12 @@ export async function scrapeZeroheightProject(
                     );
                     throw new JobCancelled();
                   }
-                  newLinks.forEach((newLink) => {
-                    if (
-                      !allLinks.has(newLink) &&
-                      !processedLinks.has(newLink) &&
-                      processedCount < maxPages
-                    ) {
-                      allLinks.add(newLink);
-                      overallProgress.total++; // Update total to include newly discovered links
-                      checkProgressInvariant(
-                        overallProgress,
-                        "new discovered page (newLinks)",
-                      );
-                      actuallyNewLinksCount++;
-                    }
-                  });
+
+                  // Push discovery to the coordinator which will update totals.
+                  if (newLinks.length > 0) {
+                    pushDiscovery(newLinks);
+                    actuallyNewLinksCount += newLinks.length;
+                  }
 
                   if (actuallyNewLinksCount > 0) {
                     logProgress(
@@ -506,6 +559,22 @@ export async function scrapeZeroheightProject(
     // Wait for all workers to finish
     await Promise.all(workers);
 
+    // Close discovery queue and wait for it to be drained
+    discoveryClosed = true;
+    await discoveryPromise;
+
+    // Reconcile any discovered-but-unprocessed counts caused by concurrent
+    // discovery/processing races. Ensure final progress reports match.
+    if (overallProgress.current !== overallProgress.total) {
+      // Prefer reflecting actual work done by adjusting the total to match
+      // the processed count, but log a warning so the discrepancy can be
+      // investigated if it becomes frequent.
+      console.warn(
+        `⚠️ Final progress mismatch detected: current=${overallProgress.current} total=${overallProgress.total} — reconciling to current`,
+      );
+      overallProgress.total = overallProgress.current;
+    }
+
     console.log(
       `Scraping completed. Final progress: [${overallProgress.current}/${overallProgress.total}]`,
     );
@@ -546,6 +615,13 @@ export async function scrapeZeroheightProject(
     const finalPageTitle = await page.title();
     await browser.close();
 
+    const finalProgress = {
+      current: overallProgress.current,
+      total: overallProgress.total,
+      pagesProcessed: overallProgress.pagesProcessed,
+      imagesProcessed: overallProgress.imagesProcessed,
+    };
+
     const finalDebugInfo = {
       projectUrl: url,
       allowedHostname,
@@ -561,6 +637,7 @@ export async function scrapeZeroheightProject(
     return createSuccessResponse({
       debugInfo: finalDebugInfo,
       scrapedPages: processedPages,
+      progress: finalProgress,
     });
   } catch (error) {
     if (error instanceof JobCancelled) {

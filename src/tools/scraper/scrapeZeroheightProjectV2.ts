@@ -1,0 +1,480 @@
+import puppeteer from "puppeteer";
+import type { Page } from "puppeteer";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+} from "@/lib/toolResponses";
+import { JobCancelled } from "@/lib/common/errors";
+import {
+  getClient,
+  checkProgressInvariant,
+} from "@/lib/common/supabaseClients";
+import { createProgressHelpers } from "./shared";
+import type { PagesType, ImagesType } from "@/lib/database.types";
+import type { OverallProgress } from "./processPageAndImages";
+import { extractPageData } from "./pageExtraction";
+import type { ExtractedImage } from "./pageExtraction";
+import { processPageAndImages } from "./processPageAndImages";
+import { bulkUpsertPagesAndImages } from "./bulkUpsert";
+import {
+  createJobInDb,
+  appendJobLog,
+  finishJob,
+  getJobFromDb,
+} from "./jobStore";
+import { tryLogin } from "@/lib/common/scraperHelpers";
+
+// V2 scraper: coordinator-based queue, deterministic totals, parallel workers
+export async function scrapeZeroheightProjectV2(
+  rootUrl: string,
+  password?: string,
+  pageUrls?: string[],
+  logger?: (s: string) => void,
+  shouldCancel?: () => boolean | Promise<boolean>,
+) {
+  try {
+    const concurrency = Number(process.env.SCRAPER_CONCURRENCY || 6);
+    const idleTimeout = Number(process.env.SCRAPER_IDLE_TIMEOUT_MS || 1000);
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    const queue: string[] = [];
+    const inQueue = new Set<string>();
+    const processed = new Set<string>();
+    const redirects = new Map<string, string>();
+    let inProgressCount = 0;
+    let lastActivity = Date.now();
+
+    const progress: OverallProgress = {
+      current: 0,
+      total: 0,
+      pagesProcessed: 0,
+      imagesProcessed: 0,
+    };
+
+    // Collectors for bulk upsert
+    const pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">> =
+      [];
+    const pendingImageRecords: Array<{
+      pageUrl: string;
+      original_url: ImagesType["original_url"];
+      storage_path: ImagesType["storage_path"];
+    }> = [];
+    const imagesStats = { processed: 0, uploaded: 0, skipped: 0, failed: 0 };
+    const uniqueAllImageUrls = new Set<string>();
+    const uniqueUnsupportedImageUrls = new Set<string>();
+    const uniqueAllowedImageUrls = new Set<string>();
+
+    const processedPages: Array<{
+      url: PagesType["url"];
+      title: PagesType["title"];
+      content: PagesType["content"];
+      images: Array<{ src: string; alt: string }>;
+    }> = [];
+
+    const waiters: Array<(val: string | null) => void> = [];
+
+    function normalizeUrl(u: string, base?: string) {
+      try {
+        const parsed = new URL(u, base || rootUrl);
+        parsed.hash = "";
+        const path =
+          parsed.pathname.endsWith("/") && parsed.pathname !== "/"
+            ? parsed.pathname.slice(0, -1)
+            : parsed.pathname;
+        return `${parsed.protocol}//${parsed.hostname}${path}${parsed.search}`;
+      } catch {
+        return u;
+      }
+    }
+
+    function enqueueLinks(links: string[]) {
+      const added: string[] = [];
+      for (const l of links) {
+        const effective = redirects.get(l) ?? l;
+        if (!processed.has(effective) && !inQueue.has(effective)) {
+          inQueue.add(effective);
+          queue.push(effective);
+          added.push(effective);
+        }
+      }
+      if (added.length) {
+        progress.total += added.length;
+        lastActivity = Date.now();
+        // Wake any waiters
+        while (waiters.length && queue.length) {
+          const w = waiters.shift()!;
+          const item = queue.shift()!;
+          inQueue.delete(item);
+          inProgressCount++;
+          progress.current++;
+          w(item);
+        }
+      }
+    }
+    function getNextLink(): Promise<string | null> {
+      if (queue.length > 0) {
+        const item = queue.shift()!;
+        inQueue.delete(item);
+        inProgressCount++;
+        progress.current++;
+        return Promise.resolve(item);
+      }
+      return new Promise((res) => waiters.push(res));
+    }
+    const { logProgress } = createProgressHelpers(
+      progress,
+      checkProgressInvariant,
+      logger,
+    );
+
+    // Load existing images from DB so image processors can skip duplicates
+    const { client: db } = getClient();
+    const imagesTable = "images" as const;
+    let allExistingImageUrls = new Set<string>();
+    try {
+      const { data: allExistingImages } = await db!
+        .from(imagesTable)
+        .select("original_url");
+      allExistingImageUrls = new Set(
+        (allExistingImages || []).map((img: Record<string, unknown>) => {
+          let normalizedUrl = "";
+          const original = img["original_url"];
+          if (typeof original === "string") normalizedUrl = original;
+          try {
+            const u = new URL(normalizedUrl);
+            normalizedUrl = `${u.protocol}//${u.hostname}${u.pathname}`;
+          } catch {
+            // keep original if parsing fails or empty
+          }
+          return normalizedUrl;
+        }),
+      );
+      if (logger)
+        logger(
+          `Found ${allExistingImageUrls.size} existing images in database`,
+        );
+    } catch (e) {
+      if (logger) logger(`Failed to load existing images: ${String(e)}`);
+      allExistingImageUrls = new Set<string>();
+    }
+
+    // Seed
+    if (pageUrls && pageUrls.length > 0) {
+      const normalized = pageUrls.map((p) => normalizeUrl(p));
+      enqueueLinks(normalized);
+      logProgress("⚑", `Seeded ${normalized.length} initial links`);
+    } else {
+      const p = await browser.newPage();
+      await p.setViewport({ width: 1280, height: 1024 });
+      await p.goto(rootUrl, { waitUntil: "networkidle2", timeout: 30000 });
+      if (password) {
+        try {
+          await tryLogin(p, password);
+          if (logger) logger("Login attempt complete on root page");
+        } catch (e) {
+          if (logger) logger(`Login attempt failed: ${String(e)}`);
+        }
+      }
+
+      const hostname = new URL(rootUrl).hostname;
+      const extracted = await extractPageData(p, rootUrl, hostname).catch(
+        () => ({
+          pageLinks: [] as string[],
+          normalizedImages: [] as ExtractedImage[],
+          supportedImages: [] as ExtractedImage[],
+          title: "",
+          content: "",
+        }),
+      );
+
+      const anchors = await p
+        .$$eval("a[href]", (links) =>
+          links.map((a) => (a as HTMLAnchorElement).href).filter(Boolean),
+        )
+        .catch(() => [] as string[]);
+
+      const initialSet = new Set<string>();
+      initialSet.add(normalizeUrl(rootUrl));
+      for (const a of anchors) initialSet.add(normalizeUrl(a, rootUrl));
+      for (const a of extracted.pageLinks || [])
+        initialSet.add(normalizeUrl(a, rootUrl));
+      const initial = Array.from(initialSet);
+      if (logger) {
+        logger(`Seeded ${initial.length} initial links from root`);
+      }
+      enqueueLinks(initial);
+      try {
+        await p.close();
+      } catch {}
+    }
+
+    // Workers
+    const workers: Promise<void>[] = [];
+    for (let i = 0; i < concurrency; i++) {
+      workers.push(
+        (async () => {
+          const page: Page = await browser.newPage();
+          await page.setViewport({ width: 1280, height: 1024 });
+          try {
+            while (true) {
+              if (shouldCancel && (await Promise.resolve(shouldCancel())))
+                throw new JobCancelled();
+              const link = await getNextLink();
+              if (!link) break;
+              // Log page start so progress bar shows each step
+              logProgress("🔎", `Starting ${link}`);
+
+              try {
+                await page.goto(link, {
+                  waitUntil: "networkidle2",
+                  timeout: 30000,
+                });
+
+                // If the page redirected, use the final normalized URL as canonical
+                const finalRaw = page.url();
+                const final = normalizeUrl(finalRaw, rootUrl);
+                let processingLink = link;
+                if (final && final !== link) {
+                  redirects.set(link, final);
+                  processingLink = final;
+                }
+
+                const hostname = new URL(rootUrl).hostname;
+                const {
+                  title: pageTitle,
+                  content: pageContent,
+                  supportedImages,
+                  normalizedImages,
+                  pageLinks,
+                } = await extractPageData(page, processingLink, hostname);
+
+                if (supportedImages.length > 0) {
+                  progress.total += supportedImages.length;
+                  checkProgressInvariant(
+                    progress,
+                    "reserve images for page-v2",
+                  );
+                  lastActivity = Date.now();
+                }
+
+                const { storage } = getClient();
+
+                const {
+                  pageUpsert,
+                  processedPageEntry,
+                  imgStats,
+                  pageLinks: returnedPageLinks,
+                  normalizedImages: retNorm,
+                  supportedImages: retSupported,
+                } = await processPageAndImages({
+                  page,
+                  link: processingLink,
+                  allowedHostname: hostname,
+                  storage,
+                  overallProgress: progress,
+                  allExistingImageUrls,
+                  pendingImageRecords,
+                  logProgress,
+                  shouldCancel: undefined,
+                  checkProgressInvariant,
+                  preExtracted: {
+                    title: pageTitle,
+                    content: pageContent,
+                    supportedImages,
+                    normalizedImages,
+                    pageLinks,
+                  },
+                });
+
+                const rawLinks = (returnedPageLinks ||
+                  pageLinks ||
+                  []) as string[];
+                const allowed = rawLinks
+                  .map((h) => normalizeUrl(h, rootUrl))
+                  .filter((h) => {
+                    try {
+                      return new URL(h).hostname === hostname;
+                    } catch {
+                      return false;
+                    }
+                  });
+                // Show discovery with progress bar (use canonical processingLink)
+                logProgress(
+                  "🔗",
+                  `Discovered ${allowed.length} links on ${processingLink}`,
+                );
+                enqueueLinks(allowed);
+
+                for (const img of retNorm || [])
+                  uniqueAllImageUrls.add(img.src);
+                for (const img of retNorm || []) {
+                  if (
+                    (retSupported || []).find(
+                      (s: { src: string }) => s.src === img.src,
+                    )
+                  )
+                    uniqueAllowedImageUrls.add(img.src);
+                  else uniqueUnsupportedImageUrls.add(img.src);
+                }
+
+                pagesToUpsert.push(pageUpsert);
+                processedPages.push(processedPageEntry);
+                imagesStats.processed += imgStats.processed || 0;
+                imagesStats.uploaded += imgStats.uploaded || 0;
+                imagesStats.skipped += imgStats.skipped || 0;
+                imagesStats.failed += imgStats.failed || 0;
+
+                progress.pagesProcessed++;
+                // Mark canonical and original as processed to avoid requeue after redirects
+                processed.add(processingLink);
+                if (processingLink !== link) processed.add(link);
+                logProgress("✅", `Processed ${processingLink}`);
+              } catch (e) {
+                if (logger) logger(`Error processing ${link}: ${String(e)}`);
+              } finally {
+                inProgressCount = Math.max(0, inProgressCount - 1);
+                lastActivity = Date.now();
+              }
+            }
+          } finally {
+            try {
+              await page.close();
+            } catch {}
+          }
+        })(),
+      );
+    }
+
+    // Monitor
+    while (true) {
+      if (shouldCancel && (await Promise.resolve(shouldCancel()))) {
+        while (waiters.length) {
+          const w = waiters.shift()!;
+          w(null);
+        }
+        throw new JobCancelled();
+      }
+
+      if (queue.length === 0 && inProgressCount === 0) {
+        await new Promise((r) => setTimeout(r, Math.min(200, idleTimeout)));
+        if (
+          queue.length === 0 &&
+          inProgressCount === 0 &&
+          Date.now() - lastActivity >= idleTimeout
+        )
+          break;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    while (waiters.length) {
+      const w = waiters.shift()!;
+      w(null);
+    }
+
+    await Promise.all(workers);
+
+    // Bulk upsert
+    try {
+      const { client: db } = getClient();
+      const { lines } = await bulkUpsertPagesAndImages({
+        db: db!,
+        pagesToUpsert,
+        pendingImageRecords,
+        uniqueAllowedImageUrls,
+        uniqueAllImageUrls,
+        uniqueUnsupportedImageUrls,
+        allExistingImageUrls,
+        imagesStats,
+        pagesFailed: 0,
+        providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
+      });
+      for (const line of lines) if (logger) logger(line);
+    } catch (e) {
+      console.warn("V2 bulkUpsert failed:", e);
+    }
+
+    await browser.close();
+
+    return createSuccessResponse({ debug: { seedUrl: rootUrl }, progress });
+  } catch (err) {
+    if (err instanceof JobCancelled)
+      return createSuccessResponse({ message: "Job cancelled" });
+    return createErrorResponse(
+      String(err instanceof Error ? err.message : err),
+    );
+  }
+}
+
+export const scrapeZeroheightProjectV2Tool = {
+  title: "scrape-zeroheight-project-v2",
+  description:
+    "A faster, coordinator-based scraper (v2). Does not replace the legacy implementation.",
+  handler: async ({ pageUrls }: { pageUrls?: string[] }) => {
+    const projectUrl = process.env.ZEROHEIGHT_PROJECT_URL;
+    if (!projectUrl)
+      return createErrorResponse("ZEROHEIGHT_PROJECT_URL not set");
+
+    // Create a DB-backed job so external tools can observe progress
+    let jobId: string | null = null;
+    try {
+      jobId = await createJobInDb("scrape-zeroheight-project-v2", {
+        pageUrls: pageUrls || null,
+      });
+    } catch (err) {
+      console.warn("createJobInDb failed for v2:", err);
+    }
+    if (!jobId)
+      jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+    (async () => {
+      const logger = async (s: string) => {
+        try {
+          await appendJobLog(
+            jobId as string,
+            `[${new Date().toISOString()}] ${s}`,
+          );
+        } catch {
+          /* ignore logging errors */
+        }
+        console.log(`[v2][${new Date().toISOString()}] ${s}`);
+      };
+
+      try {
+        await scrapeZeroheightProjectV2(
+          projectUrl,
+          undefined,
+          pageUrls || undefined,
+          (msg: string) => {
+            void logger(msg);
+          },
+          async () => {
+            try {
+              const j = await getJobFromDb(jobId as string);
+              return !!(
+                j &&
+                (j.status === "cancelled" || j.status === "failed")
+              );
+            } catch {
+              return false;
+            }
+          },
+        );
+        await finishJob(jobId as string, true);
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        if (e instanceof JobCancelled) {
+          await appendJobLog(jobId as string, "Job cancelled by request");
+          await finishJob(jobId as string, false);
+        } else {
+          await appendJobLog(jobId as string, `Error: ${errMsg}`);
+          await finishJob(jobId as string, false, errMsg);
+        }
+      }
+    })();
+
+    return createSuccessResponse({ message: "Scrape-v2 started", jobId });
+  },
+};
