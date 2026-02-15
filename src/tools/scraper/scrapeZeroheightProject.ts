@@ -16,7 +16,7 @@ import type { OverallProgress } from "./processPageAndImages";
 import { extractPageData } from "./pageExtraction";
 import type { ExtractedImage } from "./pageExtraction";
 import { processPageAndImages } from "./processPageAndImages";
-import { mapWithConcurrency } from "./concurrency";
+import prefetchSeeds, { normalizeUrl } from "./prefetch";
 import {
   SCRAPER_CONCURRENCY,
   SCRAPER_IDLE_TIMEOUT_MS,
@@ -98,19 +98,7 @@ export async function scrapeZeroheightProject(
 
     const waiters: Array<(val: string | null) => void> = [];
 
-    function normalizeUrl(u: string, base?: string) {
-      try {
-        const parsed = new URL(u, base || rootUrl);
-        parsed.hash = "";
-        const path =
-          parsed.pathname.endsWith("/") && parsed.pathname !== "/"
-            ? parsed.pathname.slice(0, -1)
-            : parsed.pathname;
-        return `${parsed.protocol}//${parsed.hostname}${path}${parsed.search}`;
-      } catch {
-        return u;
-      }
-    }
+    // Use `normalizeUrl` from `prefetch.ts` to keep canonicalization consistent.
 
     function formatLinkForConsole(u: string) {
       try {
@@ -196,54 +184,21 @@ export async function scrapeZeroheightProject(
 
     // Seed
     if (pageUrls && pageUrls.length > 0) {
-      const normalized = pageUrls.map((p) => normalizeUrl(p));
-      // Prefetch each seed page (parallelized) to reserve image totals and store pre-extracted data
-      const hostname = new URL(rootUrl).hostname;
+      const normalized = pageUrls.map((p) => normalizeUrl(p, rootUrl));
+      // Prefetch seeds in a robust helper (root login, retries, scrolls)
+      const { preExtractedMap: seedMap } = await prefetchSeeds({
+        browser,
+        rootUrl,
+        seeds: normalized,
+        password,
+        concurrency: SCRAPER_SEED_PREFETCH_CONCURRENCY,
+        logger,
+      });
 
-      const seedPrefetchConcurrency = SCRAPER_SEED_PREFETCH_CONCURRENCY;
+      // Merge into local preExtractedMap used by workers
+      for (const [k, v] of seedMap) preExtractedMap.set(k, v as PreExtracted);
 
-      await mapWithConcurrency(
-        normalized,
-        async (u) => {
-          try {
-            const p = await browser.newPage();
-            await p.setViewport({ width: 1280, height: 1024 });
-            await p.goto(u, { waitUntil: "networkidle2", timeout: 30000 });
-            if (password) {
-              try {
-                await tryLogin(p, password);
-                if (logger) logger(`Login attempt complete on seed ${u}`);
-              } catch (e) {
-                if (logger)
-                  logger(`Login attempt failed on seed ${u}: ${String(e)}`);
-              }
-            }
-            try {
-              const extracted = await extractPageData(p, u, hostname).catch(
-                () => ({
-                  pageLinks: [] as string[],
-                  normalizedImages: [] as ExtractedImage[],
-                  supportedImages: [] as ExtractedImage[],
-                  title: "",
-                  content: "",
-                }),
-              );
-              preExtractedMap.set(u, extracted as PreExtracted);
-              // Do not modify `progress.total` here; workers will reserve image
-              // totals to keep counting consistent and avoid double increments.
-            } finally {
-              try {
-                await p.close();
-              } catch {}
-            }
-          } catch (e) {
-            if (logger) logger(`Seed prefetch failed for ${u}: ${String(e)}`);
-          }
-        },
-        seedPrefetchConcurrency,
-      );
-
-      // preExtractedMap is populated above and will be used by workers
+      // Enqueue normalized seeds
       enqueueLinks(normalized);
       logProgress("⚑", `Seeded ${normalized.length} initial links`);
     } else {
