@@ -17,7 +17,7 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function runLoop() {
+async function main() {
   console.log("Worker started, polling for jobs...");
   while (true) {
     try {
@@ -73,4 +73,4 @@ async function runLoop() {
   }
 }
 
-runLoop();
+main();

@@ -13,7 +13,7 @@ config({ path: ".env.local" });
 // reads the environment correctly at module initialization.
 const { MCP_API_KEY } = await import("../src/lib/config");
 
-async function runClear() {
+async function main() {
   const API_URL = "http://localhost:3000/api/mcp";
   if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
@@ -54,4 +54,4 @@ async function runClear() {
   }
 }
 
-runClear();
+main();

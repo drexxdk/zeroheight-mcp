@@ -3,7 +3,7 @@ import { config } from "dotenv";
 // Ensure dotenv runs before importing any app modules that read env at module-evaluation time.
 config({ path: ".env.local" });
 
-async function testScrapeSpecificPages() {
+async function main() {
   const { scrapeZeroheightProject } =
     await import("../src/tools/scraper/scrapeZeroheightProject");
 
@@ -17,4 +17,4 @@ async function testScrapeSpecificPages() {
   );
 }
 
-testScrapeSpecificPages().catch(console.error);
+main().catch(console.error);
