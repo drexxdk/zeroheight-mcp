@@ -14,6 +14,9 @@ export type Progress = {
 
 export type LogProgressFn = (icon: string, message: string) => void;
 
+// Module-level set to prevent duplicate uploads across concurrent page workers.
+const GLOBAL_IN_PROGRESS = new Set<string>();
+
 export async function processImagesForPage(options: {
   supportedImages: Array<{ src: string; alt: string; originalSrc?: string }>;
   link: string;
@@ -49,6 +52,10 @@ export async function processImagesForPage(options: {
   } = options;
 
   const concurrency = Number(process.env.SCRAPER_IMAGE_CONCURRENCY || 4);
+  // Use module-level set so multiple concurrent page-processing tasks in the
+  // same Node process coordinate and avoid duplicate uploads for the same
+  // normalized URL.
+  const inProgress = GLOBAL_IN_PROGRESS;
 
   const results = await mapWithConcurrency(
     supportedImages,
@@ -76,6 +83,15 @@ export async function processImagesForPage(options: {
         logProgress("🚫", "Skipping image - already processed");
         return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
       }
+      // Avoid race where multiple concurrent tasks both see the URL as not
+      // existing and start uploads. If another task is already processing the
+      // same normalized URL, treat this one as skipped to avoid duplicate
+      // uploads.
+      if (inProgress.has(normalizedSrc)) {
+        logProgress("⏭️", "Skipping duplicate image in-progress");
+        return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
+      }
+      inProgress.add(normalizedSrc);
 
       overallProgress.imagesProcessed++;
       logProgress(
@@ -84,17 +100,23 @@ export async function processImagesForPage(options: {
       );
 
       const downloadUrl = img.originalSrc || img.src;
-      const result = await processAndUploadImage({
-        storage,
-        downloadUrl,
-        link,
-        logProgress,
-        pendingImageRecords,
-        allExistingImageUrls,
-        shouldCancel,
-      });
-
-      if (result.uploaded)
+      let result;
+      try {
+        result = await processAndUploadImage({
+          storage,
+          downloadUrl,
+          link,
+          logProgress,
+          pendingImageRecords,
+          allExistingImageUrls,
+          shouldCancel,
+        });
+      } finally {
+        // Ensure we release the in-progress lock so other occurrences can be
+        // considered (they will now see the URL in `allExistingImageUrls`).
+        inProgress.delete(normalizedSrc);
+      }
+      if (result && result.uploaded)
         return { processed: 1, uploaded: 1, skipped: 0, failed: 0 };
       console.error(
         `❌ Failed to process image ${img.src.split("/").pop()}: ${result.error}`,

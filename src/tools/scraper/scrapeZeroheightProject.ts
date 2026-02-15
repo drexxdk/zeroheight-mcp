@@ -16,7 +16,11 @@ import type { OverallProgress } from "./processPageAndImages";
 import { extractPageData } from "./pageExtraction";
 import type { ExtractedImage } from "./pageExtraction";
 import { processPageAndImages } from "./processPageAndImages";
-import { bulkUpsertPagesAndImages } from "./bulkUpsert";
+import {
+  bulkUpsertPagesAndImages,
+  formatSummaryBox,
+  SummaryParams,
+} from "./bulkUpsert";
 import {
   createJobInDb,
   appendJobLog,
@@ -63,6 +67,7 @@ export async function scrapeZeroheightProject(
       storage_path: ImagesType["storage_path"];
     }> = [];
     const imagesStats = { processed: 0, uploaded: 0, skipped: 0, failed: 0 };
+    let pagesFailed = 0;
     const uniqueAllImageUrls = new Set<string>();
     const uniqueUnsupportedImageUrls = new Set<string>();
     const uniqueAllowedImageUrls = new Set<string>();
@@ -436,8 +441,12 @@ export async function scrapeZeroheightProject(
                 // Mark canonical and original as processed to avoid requeue after redirects
                 processed.add(processingLink);
                 if (processingLink !== link) processed.add(link);
-                logProgress("✅", `Processed ${processingLink}`);
+                logProgress(
+                  "✅",
+                  `Processed ${formatLinkForConsole(processingLink)}`,
+                );
               } catch (e) {
+                pagesFailed++;
                 if (logger)
                   logger(
                     `Error processing ${formatLinkForConsole(link)}: ${String(e)}`,
@@ -503,7 +512,7 @@ export async function scrapeZeroheightProject(
         uniqueUnsupportedImageUrls,
         allExistingImageUrls,
         imagesStats,
-        pagesFailed: 0,
+        pagesFailed: pagesFailed,
         providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
       });
       bulkLines = res.lines;
@@ -533,28 +542,21 @@ export async function scrapeZeroheightProject(
             uniqueUnsupportedImageUrls,
             allExistingImageUrls,
             imagesStats,
-            pagesFailed: 0,
+            pagesFailed: pagesFailed,
             providedCount:
               pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
             dryRun: true,
           });
           for (const line of res.lines) printer(line);
         } catch {
-          const boxLines: string[] = [];
-          // Derive page counts from what we have available so the fallback
-          // summary is meaningful when DB reads failed.
-          const uniquePageMap = new Map<
-            string,
-            Pick<
-              import("@/lib/database.types").PagesType,
-              "url" | "title" | "content"
-            >
-          >();
-          for (const p of pagesToUpsert) uniquePageMap.set(p.url, p);
+          // Best-effort fallback: derive counts from what we have and use the
+          // shared `formatSummaryBox` to ensure consistent formatting.
+          const uniquePageMap = new Map(
+            pagesToUpsert.map((p) => [p.url, p] as const),
+          );
           const totalUniquePages = uniquePageMap.size;
           const providedCountVal =
             pageUrls && pageUrls.length > 0 ? pageUrls.length : 0;
-          const pagesFailedVal = 0;
           const insertedCountVal = totalUniquePages;
           const updatedCountVal = 0;
           const skippedCountVal =
@@ -562,47 +564,29 @@ export async function scrapeZeroheightProject(
               ? Math.max(0, providedCountVal - totalUniquePages)
               : 0;
 
-          boxLines.push("Scraping Completed");
-          boxLines.push("");
-          boxLines.push(
-            `Pages analyzed: ${providedCountVal > 0 ? providedCountVal : totalUniquePages}`,
-          );
-          boxLines.push(`Pages inserted: ${insertedCountVal}`);
-          boxLines.push(`Pages updated:  ${updatedCountVal}`);
-          boxLines.push(`Pages skipped:  ${skippedCountVal}`);
-          boxLines.push(`Pages failed:   ${pagesFailedVal}`);
-          boxLines.push("");
-          boxLines.push("");
-          boxLines.push(
-            `Total unique images found: ${uniqueAllImageUrls.size}`,
-          );
-          boxLines.push(
-            `Unsupported unique images: ${uniqueUnsupportedImageUrls.size}`,
-          );
-          boxLines.push(
-            `Allowed unique images: ${uniqueAllowedImageUrls.size}`,
-          );
-          boxLines.push(`Images uploaded (instances): ${imagesStats.uploaded}`);
-          boxLines.push(
-            `Images skipped (unique): ${Array.from(uniqueAllowedImageUrls).filter((u) => allExistingImageUrls.has(u)).length} (already uploaded).`,
-          );
-          boxLines.push(`Images failed: ${imagesStats.failed}`);
-          boxLines.push("");
-          boxLines.push("");
-          boxLines.push(
-            `New associations between pages and images: ${pendingImageRecords.length}`,
-          );
-          boxLines.push(
-            `Images already associated with pages: ${Array.from(uniqueAllowedImageUrls).filter((u) => allExistingImageUrls.has(u)).length}`,
-          );
-          const width = Math.max(...boxLines.map((l) => l.length)) + 4;
-          const hr = "+" + "-".repeat(width - 2) + "+";
-          printer(hr);
-          for (const l of boxLines) {
-            const padding = width - 2 - l.length;
-            printer(`| ${l}${" ".repeat(padding)}|`);
-          }
-          printer(hr);
+          const params: SummaryParams = {
+            providedCount: providedCountVal,
+            pagesAnalyzed:
+              providedCountVal > 0 ? providedCountVal : totalUniquePages,
+            insertedCount: insertedCountVal,
+            updatedCount: updatedCountVal,
+            skippedCount: skippedCountVal,
+            pagesFailed: pagesFailed,
+            uniqueTotalImages: uniqueAllImageUrls.size,
+            uniqueUnsupported: uniqueUnsupportedImageUrls.size,
+            uniqueAllowed: uniqueAllowedImageUrls.size,
+            imagesUploadedCount: imagesStats.uploaded,
+            uniqueSkipped: Array.from(uniqueAllowedImageUrls).filter((u) =>
+              allExistingImageUrls.has(u),
+            ).length,
+            imagesFailed: imagesStats.failed,
+            imagesDbInsertedCount: pendingImageRecords.length,
+            imagesAlreadyAssociatedCount: Array.from(
+              uniqueAllowedImageUrls,
+            ).filter((u) => allExistingImageUrls.has(u)).length,
+          };
+          const boxed = formatSummaryBox(params);
+          for (const l of boxed) printer(l);
         }
       }
     }

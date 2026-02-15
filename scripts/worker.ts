@@ -1,4 +1,3 @@
-#!/usr/bin/env tsx
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
@@ -6,9 +5,9 @@ import {
   claimNextJob,
   appendJobLog,
   finishJob,
-} from "@/tools/scraper/jobStore";
-import { scrapeZeroheightProject } from "@/tools/scraper/scrapeZeroheightProject";
-import { JobCancelled } from "@/lib/common/errors";
+} from "../src/tools/scraper/jobStore";
+import { scrapeZeroheightProject } from "../src/tools/scraper/scrapeZeroheightProject";
+import { JobCancelled } from "../src/lib/common/errors";
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

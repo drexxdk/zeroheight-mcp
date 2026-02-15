@@ -8,23 +8,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "scrape-all": "npx tsx src/scripts/scrape-all.ts",
-    "scrape-pages": "npx tsx src/scripts/scrape-pages.ts",
-    "clear-data": "npx tsx src/scripts/clear-data.ts",
-    "test-count-run": "npx tsx src/scripts/test-count-run.ts",
+    "scrape-all": "npx tsx scripts/scrape-all.ts",
+    "scrape-pages": "npx tsx scripts/scrape-pages.ts",
+    "clear-data": "npx tsx scripts/clear-data.ts",
+    "test-count-run": "npx tsx scripts/test-count-run.ts",
+    "worker": "npx tsx scripts/worker.ts",
     "restart-ts-server": "node -e \"const cp=require('child_process');try{cp.execSync('npx tsc --noEmit',{stdio:'inherit'})}catch(e){};console.log('If using VS Code, run \\\"TypeScript: Restart TS Server\\\" from Command Palette (Ctrl+Shift+P)')\"",
     "supabase-login": "npx -y supabase@2.72.8 login",
     "generate-database-schema": "npx -y supabase@2.72.8 gen types typescript --project-id qyoexslrsblaphbcvjdk --schema public > lib/database.schema.ts",
-    "generate-database-types": "npx tsx src/scripts/generate-database-types.ts",
-    "worker": "npx tsx src/worker.ts",
-    "e2e": "npx tsx src/e2e/run-all.ts"
+    "generate-database-types": "npx tsx scripts/generate-database-types.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@sparticuz/chromium": "^143.0.4",
     "@supabase/supabase-js": "^2.39.3",
-    "uuid": "^9.0.0",
+    "boxen": "^8.0.1",
     "mcp-handler": "^1.0.7",
     "motion": "^12.34.0",
     "next": "16.1.6",
@@ -34,6 +33,7 @@
     "react-dom": "19.2.3",
     "react-icons": "^5.5.0",
     "sharp": "^0.34.5",
+    "uuid": "^9.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

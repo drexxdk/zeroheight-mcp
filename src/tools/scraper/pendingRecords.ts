@@ -13,10 +13,16 @@ export function addPendingImageRecord(
   storagePath: string,
   allExistingImageUrls: Set<string>,
 ) {
+  const normalized = normalizeImageUrl(downloadUrl);
   pendingImageRecords.push({
     pageUrl,
-    original_url: normalizeImageUrl(downloadUrl),
+    original_url: normalized,
     storage_path: storagePath,
   });
-  allExistingImageUrls.add(normalizeImageUrl(downloadUrl));
+  allExistingImageUrls.add(normalized);
+  if (process.env.SCRAPER_DEBUG) {
+    console.log(
+      `[scraper] addPendingImageRecord page=${pageUrl} download=${downloadUrl} normalized=${normalized} storage=${storagePath}`,
+    );
+  }
 }

@@ -1,5 +1,7 @@
-﻿import type { PagesType, ImagesType } from "@/lib/database.types";
+﻿import 'dotenv/config';
+import type { PagesType, ImagesType } from "@/lib/database.types";
 import { getClient } from "@/lib/common/supabaseClients";
+import boxen from "boxen";
 
 type DbClient = ReturnType<typeof getClient>["client"];
 
@@ -7,7 +9,7 @@ type UpsertPagesRes = {
   data?: Array<{ id?: number; url?: string }>;
   error?: unknown;
 };
-type InsertRes = { data?: unknown; error?: unknown };
+// InsertRes type not needed
 
 export async function bulkUpsertPagesAndImages(options: {
   db: DbClient;
@@ -163,38 +165,119 @@ export async function bulkUpsertPagesAndImages(options: {
     console.warn("DEBUG: failed to compute imagesAlreadyAssociatedCount:", e);
   }
 
-  // Insert images in chunks to avoid very large inserts
+  // Insert new images in manageable chunks to avoid very large single inserts.
+  // We retry transient failures a few times. Skip writes when doing a dry run.
   const imageChunkSize = Number(process.env.SCRAPER_IMAGE_INSERT_CHUNK || 500);
-  if (imagesToInsert.length > 0) {
-    for (let i = 0; i < imagesToInsert.length; i += imageChunkSize) {
-      const chunk = imagesToInsert.slice(i, i + imageChunkSize);
-      let attempts = 0;
-      let inserted = false;
-      while (attempts < 3 && !inserted) {
-        try {
-          if (!options.dryRun) {
-            const res = await db!.from("images").insert(chunk);
-            const insertRes = res as unknown as InsertRes;
-            if (!insertRes.error) {
-              inserted = true;
-              break;
-            }
-          } else {
-            // Dry run: assume inserted
-            inserted = true;
-            break;
-          }
-        } catch (err) {
-          console.error("Error inserting image chunk attempt:", err);
+  // Deduplicate image insert rows by original_url+storage_path to avoid
+  // inserting the same image multiple times (can happen when the same
+  // image appears on multiple pages).
+  const seenImageKeys = new Set<string>();
+  const dedupImagesToInsert: typeof imagesToInsert = [];
+  for (const img of imagesToInsert) {
+    const key = `${img.original_url}||${img.storage_path}`;
+    if (!seenImageKeys.has(key)) {
+      seenImageKeys.add(key);
+      dedupImagesToInsert.push(img);
+    }
+  }
+
+  const debug = !!process.env.SCRAPER_DEBUG;
+  // Start with the preloaded set (from DB at startup). We'll optionally
+  // replace it with a fresh DB check when debugging.
+  let dbExistingImageUrls = allExistingImageUrls;
+
+  if (debug) {
+    console.log(`[scraper] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`);
+
+    // Prefer authoritative DB lookup for whether an original_url already exists.
+    if (db && uniqueAllowedImageUrls.size > 0) {
+      try {
+        const existingRes = await db
+          .from("images")
+          .select("original_url")
+          .in("original_url", Array.from(uniqueAllowedImageUrls))
+          .limit(1000);
+        const existingData = (existingRes as unknown) as { data?: Array<{ original_url: string }>; error?: unknown };
+        if (existingData.data && existingData.data.length > 0) {
+          dbExistingImageUrls = new Set(existingData.data.map((r) => r.original_url));
+        } else {
+          dbExistingImageUrls = new Set();
         }
-        attempts++;
-        if (attempts < 3)
-          await new Promise((r) => setTimeout(r, 500 * attempts));
-      }
-      if (!inserted) {
-        console.error("Failed to insert image chunk after retries");
+      } catch (err) {
+        console.log(`[scraper] DB existence check error: ${String(err)}`);
+        dbExistingImageUrls = allExistingImageUrls;
       }
     }
+
+    const skippedList = Array.from(uniqueAllowedImageUrls).filter((u) => dbExistingImageUrls.has(u));
+    console.log(`[scraper] uniqueAllowed=${uniqueAllowedImageUrls.size} uniqueSkipped(before)=${skippedList.length} sampleSkipped=${skippedList.slice(0,6).join(", ")}`);
+    console.log(`[scraper] sample allExisting (first 12): ${Array.from(allExistingImageUrls).slice(0,12).join(", ")}`);
+    console.log(`[scraper] sample uniqueAllowed (first 12): ${Array.from(uniqueAllowedImageUrls).slice(0,12).join(", ")}`);
+    const intersection = Array.from(uniqueAllowedImageUrls).filter((u) => dbExistingImageUrls.has(u));
+    console.log(`[scraper] intersection sample (first 12): ${intersection.slice(0,12).join(", ")}`);
+
+    // If we have intersection URLs, fetch DB rows for inspection (up to 50)
+      if (intersection.length > 0 && db) {
+      try {
+        const dbRes = await db
+          .from("images")
+          .select("id, original_url, created_at")
+          .in("original_url", intersection)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        const dbData = (dbRes as unknown) as { data?: Array<{ id?: number; original_url?: string; created_at?: string }>; error?: unknown };
+        console.log(`[scraper] DB inspection for intersection (up to 50 rows): ${JSON.stringify(dbData.data?.slice(0,20) ?? [], null, 2)}`);
+      } catch (err) {
+        console.log(`[scraper] DB inspection error: ${String(err)}`);
+      }
+    }
+
+    console.log(`[scraper] pendingImageRecords (first 12): ${pendingImageRecords.slice(0,12).map((p) => p.original_url).join(", ")}`);
+    console.log(`[scraper] imagesToInsert (first 12): ${imagesToInsert.slice(0,12).map((i) => i.original_url + ' -> ' + i.storage_path).join(", ")}`);
+  }
+  let insertedCountTotal = 0;
+  const insertedOriginalUrls = new Set<string>();
+  if (!options.dryRun && dedupImagesToInsert.length > 0) {
+    for (let i = 0; i < dedupImagesToInsert.length; i += imageChunkSize) {
+      const chunk = dedupImagesToInsert.slice(i, i + imageChunkSize);
+      let attempts = 0;
+      while (attempts < 3) {
+        attempts += 1;
+        try {
+          const res = await db!.from("images").insert(chunk).select("id, original_url");
+          const insertRes = res as unknown as { data?: unknown[]; error?: unknown };
+          if (insertRes.error) throw insertRes.error;
+          if (Array.isArray(insertRes.data)) {
+            // Collect original_url values returned by the insert so we can
+            // exclude newly-inserted originals from the "skipped before" count.
+            for (const row of insertRes.data as Array<Record<string, unknown>>) {
+              const orig = row["original_url"];
+              if (typeof orig === "string") insertedOriginalUrls.add(orig);
+            }
+            insertedCountTotal += insertRes.data.length;
+            if (debug) {
+              console.log(`[scraper] inserted chunk: count=${insertRes.data.length} totalInserted=${insertedCountTotal}`);
+              try {
+                const first = (insertRes.data[0] as Record<string, unknown>)?.id;
+                console.log(`[scraper] sample inserted id=${String(first)}`);
+              } catch {}
+            }
+          }
+          break;
+        } catch (err) {
+          if (attempts >= 3) {
+            console.error("Failed inserting image chunk after retries:", err);
+            throw err;
+          }
+          // small backoff
+          await new Promise((r) => setTimeout(r, 250 * attempts));
+        }
+      }
+    }
+  } else {
+    // Dry-run: assume none inserted, but for reporting we can set insertedCountTotal
+    // to the number of unique dedup records (they would be inserted if not dry-run).
+    insertedCountTotal = dedupImagesToInsert.length;
   }
 
   const totalUniquePages = uniquePages.length;
@@ -203,47 +286,90 @@ export async function bulkUpsertPagesAndImages(options: {
   const updatedCount = existingCount;
   const skippedCount =
     providedCount > 0 ? Math.max(0, providedCount - totalUniquePages) : 0;
-  // Pages analyzed: prefer providedCount when caller supplied seeds, otherwise
-  // count unique pages we prepared plus any failures observed.
   const pagesAnalyzed =
     providedCount > 0 ? providedCount : totalUniquePages + pagesFailed;
 
   // Number of storage upload operations performed (instances)
   const imagesUploadedCount = imagesStats.uploaded;
-  const imagesDbInsertedCount = imagesToInsert.length;
+  const imagesDbInsertedCount = insertedCountTotal;
   const uniqueTotalImages = uniqueAllImageUrls.size;
   const uniqueUnsupported = uniqueUnsupportedImageUrls.size;
   const uniqueAllowed = uniqueAllowedImageUrls.size;
+  // Compute uniqueSkipped after inserts so we don't count items we just inserted.
   const uniqueSkipped = Array.from(uniqueAllowedImageUrls).filter((u) =>
-    allExistingImageUrls.has(u),
+    dbExistingImageUrls.has(u) && !insertedOriginalUrls.has(u),
   ).length;
-  const lines: string[] = [];
-  lines.push("Scraping Completed");
-  lines.push("");
-  if (providedCount > 0) lines.push(`Pages provided: ${providedCount}`);
-  lines.push(`Pages analyzed: ${pagesAnalyzed}`);
-  lines.push(`Pages inserted: ${insertedCount}`);
-  lines.push(`Pages updated:  ${updatedCount}`);
-  lines.push(`Pages skipped:  ${skippedCount}`);
-  lines.push(`Pages failed:   ${pagesFailed}`);
-  lines.push("");
-  lines.push("");
-  lines.push(`Total unique images found: ${uniqueTotalImages}`);
-  lines.push(`Unsupported unique images: ${uniqueUnsupported}`);
-  lines.push(`Allowed unique images: ${uniqueAllowed}`);
-  lines.push(`Images uploaded (instances): ${imagesUploadedCount}`);
-  lines.push(`Images skipped (unique): ${uniqueSkipped} (already uploaded).`);
-  lines.push(`Images failed: ${imagesStats.failed}`);
-  lines.push("");
-  lines.push("");
-  lines.push(
-    `New associations between pages and images: ${imagesDbInsertedCount}`,
-  );
-  lines.push(
-    `Images already associated with pages: ${imagesAlreadyAssociatedCount}`,
-  );
+  const params = {
+    providedCount,
+    pagesAnalyzed,
+    insertedCount,
+    updatedCount,
+    skippedCount,
+    pagesFailed,
+    uniqueTotalImages,
+    uniqueUnsupported,
+    uniqueAllowed,
+    imagesUploadedCount,
+    uniqueSkipped,
+    imagesFailed: imagesStats.failed,
+    imagesDbInsertedCount,
+    imagesAlreadyAssociatedCount,
+  } as const;
 
-  return { lines };
+  const out = formatSummaryBox(params);
+  return { lines: out };
 }
 
 export default bulkUpsertPagesAndImages;
+
+export type SummaryParams = Readonly<{
+  providedCount: number;
+  pagesAnalyzed: number;
+  insertedCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  pagesFailed: number;
+  uniqueTotalImages: number;
+  uniqueUnsupported: number;
+  uniqueAllowed: number;
+  imagesUploadedCount: number;
+  uniqueSkipped: number;
+  imagesFailed: number;
+  imagesDbInsertedCount: number;
+  imagesAlreadyAssociatedCount: number;
+}>;
+
+export function formatSummaryBox(p: SummaryParams): string[] {
+  const lines: string[] = [];
+  lines.push("Scraping Completed");
+  lines.push("");
+  if (p.providedCount > 0) lines.push(`Pages provided: ${p.providedCount}`);
+  lines.push(`Pages analyzed: ${p.pagesAnalyzed}`);
+  lines.push(`Pages inserted: ${p.insertedCount}`);
+  lines.push(`Pages updated:  ${p.updatedCount}`);
+  lines.push(`Pages skipped:  ${p.skippedCount}`);
+  lines.push(`Pages failed:   ${p.pagesFailed}`);
+  lines.push("");
+  lines.push("");
+  lines.push(`Images found (unique): ${p.uniqueTotalImages}`);
+  lines.push(`Supported images (unique): ${p.uniqueAllowed}`);
+  lines.push(`Unsupported images (unique): ${p.uniqueUnsupported}`);
+  lines.push(`Images uploaded (instances): ${p.imagesUploadedCount}`);
+  lines.push(`Unique images newly inserted: ${p.imagesDbInsertedCount}`);
+  lines.push(`Unique images skipped (already present before run): ${p.uniqueSkipped}`);
+  lines.push(`Images failed (instances): ${p.imagesFailed}`);
+  lines.push("");
+  lines.push("");
+  lines.push(
+    `New associations between pages and images: ${p.imagesDbInsertedCount}`,
+  );
+  lines.push(
+    `Images already associated with pages: ${p.imagesAlreadyAssociatedCount}`,
+  );
+
+  const out = boxen(lines.join("\n"), {
+    padding: { top: 0, right: 1, bottom: 0, left: 1 },
+    borderStyle: "single",
+  });
+  return out.split(/\r?\n/);
+}
