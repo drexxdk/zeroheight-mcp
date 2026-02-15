@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { scrapeZeroheightProjectV2 } from "@/tools/scraper/scrapeZeroheightProjectV2";
+import { scrapeZeroheightProject } from "@/tools/scraper/scrapeZeroheightProject";
 
 // Load environment variables
 config({ path: ".env.local" });
@@ -12,7 +12,7 @@ async function scrapeAllV2() {
 
   console.log("Starting scrape-all-v2...", projectUrl);
 
-  const res = await scrapeZeroheightProjectV2(
+  const res = await scrapeZeroheightProject(
     projectUrl,
     password,
     undefined,

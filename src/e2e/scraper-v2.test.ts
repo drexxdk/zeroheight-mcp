@@ -1,4 +1,4 @@
-import { scrapeZeroheightProjectV2 } from "@/tools/scraper/scrapeZeroheightProjectV2";
+import { scrapeZeroheightProject } from "@/tools/scraper/scrapeZeroheightProject";
 
 async function run() {
   const raw = process.env.SCRAPE_TEST_PAGE_URLS || "";
@@ -20,7 +20,7 @@ async function run() {
 
   console.log(`Running scrape-v2 on ${pageUrls.length} pages...`);
 
-  const res = await scrapeZeroheightProjectV2(
+  const res = await scrapeZeroheightProject(
     pageUrls[0],
     undefined,
     pageUrls,

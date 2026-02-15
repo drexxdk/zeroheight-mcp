@@ -2,8 +2,8 @@ import { z } from "zod";
 import puppeteer from "puppeteer";
 import type { Page } from "puppeteer";
 import {
-  createErrorResponse,
   createSuccessResponse,
+  createErrorResponse,
 } from "@/lib/toolResponses";
 import { JobCancelled } from "@/lib/common/errors";
 import {
@@ -11,214 +11,62 @@ import {
   checkProgressInvariant,
 } from "@/lib/common/supabaseClients";
 import { createProgressHelpers } from "./shared";
+import type { PagesType, ImagesType } from "@/lib/database.types";
+import type { OverallProgress } from "./processPageAndImages";
+import { extractPageData } from "./pageExtraction";
+import type { ExtractedImage } from "./pageExtraction";
+import { processPageAndImages } from "./processPageAndImages";
+import { bulkUpsertPagesAndImages } from "./bulkUpsert";
+import {
+  createJobInDb,
+  appendJobLog,
+  finishJob,
+  getJobFromDb,
+} from "./jobStore";
 import { tryLogin } from "@/lib/common/scraperHelpers";
 
-import type { PagesType, ImagesType } from "@/lib/database.types";
-// Page extraction handles excluded image formats.
-
-// Helper function to get URL path without host
-function getUrlPath(url: string): string {
-  try {
-    const urlObj = new URL(url);
-    return urlObj.pathname + urlObj.search + urlObj.hash;
-  } catch {
-    return url; // Return original if parsing fails
-  }
-}
-
-// Discover pages on the project or validate provided page URLs.
-async function discoverPages(
-  page: Page,
-  url: string,
-  allowedHostname: string,
-  pageUrls?: string[],
-) {
-  if (pageUrls && pageUrls.length > 0) {
-    // Validate that all provided URLs are on the same hostname
-    const invalidUrls = pageUrls.filter((pageUrl) => {
-      try {
-        const urlObj = new URL(pageUrl);
-        return urlObj.hostname !== allowedHostname;
-      } catch {
-        return true; // Invalid URL
-      }
-    });
-
-    if (invalidUrls.length > 0) {
-      throw new Error(
-        `All page URLs must be on the same hostname as the project (${allowedHostname}). Invalid URLs: ${invalidUrls.join(", ")}`,
-      );
-    }
-
-    return {
-      allLinks: new Set(pageUrls),
-      allLinksOnPage: [] as string[],
-      zhPageLinks: [] as string[],
-      currentPageUrl: "",
-    };
-  }
-
-  // Discover links automatically from the project's main page
-  const allLinksOnPage = await page.$$eval(
-    "a[href]",
-    (links, base) =>
-      links
-        .map((link) => link.href)
-        .filter((href) => {
-          if (
-            !href ||
-            href.startsWith("#") ||
-            href.startsWith("mailto:") ||
-            href.startsWith("tel:")
-          )
-            return false;
-          try {
-            const linkUrl = new URL(href, base);
-            return linkUrl.hostname === new URL(base).hostname;
-          } catch {
-            return false;
-          }
-        }),
-    url,
-  );
-
-  const zhPageLinks = await page.$$eval(
-    'a[href*="/p/"]',
-    (links, base) =>
-      links
-        .map((link) => link.href)
-        .filter((href) => {
-          try {
-            const linkUrl = new URL(href, base);
-            return linkUrl.hostname === new URL(base).hostname;
-          } catch {
-            return false;
-          }
-        }),
-    url,
-  );
-
-  const currentPageUrl = page.url();
-
-  const allLinks = new Set([...allLinksOnPage, ...zhPageLinks, currentPageUrl]);
-
-  return { allLinks, allLinksOnPage, zhPageLinks, currentPageUrl };
-}
-
+// Primary scraper (previously V2) - coordinator-based queue, deterministic totals, parallel workers
 export async function scrapeZeroheightProject(
-  url: string,
+  rootUrl: string,
   password?: string,
   pageUrls?: string[],
-  logger?: (msg: string) => void,
-  // Optional cooperative cancellation callback. When it returns true the
-  // scraper should stop promptly by throwing an error.
-  shouldCancel?: () => boolean,
+  logger?: (s: string) => void,
+  shouldCancel?: () => boolean | Promise<boolean>,
 ) {
   try {
-    console.log("Starting Zeroheight project scrape...");
-
-    const { client: supabase, storage } = getClient();
-    const db = supabase;
-    const imagesTable = "images" as const;
-
+    const concurrency = Number(process.env.SCRAPER_CONCURRENCY || 6);
+    const idleTimeout = Number(process.env.SCRAPER_IDLE_TIMEOUT_MS || 1000);
     const browser = await puppeteer.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
+    const queue: string[] = [];
+    const inQueue = new Set<string>();
+    const processed = new Set<string>();
+    const redirects = new Map<string, string>();
+    let inProgressCount = 0;
+    let lastActivity = Date.now();
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 1024 });
+    const progress: OverallProgress = {
+      current: 0,
+      total: 0,
+      pagesProcessed: 0,
+      imagesProcessed: 0,
+    };
 
-    // Navigate to the project URL and try to login if a password is provided
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-    if (password) {
-      console.log("Password provided, checking for login form...");
-      await tryLogin(page, password);
-      console.log("Login attempt complete, continuing...");
-    }
+    // Collectors for bulk upsert
+    const pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">> =
+      [];
+    const pendingImageRecords: Array<{
+      pageUrl: string;
+      original_url: ImagesType["original_url"];
+      storage_path: ImagesType["storage_path"];
+    }> = [];
+    const imagesStats = { processed: 0, uploaded: 0, skipped: 0, failed: 0 };
+    const uniqueAllImageUrls = new Set<string>();
+    const uniqueUnsupportedImageUrls = new Set<string>();
+    const uniqueAllowedImageUrls = new Set<string>();
 
-    const allowedHostname = new URL(url).hostname;
-
-    let allLinks: Set<string> = new Set();
-    const processedLinks = new Set<string>();
-
-    let allLinksOnPage: string[] = [];
-    let zhPageLinks: string[] = [];
-    let currentPageUrl: string = "";
-
-    try {
-      const discovered = await discoverPages(
-        page,
-        url,
-        allowedHostname,
-        pageUrls,
-      );
-      allLinks = discovered.allLinks;
-      allLinksOnPage = discovered.allLinksOnPage;
-      zhPageLinks = discovered.zhPageLinks;
-      currentPageUrl = discovered.currentPageUrl;
-      if (allLinksOnPage.length)
-        console.log(`Found ${allLinksOnPage.length} links on main page`);
-      if (zhPageLinks.length)
-        console.log(
-          `Found ${zhPageLinks.length} Zeroheight page links (/p/ pattern)`,
-        );
-      if (zhPageLinks.length)
-        console.log(
-          `Sample ZH page links: ${zhPageLinks.slice(0, 5).join(", ")}`,
-        );
-      if (currentPageUrl) console.log(`Current page URL: ${currentPageUrl}`);
-    } catch (err) {
-      console.error(String(err));
-      return createErrorResponse(
-        String(err instanceof Error ? err.message : err),
-      );
-    }
-
-    // Get all existing image URLs globally to prevent duplicates (do this once at the start)
-    const { data: allExistingImages, error: allExistingImagesError } = await db!
-      .from(imagesTable)
-      .select("original_url");
-
-    if (allExistingImagesError) {
-      console.error(
-        `Error fetching all existing images:`,
-        allExistingImagesError,
-      );
-    }
-
-    const allExistingImageUrls = new Set(
-      allExistingImages?.map((img) => {
-        // Normalize the URL for comparison (same logic as used for new images)
-        let normalizedUrl = img.original_url;
-        if (normalizedUrl.includes("cdn.zeroheight.com")) {
-          try {
-            const url = new URL(normalizedUrl);
-            normalizedUrl = `${url.protocol}//${url.hostname}${url.pathname}`;
-          } catch {
-            // If URL parsing fails, keep original
-          }
-        }
-        if (
-          normalizedUrl.includes("s3.") ||
-          normalizedUrl.includes("amazonaws.com")
-        ) {
-          try {
-            const url = new URL(normalizedUrl);
-            normalizedUrl = `${url.protocol}//${url.hostname}${url.pathname}`;
-          } catch {
-            // If URL parsing fails, keep original
-          }
-        }
-        return normalizedUrl;
-      }) || [],
-    );
-
-    console.log(
-      `Found ${allExistingImageUrls.size} existing images in database`,
-    );
-
-    // Track processed pages for return value
     const processedPages: Array<{
       url: PagesType["url"];
       title: PagesType["title"];
@@ -226,365 +74,335 @@ export async function scrapeZeroheightProject(
       images: Array<{ src: string; alt: string }>;
     }> = [];
 
-    console.log(`Total unique links to process: ${allLinks.size}`);
+    const waiters: Array<(val: string | null) => void> = [];
 
-    // When specific pageUrls are provided, process all of them. Otherwise, process all discovered links.
-    const maxPages = pageUrls && pageUrls.length > 0 ? allLinks.size : Infinity;
+    function normalizeUrl(u: string, base?: string) {
+      try {
+        const parsed = new URL(u, base || rootUrl);
+        parsed.hash = "";
+        const path =
+          parsed.pathname.endsWith("/") && parsed.pathname !== "/"
+            ? parsed.pathname.slice(0, -1)
+            : parsed.pathname;
+        return `${parsed.protocol}//${parsed.hostname}${path}${parsed.search}`;
+      } catch {
+        return u;
+      }
+    }
 
-    // Unified progress tracking across pages and images
-    const overallProgress = {
-      current: 0,
-      total: maxPages === Infinity ? allLinks.size : maxPages, // Start with known pages/links
-      pagesProcessed: 0,
-      imagesProcessed: 0,
-    };
+    function formatLinkForConsole(u: string) {
+      try {
+        const parsed = new URL(u);
+        return `${parsed.pathname}${parsed.search}` || "/";
+      } catch {
+        return u;
+      }
+    }
 
-    // Progress helpers (shared implementation)
-    const { logProgress, markAttempt } = createProgressHelpers(
-      overallProgress,
+    function enqueueLinks(links: string[]) {
+      const added: string[] = [];
+      for (const l of links) {
+        const effective = redirects.get(l) ?? l;
+        if (!processed.has(effective) && !inQueue.has(effective)) {
+          inQueue.add(effective);
+          queue.push(effective);
+          added.push(effective);
+        }
+      }
+      if (added.length) {
+        progress.total += added.length;
+        lastActivity = Date.now();
+        // Wake any waiters
+        while (waiters.length && queue.length) {
+          const w = waiters.shift()!;
+          const item = queue.shift()!;
+          inQueue.delete(item);
+          inProgressCount++;
+          progress.current++;
+          w(item);
+        }
+      }
+    }
+    function getNextLink(): Promise<string | null> {
+      if (queue.length > 0) {
+        const item = queue.shift()!;
+        inQueue.delete(item);
+        inProgressCount++;
+        progress.current++;
+        return Promise.resolve(item);
+      }
+      return new Promise((res) => waiters.push(res));
+    }
+    const { logProgress } = createProgressHelpers(
+      progress,
       checkProgressInvariant,
       logger,
     );
 
-    // Phase 1: Discover all pages and collect page data; upload images immediately
-    const pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">> =
-      [];
-
-    // Images uploaded during scraping; DB records will be inserted in bulk after pages are upserted
-    const pendingImageRecords: Array<{
-      pageUrl: string;
-      original_url: ImagesType["original_url"];
-      storage_path: ImagesType["storage_path"];
-    }> = [];
-
-    // Aggregate image processing statistics across pages
-    const imagesStats = { processed: 0, uploaded: 0, skipped: 0, failed: 0 };
-    // Track unique image URLs for reporting (normalized)
-    const uniqueAllImageUrls = new Set<string>();
-    const uniqueUnsupportedImageUrls = new Set<string>();
-    const uniqueAllowedImageUrls = new Set<string>();
-
-    let processedCount = 0;
-    let pagesFailed = 0;
-
-    // Discover all pages and collect image URLs using a bounded worker pool
-    const concurrency = Number(process.env.SCRAPER_CONCURRENCY || 4);
-    const processingLinks = new Set<string>();
-
-    const workers: Promise<void>[] = [];
-
-    // Discovery coordinator: workers will push newly discovered links into
-    // `discoveryQueue` instead of mutating `allLinks`/`overallProgress.total`
-    // directly. The coordinator serializes additions and updates `total` to
-    // prevent races.
-    const discoveryQueue: string[] = [];
-    let discoveryClosed = false;
-
-    function pushDiscovery(links: string[]) {
-      if (!links || links.length === 0) return;
-      discoveryQueue.push(...links);
+    // Load existing images from DB so image processors can skip duplicates
+    const { client: db } = getClient();
+    const imagesTable = "images" as const;
+    let allExistingImageUrls = new Set<string>();
+    try {
+      const { data: allExistingImages } = await db!
+        .from(imagesTable)
+        .select("original_url");
+      allExistingImageUrls = new Set(
+        (allExistingImages || []).map((img: Record<string, unknown>) => {
+          let normalizedUrl = "";
+          const original = img["original_url"];
+          if (typeof original === "string") normalizedUrl = original;
+          try {
+            const u = new URL(normalizedUrl);
+            normalizedUrl = `${u.protocol}//${u.hostname}${u.pathname}`;
+          } catch {
+            // keep original if parsing fails or empty
+          }
+          return normalizedUrl;
+        }),
+      );
+      if (logger)
+        logger(
+          `Found ${allExistingImageUrls.size} existing images in database`,
+        );
+    } catch (e) {
+      if (logger) logger(`Failed to load existing images: ${String(e)}`);
+      allExistingImageUrls = new Set<string>();
     }
 
-    async function discoveryLoop() {
-      while (!discoveryClosed || discoveryQueue.length > 0) {
-        if (discoveryQueue.length === 0) {
-          // Poll with a short delay to avoid busy-waiting. This keeps the
-          // implementation simple and avoids complex promise resolver
-          // narrowing for TypeScript.
-          await new Promise((res) => setTimeout(res, 50));
-          continue;
-        }
-
-        const batch = discoveryQueue.splice(0, discoveryQueue.length);
-        for (const newLink of batch) {
-          if (
-            !allLinks.has(newLink) &&
-            !processedLinks.has(newLink) &&
-            processedCount < maxPages
-          ) {
-            allLinks.add(newLink);
-            overallProgress.total++; // Update total deterministically here
-            checkProgressInvariant(
-              overallProgress,
-              "new discovered page (discoveryLoop)",
-            );
-          }
+    // Seed
+    if (pageUrls && pageUrls.length > 0) {
+      const normalized = pageUrls.map((p) => normalizeUrl(p));
+      enqueueLinks(normalized);
+      logProgress("⚑", `Seeded ${normalized.length} initial links`);
+    } else {
+      const p = await browser.newPage();
+      await p.setViewport({ width: 1280, height: 1024 });
+      await p.goto(rootUrl, { waitUntil: "networkidle2", timeout: 30000 });
+      if (password) {
+        try {
+          await tryLogin(p, password);
+          if (logger) logger("Login attempt complete on root page");
+        } catch (e) {
+          if (logger) logger(`Login attempt failed: ${String(e)}`);
         }
       }
+
+      const hostname = new URL(rootUrl).hostname;
+      const extracted = await extractPageData(p, rootUrl, hostname).catch(
+        () => ({
+          pageLinks: [] as string[],
+          normalizedImages: [] as ExtractedImage[],
+          supportedImages: [] as ExtractedImage[],
+          title: "",
+          content: "",
+        }),
+      );
+
+      const anchors = await p
+        .$$eval("a[href]", (links) =>
+          links.map((a) => (a as HTMLAnchorElement).href).filter(Boolean),
+        )
+        .catch(() => [] as string[]);
+
+      const initialSet = new Set<string>();
+      initialSet.add(normalizeUrl(rootUrl));
+      for (const a of anchors) initialSet.add(normalizeUrl(a, rootUrl));
+      for (const a of extracted.pageLinks || [])
+        initialSet.add(normalizeUrl(a, rootUrl));
+      const initial = Array.from(initialSet);
+      if (logger) {
+        logger(`Seeded ${initial.length} initial links from root`);
+      }
+      enqueueLinks(initial);
+      try {
+        await p.close();
+      } catch {}
     }
 
-    const discoveryPromise = discoveryLoop();
-
+    // Workers
+    const workers: Promise<void>[] = [];
     for (let i = 0; i < concurrency; i++) {
       workers.push(
         (async () => {
-          const workerPage = await browser.newPage();
-          await workerPage.setViewport({ width: 1280, height: 1024 });
-
+          const page: Page = await browser.newPage();
+          await page.setViewport({ width: 1280, height: 1024 });
           try {
-            while (processedCount < maxPages) {
-              // Cooperative cancellation
-              if (shouldCancel && shouldCancel()) {
-                markAttempt(
-                  "cancelled",
-                  "⏹️",
-                  `Cancellation requested - stopping scrape`,
-                );
+            while (true) {
+              if (shouldCancel && (await Promise.resolve(shouldCancel())))
                 throw new JobCancelled();
-              }
-
-              const iter = allLinks.values().next();
-              const linkValue = iter.value;
-              if (!linkValue) {
-                // No link currently available. If discovery is still running,
-                // wait briefly for new links to be added by the discovery
-                // coordinator; otherwise exit the worker loop.
-                if (discoveryClosed) break;
-                await new Promise((res) => setTimeout(res, 50));
-                continue;
-              }
-              const linkCandidate = linkValue;
-              allLinks.delete(linkCandidate);
-
-              if (
-                processedLinks.has(linkCandidate) ||
-                processingLinks.has(linkCandidate)
-              ) {
-                continue;
-              }
-
-              processingLinks.add(linkCandidate);
-              let link = linkCandidate;
+              const link = await getNextLink();
+              if (!link) break;
+              // Log page start so progress bar shows each step
+              logProgress("🔎", `Starting ${formatLinkForConsole(link)}`);
 
               try {
-                await workerPage.goto(link, {
+                await page.goto(link, {
                   waitUntil: "networkidle2",
                   timeout: 30000,
                 });
 
-                // Check for redirects and normalize URL
-                const finalUrl = workerPage.url();
-                if (finalUrl !== link) {
-                  if (
-                    processedLinks.has(finalUrl) ||
-                    processingLinks.has(finalUrl)
-                  ) {
-                    processingLinks.delete(linkCandidate);
-                    continue;
-                  }
-                  link = finalUrl;
+                // If the page redirected, use the final normalized URL as canonical
+                const finalRaw = page.url();
+                const final = normalizeUrl(finalRaw, rootUrl);
+                let processingLink = link;
+                if (final && final !== link) {
+                  redirects.set(link, final);
+                  processingLink = final;
                 }
 
-                processedLinks.add(link);
-
-                processedCount++;
-                overallProgress.pagesProcessed = processedCount;
-                overallProgress.current++; // Increment current for each page processed
-                checkProgressInvariant(overallProgress, "page processed");
-
-                // First, extract page metadata so we can reserve progress totals
-                // (pages + images) deterministically before any concurrent worker
-                // mutates shared counters.
+                const hostname = new URL(rootUrl).hostname;
                 const {
                   title: pageTitle,
                   content: pageContent,
                   supportedImages,
                   normalizedImages,
                   pageLinks,
-                } = await import("./pageExtraction").then((m) =>
-                  m.extractPageData(workerPage, link, allowedHostname),
-                );
+                } = await extractPageData(page, processingLink, hostname);
 
-                // Reserve total slots for images discovered on this page to avoid
-                // races where other workers discover links/images after we finish.
                 if (supportedImages.length > 0) {
-                  overallProgress.total += supportedImages.length;
+                  progress.total += supportedImages.length;
                   checkProgressInvariant(
-                    overallProgress,
-                    "reserve images for page",
+                    progress,
+                    "reserve images for page-v2",
                   );
+                  lastActivity = Date.now();
                 }
 
-                // Delegate page extraction + image processing to helper, passing
-                // the pre-extracted data to avoid duplicate work.
-                const { usedLink, pageUpsert, processedPageEntry, imgStats } =
-                  await import("./processPageAndImages").then((m) =>
-                    m.processPageAndImages({
-                      page: workerPage,
-                      link,
-                      allowedHostname,
-                      storage,
-                      overallProgress,
-                      allExistingImageUrls,
-                      pendingImageRecords,
-                      logProgress,
-                      shouldCancel,
-                      checkProgressInvariant,
-                      preExtracted: {
-                        title: pageTitle,
-                        content: pageContent,
-                        supportedImages,
-                        normalizedImages,
-                        pageLinks,
-                      },
-                    }),
+                const { storage } = getClient();
+
+                const {
+                  pageUpsert,
+                  processedPageEntry,
+                  imgStats,
+                  pageLinks: returnedPageLinks,
+                  normalizedImages: retNorm,
+                  supportedImages: retSupported,
+                } = await processPageAndImages({
+                  page,
+                  link: processingLink,
+                  allowedHostname: hostname,
+                  storage,
+                  overallProgress: progress,
+                  allExistingImageUrls,
+                  pendingImageRecords,
+                  logProgress,
+                  shouldCancel: undefined,
+                  checkProgressInvariant,
+                  preExtracted: {
+                    title: pageTitle,
+                    content: pageContent,
+                    supportedImages,
+                    normalizedImages,
+                    pageLinks,
+                  },
+                });
+
+                const rawLinks = (returnedPageLinks ||
+                  pageLinks ||
+                  []) as string[];
+                const allowed = rawLinks
+                  .map((h) => normalizeUrl(h, rootUrl))
+                  .filter((h) => {
+                    try {
+                      return new URL(h).hostname === hostname;
+                    } catch {
+                      return false;
+                    }
+                  });
+                // Show discovery with progress bar (use canonical processingLink)
+                logProgress(
+                  "🔗",
+                  `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}`,
+                );
+                if (logger && allowed.length)
+                  logger(
+                    `Discovered ${allowed.length} links on ${formatLinkForConsole(
+                      processingLink,
+                    )}: ${allowed
+                      .slice(0, 6)
+                      .map(formatLinkForConsole)
+                      .join(", ")}`,
                   );
+                enqueueLinks(allowed);
 
-                // Only discover additional links if we're not using specific URLs
-                if (!pageUrls || pageUrls.length === 0) {
-                  // Send discovered links to the discovery coordinator which will
-                  // serialize additions and update totals.
-                  pushDiscovery(pageLinks);
-                }
-
-                // Update unique image URL sets (normalized src values)
-                for (const img of normalizedImages)
+                for (const img of retNorm || [])
                   uniqueAllImageUrls.add(img.src);
-                for (const img of normalizedImages) {
-                  if (supportedImages.find((s) => s.src === img.src)) {
+                for (const img of retNorm || []) {
+                  if (
+                    (retSupported || []).find(
+                      (s: { src: string }) => s.src === img.src,
+                    )
+                  )
                     uniqueAllowedImageUrls.add(img.src);
-                  } else {
-                    uniqueUnsupportedImageUrls.add(img.src);
-                  }
+                  else uniqueUnsupportedImageUrls.add(img.src);
                 }
 
-                // Defer page DB writes; collect for bulk upsert
                 pagesToUpsert.push(pageUpsert);
-
-                // Track for return value
                 processedPages.push(processedPageEntry);
-
-                // aggregate image stats
                 imagesStats.processed += imgStats.processed || 0;
                 imagesStats.uploaded += imgStats.uploaded || 0;
                 imagesStats.skipped += imgStats.skipped || 0;
                 imagesStats.failed += imgStats.failed || 0;
 
-                logProgress(
-                  "📄",
-                  `Processing page ${processedCount}: ${getUrlPath(usedLink)}`,
-                );
-
-                // Only discover new links if we're not using specific URLs
-                if (!pageUrls || pageUrls.length === 0) {
-                  // Discover new links on this page
-                  const newLinks = await workerPage.$$eval(
-                    "a[href]",
-                    (links, projUrl, host) =>
-                      links
-                        .map((link) => link.href)
-                        .filter((href) => {
-                          if (
-                            !href ||
-                            href.startsWith("#") ||
-                            href.startsWith("mailto:") ||
-                            href.startsWith("tel:")
-                          )
-                            return false;
-                          try {
-                            const linkUrl = new URL(href, projUrl);
-                            return (
-                              linkUrl.hostname === host &&
-                              linkUrl.href !== projUrl &&
-                              linkUrl.href !== window.location.href
-                            );
-                          } catch {
-                            return false;
-                          }
-                        }),
-                    url,
-                    allowedHostname,
-                  );
-
-                  let actuallyNewLinksCount = 0;
-
-                  if (shouldCancel && shouldCancel()) {
-                    markAttempt(
-                      "cancelled",
-                      "⏹️",
-                      `Cancellation requested - stopping after discovery`,
-                    );
-                    throw new JobCancelled();
-                  }
-
-                  // Push discovery to the coordinator which will update totals.
-                  if (newLinks.length > 0) {
-                    pushDiscovery(newLinks);
-                    actuallyNewLinksCount += newLinks.length;
-                  }
-
-                  if (actuallyNewLinksCount > 0) {
-                    logProgress(
-                      "🔍",
-                      `${actuallyNewLinksCount} new links discovered on this page (automatic mode)`,
-                    );
-                  }
-                }
+                progress.pagesProcessed++;
+                // Mark canonical and original as processed to avoid requeue after redirects
+                processed.add(processingLink);
+                if (processingLink !== link) processed.add(link);
+                logProgress("✅", `Processed ${processingLink}`);
               } catch (e) {
-                // If this is a cooperative cancellation, rethrow so the outer
-                // handler can handle it cleanly (avoid noisy stack traces here).
-                if (e instanceof JobCancelled) {
-                  markAttempt(
-                    "cancelled",
-                    "⏹️",
-                    `Cancellation requested - stopping scrape during ${getUrlPath(link)}`,
+                if (logger)
+                  logger(
+                    `Error processing ${formatLinkForConsole(link)}: ${String(e)}`,
                   );
-                  throw e;
-                }
-
-                console.error(`Failed to scrape ${getUrlPath(link)}:`, e);
-                // Count the failed attempt and record as a failed page
-                pagesFailed++;
-                markAttempt(
-                  "failed scrape catch",
-                  "❌",
-                  `Failed to scrape ${getUrlPath(link)}`,
-                );
               } finally {
-                processingLinks.delete(linkCandidate);
-                processedLinks.add(link);
+                inProgressCount = Math.max(0, inProgressCount - 1);
+                lastActivity = Date.now();
               }
             }
           } finally {
             try {
-              await workerPage.close();
-            } catch {
-              /* ignore close errors */
-            }
+              await page.close();
+            } catch {}
           }
         })(),
       );
     }
 
-    // Wait for all workers to finish
-    await Promise.all(workers);
+    // Monitor
+    while (true) {
+      if (shouldCancel && (await Promise.resolve(shouldCancel()))) {
+        while (waiters.length) {
+          const w = waiters.shift()!;
+          w(null);
+        }
+        throw new JobCancelled();
+      }
 
-    // Close discovery queue and wait for it to be drained
-    discoveryClosed = true;
-    await discoveryPromise;
-
-    // Reconcile any discovered-but-unprocessed counts caused by concurrent
-    // discovery/processing races. Ensure final progress reports match.
-    if (overallProgress.current !== overallProgress.total) {
-      // Prefer reflecting actual work done by adjusting the total to match
-      // the processed count, but log a warning so the discrepancy can be
-      // investigated if it becomes frequent.
-      console.warn(
-        `⚠️ Final progress mismatch detected: current=${overallProgress.current} total=${overallProgress.total} — reconciling to current`,
-      );
-      overallProgress.total = overallProgress.current;
+      if (queue.length === 0 && inProgressCount === 0) {
+        await new Promise((r) => setTimeout(r, Math.min(200, idleTimeout)));
+        if (
+          queue.length === 0 &&
+          inProgressCount === 0 &&
+          Date.now() - lastActivity >= idleTimeout
+        )
+          break;
+      }
+      await new Promise((r) => setTimeout(r, 100));
     }
 
-    console.log(
-      `Scraping completed. Final progress: [${overallProgress.current}/${overallProgress.total}]`,
-    );
-    console.log();
+    while (waiters.length) {
+      const w = waiters.shift()!;
+      w(null);
+    }
 
-    // Bulk upsert pages + images (delegated)
-    if (pagesToUpsert.length > 0) {
-      const { bulkUpsertPagesAndImages } = await import("./bulkUpsert");
+    await Promise.all(workers);
+
+    // Bulk upsert
+    try {
+      const { client: db } = getClient();
       const { lines } = await bulkUpsertPagesAndImages({
-        db,
+        db: db!,
         pagesToUpsert,
         pendingImageRecords,
         uniqueAllowedImageUrls,
@@ -592,159 +410,113 @@ export async function scrapeZeroheightProject(
         uniqueUnsupportedImageUrls,
         allExistingImageUrls,
         imagesStats,
-        pagesFailed,
+        pagesFailed: 0,
         providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
       });
-
-      const contentWidth = Math.max(...lines.map((l) => l.length));
-      const innerWidth = contentWidth + 2;
-      const top = "┌" + "─".repeat(innerWidth) + "┐";
-      const bottom = "└" + "─".repeat(innerWidth) + "┘";
-      console.log(top);
-      for (const line of lines) {
-        const padded = " " + line.padEnd(contentWidth) + " ";
-        console.log("│" + padded + "│");
+      for (const line of lines) if (logger) logger(line);
+      // Print final result box
+      if (logger) {
+        const boxLines: string[] = [];
+        boxLines.push("Scrape result summary");
+        boxLines.push(`Pages processed: ${progress.pagesProcessed}`);
+        boxLines.push(`Images processed: ${imagesStats.processed}`);
+        boxLines.push(`Images uploaded: ${imagesStats.uploaded}`);
+        boxLines.push(`Images skipped: ${imagesStats.skipped}`);
+        boxLines.push(`Unique images found: ${uniqueAllImageUrls.size}`);
+        const width = Math.max(...boxLines.map((l) => l.length)) + 4;
+        const hr = "+" + "-".repeat(width - 2) + "+";
+        logger(hr);
+        for (const l of boxLines) {
+          const padding = width - 2 - l.length;
+          logger(`| ${l}${" ".repeat(padding)}|`);
+        }
+        logger(hr);
       }
-      console.log(bottom);
+    } catch (e) {
+      console.warn("V2 bulkUpsert failed:", e);
     }
 
-    // Bulk discovery summary is shown above in the boxed output; no extra lines needed.
-
-    // All pages and images are now processed during discovery phase
-
-    const finalPageTitle = await page.title();
     await browser.close();
 
-    const finalProgress = {
-      current: overallProgress.current,
-      total: overallProgress.total,
-      pagesProcessed: overallProgress.pagesProcessed,
-      imagesProcessed: overallProgress.imagesProcessed,
-    };
-
-    const finalDebugInfo = {
-      projectUrl: url,
-      allowedHostname,
-      finalPageTitle,
-      totalLinksOnPage: allLinksOnPage?.length || 0,
-      sampleLinks: allLinksOnPage?.slice(0, 5) || [],
-      totalLinksFound: allLinks.size,
-      pagesProcessed: processedPages.length,
-      usedSpecificUrls: Boolean(pageUrls && pageUrls.length > 0),
-      providedUrls: pageUrls || [],
-    };
-
-    return createSuccessResponse({
-      debugInfo: finalDebugInfo,
-      scrapedPages: processedPages,
-      progress: finalProgress,
-    });
-  } catch (error) {
-    if (error instanceof JobCancelled) {
-      console.log("Job cancelled");
+    return createSuccessResponse({ debug: { seedUrl: rootUrl }, progress });
+  } catch (err) {
+    if (err instanceof JobCancelled)
       return createSuccessResponse({ message: "Job cancelled" });
-    }
-    console.error("Scraping error:", error);
     return createErrorResponse(
-      "Error scraping project: " +
-        (error instanceof Error ? error.message : String(error)),
+      String(err instanceof Error ? err.message : err),
     );
   }
 }
 
 export const scrapeZeroheightProjectTool = {
   title: "scrape-zeroheight-project",
-  description:
-    "Scrape the configured Zeroheight design system project and add/update page data in the database. Can scrape the complete project or specific page URLs. Uses upsert logic to handle duplicates, allowing safe re-running without clearing existing data.",
+  description: "A faster, coordinator-based scraper (was v2).",
   inputSchema: z.object({
-    pageUrls: z
-      .array(z.string())
-      .optional()
-      .describe(
-        "Specific page URLs to scrape instead of discovering links automatically",
-      ),
+    pageUrls: z.array(z.string()).optional(),
   }),
   handler: async ({ pageUrls }: { pageUrls?: string[] }) => {
     const projectUrl = process.env.ZEROHEIGHT_PROJECT_URL;
-    const password = process.env.ZEROHEIGHT_PROJECT_PASSWORD;
+    if (!projectUrl)
+      return createErrorResponse("ZEROHEIGHT_PROJECT_URL not set");
 
-    if (!projectUrl) {
-      return createErrorResponse(
-        "Error: ZEROHEIGHT_PROJECT_URL environment variable not set",
-      );
-    }
-
-    // Start a DB-backed background job. Create a row in `scrape_jobs` and
-    // run the scrape in the background while appending logs to the DB so
-    // external tools can observe progress.
-    const { createJobInDb, appendJobLog, finishJob, getJobFromDb } =
-      await import("./jobStore");
-
-    // generate a fallback id if DB insert fails (e.g., admin client not configured)
-    function genIdFallback() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    }
-
-    let id: string | null = null;
+    // Create a DB-backed job so external tools can observe progress
+    let jobId: string | null = null;
     try {
-      id = await createJobInDb("scrape-zeroheight-project", {
+      jobId = await createJobInDb("scrape-zeroheight-project", {
         pageUrls: pageUrls || null,
-        password: password || null,
       });
     } catch (err) {
       console.warn("createJobInDb failed:", err);
     }
-    if (!id) id = genIdFallback();
+    if (!jobId)
+      jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
-    const jobId = id;
-
-    // run the scrape in background; write logs to DB and check DB for
-    // cancellation requests
     (async () => {
       const logger = async (s: string) => {
         try {
-          await appendJobLog(jobId, `[${new Date().toISOString()}] ${s}`);
+          await appendJobLog(
+            jobId as string,
+            `[${new Date().toISOString()}] ${s}`,
+          );
         } catch {
           /* ignore logging errors */
         }
-        // also mirror to server console
-        console.log(`[${new Date().toISOString()}] ${s}`);
+        console.log(`[scraper][${new Date().toISOString()}] ${s}`);
       };
 
       try {
         await scrapeZeroheightProject(
           projectUrl,
-          password || undefined,
+          undefined,
           pageUrls || undefined,
           (msg: string) => {
             void logger(msg);
           },
-          // cooperative cancellation checks DB row status
-          () => {
+          async () => {
             try {
-              void getJobFromDb(jobId);
-              // getJobFromDb returns a Promise; check synchronously by returning false here
-              // and rely on inner checks in workers. For tool-run mode we perform
-              // occasional DB checks inside page processing where async checks are available.
-              return false;
+              const j = await getJobFromDb(jobId as string);
+              return !!(
+                j &&
+                (j.status === "cancelled" || j.status === "failed")
+              );
             } catch {
               return false;
             }
           },
         );
-        await finishJob(jobId, true);
+        await finishJob(jobId as string, true);
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
         if (e instanceof JobCancelled) {
-          await appendJobLog(jobId, "Job cancelled by request");
-          await finishJob(jobId, false);
+          await appendJobLog(jobId as string, "Job cancelled by request");
+          await finishJob(jobId as string, false);
         } else {
-          await appendJobLog(jobId, `Error: ${errMsg}`);
-          await finishJob(jobId, false, errMsg);
+          await appendJobLog(jobId as string, `Error: ${errMsg}`);
+          await finishJob(jobId as string, false, errMsg);
         }
       }
     })();
 
-    return createSuccessResponse({ message: "Scrape started", jobId });
+    return createSuccessResponse({ message: "Job started" });
   },
 };
