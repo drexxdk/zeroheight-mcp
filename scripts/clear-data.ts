@@ -4,10 +4,14 @@
  * Test script to call the `clear-zeroheight-data` MCP tool on the local server.
  * Usage: npx tsx src/e2e/maintenance-clear-data.test.ts
  */
+import { config } from "dotenv";
 
-import { config as dotenvConfig } from "dotenv";
-dotenvConfig({ path: ".env.local" });
-import { MCP_API_KEY } from "../src/lib/config";
+// Load environment variables before importing app code that reads them
+config({ path: ".env.local" });
+
+// Import config after dotenv has been loaded so `src/lib/config.ts`
+// reads the environment correctly at module initialization.
+const { MCP_API_KEY } = await import("../src/lib/config");
 
 async function runClear() {
   const API_URL = "http://localhost:3000/api/mcp";

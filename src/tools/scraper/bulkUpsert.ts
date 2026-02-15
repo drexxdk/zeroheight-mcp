@@ -191,39 +191,42 @@ export async function bulkUpsertPagesAndImages(options: {
   // replace it with a fresh DB check when debugging.
   let dbExistingImageUrls = allExistingImageUrls;
 
-  if (debug) {
-    console.log(
-      `[scraper] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
-    );
+  // Always attempt an authoritative DB lookup for whether an original_url
+  // already exists. This keeps behavior deterministic regardless of the
+  // `SCRAPER_DEBUG` flag and avoids racey heuristics based on the initial
+  // `allExistingImageUrls` snapshot.
+  console.log(
+    `[scraper] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
+  );
 
-    // Prefer authoritative DB lookup for whether an original_url already exists.
-    if (db && uniqueAllowedImageUrls.size > 0) {
-      try {
-        const existingRes = await db
-          .from("images")
-          .select("original_url")
-          .in("original_url", Array.from(uniqueAllowedImageUrls))
-          .limit(1000);
-        const existingData = existingRes as unknown as {
-          data?: Array<{ original_url: string }>;
-          error?: unknown;
-        };
-        if (existingData.data && existingData.data.length > 0) {
-          dbExistingImageUrls = new Set(
-            existingData.data.map((r) => r.original_url),
-          );
-        } else {
-          dbExistingImageUrls = new Set();
-        }
-      } catch (err) {
-        console.log(`[scraper] DB existence check error: ${String(err)}`);
-        dbExistingImageUrls = allExistingImageUrls;
+  if (db && uniqueAllowedImageUrls.size > 0) {
+    try {
+      const existingRes = await db
+        .from("images")
+        .select("original_url")
+        .in("original_url", Array.from(uniqueAllowedImageUrls))
+        .limit(1000);
+      const existingData = existingRes as unknown as {
+        data?: Array<{ original_url: string }>;
+        error?: unknown;
+      };
+      if (existingData.data && existingData.data.length > 0) {
+        dbExistingImageUrls = new Set(
+          existingData.data.map((r) => r.original_url),
+        );
+      } else {
+        dbExistingImageUrls = new Set();
       }
+    } catch (err) {
+      console.log(`[scraper] DB existence check error: ${String(err)}`);
+      dbExistingImageUrls = allExistingImageUrls;
     }
+  }
 
-    const skippedList = Array.from(uniqueAllowedImageUrls).filter((u) =>
-      dbExistingImageUrls.has(u),
-    );
+  const skippedList = Array.from(uniqueAllowedImageUrls).filter((u) =>
+    dbExistingImageUrls.has(u),
+  );
+  if (debug) {
     console.log(
       `[scraper] uniqueAllowed=${uniqueAllowedImageUrls.size} uniqueSkipped(before)=${skippedList.length} sampleSkipped=${skippedList.slice(0, 6).join(", ")}`,
     );

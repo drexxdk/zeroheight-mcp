@@ -35,6 +35,34 @@ export async function extractPageData(
           return clone.textContent?.trim().substring(0, 10000) || "";
         })
         .catch(() => "");
+
+      // Allow brief time for client-side rendered images/backgrounds to load.
+      // This helps surface lazy-loaded images that may not be present immediately
+      // after `goto`/`networkidle2`.
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Perform an automated gentle scroll to trigger lazy-loading of images.
+      // Scroll in viewport-sized steps with short pauses to allow observers
+      // to load images. This is a lightweight approach that helps discover
+      // images injected on scroll without forcing a long wait.
+      try {
+        await page.evaluate(async () => {
+          const step = window.innerHeight || 800;
+          let pos = 0;
+          const max =
+            document.body.scrollHeight || document.documentElement.scrollHeight;
+          while (pos < max) {
+            window.scrollBy(0, step);
+            await new Promise((r) => setTimeout(r, 120));
+            pos += step;
+          }
+          // Small pause to let lazy-loaders finish
+          await new Promise((r) => setTimeout(r, 250));
+          window.scrollTo(0, 0);
+        });
+      } catch {
+        // ignore scrolling failures and proceed with extraction
+      }
     });
 
   const images = await page.$$eval("img", (imgs: HTMLImageElement[]) =>
