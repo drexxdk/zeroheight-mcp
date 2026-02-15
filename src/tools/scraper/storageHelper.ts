@@ -3,7 +3,12 @@ import type {
   StorageUploadResult,
 } from "@/lib/common/scraperHelpers";
 import { uploadWithRetry } from "@/lib/common/scraperHelpers";
-import { IMAGE_BUCKET, ALLOWED_MIME_TYPES } from "@/lib/config";
+import {
+  IMAGE_BUCKET,
+  ALLOWED_MIME_TYPES,
+  STORAGE_CACHE_CONTROL_SEC,
+  STORAGE_FILE_SIZE_LIMIT_BYTES,
+} from "@/lib/config";
 import { getSupabaseAdminClient } from "@/lib/common";
 
 export async function ensureBucket(
@@ -24,7 +29,7 @@ export async function ensureBucket(
       const { error: createError } = await storage.createBucket(bucket, {
         public: true,
         allowedMimeTypes: ALLOWED_MIME_TYPES,
-        fileSizeLimit: 10485760,
+        fileSizeLimit: STORAGE_FILE_SIZE_LIMIT_BYTES,
       });
       if (createError) console.error("Error creating bucket:", createError);
     }
@@ -56,7 +61,7 @@ export async function uploadWithFallback(
       const { error: upErr } = await admin.storage
         .from(IMAGE_BUCKET)
         .upload(filename, buffer, {
-          cacheControl: "3600",
+          cacheControl: `${STORAGE_CACHE_CONTROL_SEC}`,
           upsert: true,
           contentType,
         });

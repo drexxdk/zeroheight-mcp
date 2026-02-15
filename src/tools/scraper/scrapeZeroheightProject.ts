@@ -24,6 +24,14 @@ import {
   ZEROHEIGHT_PROJECT_URL,
 } from "@/lib/config";
 import {
+  SCRAPER_VIEWPORT_WIDTH,
+  SCRAPER_VIEWPORT_HEIGHT,
+  SCRAPER_NAV_WAITUNTIL,
+  SCRAPER_NAV_TIMEOUT_MS,
+  SCRAPER_MONITOR_POLL_MS,
+  SCRAPER_MONITOR_IDLE_POLL_MS,
+} from "@/lib/config";
+import {
   bulkUpsertPagesAndImages,
   formatSummaryBox,
   SummaryParams,
@@ -203,8 +211,14 @@ export async function scrapeZeroheightProject(
       logProgress("⚑", `Seeded ${normalized.length} initial links`);
     } else {
       const p = await browser.newPage();
-      await p.setViewport({ width: 1280, height: 1024 });
-      await p.goto(rootUrl, { waitUntil: "networkidle2", timeout: 30000 });
+      await p.setViewport({
+        width: SCRAPER_VIEWPORT_WIDTH,
+        height: SCRAPER_VIEWPORT_HEIGHT,
+      });
+      await p.goto(rootUrl, {
+        waitUntil: SCRAPER_NAV_WAITUNTIL,
+        timeout: SCRAPER_NAV_TIMEOUT_MS,
+      });
       if (password) {
         try {
           await tryLogin(p, password);
@@ -252,7 +266,10 @@ export async function scrapeZeroheightProject(
       workers.push(
         (async () => {
           const page: Page = await browser.newPage();
-          await page.setViewport({ width: 1280, height: 1024 });
+          await page.setViewport({
+            width: SCRAPER_VIEWPORT_WIDTH,
+            height: SCRAPER_VIEWPORT_HEIGHT,
+          });
           try {
             while (true) {
               if (shouldCancel && (await Promise.resolve(shouldCancel())))
@@ -264,8 +281,8 @@ export async function scrapeZeroheightProject(
 
               try {
                 await page.goto(link, {
-                  waitUntil: "networkidle2",
-                  timeout: 30000,
+                  waitUntil: SCRAPER_NAV_WAITUNTIL,
+                  timeout: SCRAPER_NAV_TIMEOUT_MS,
                 });
                 if (password) {
                   try {
@@ -446,7 +463,9 @@ export async function scrapeZeroheightProject(
       }
 
       if (queue.length === 0 && inProgressCount === 0) {
-        await new Promise((r) => setTimeout(r, Math.min(200, idleTimeout)));
+        await new Promise((r) =>
+          setTimeout(r, Math.min(SCRAPER_MONITOR_IDLE_POLL_MS, idleTimeout)),
+        );
         if (
           queue.length === 0 &&
           inProgressCount === 0 &&
@@ -454,7 +473,7 @@ export async function scrapeZeroheightProject(
         )
           break;
       }
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, SCRAPER_MONITOR_POLL_MS));
     }
 
     while (waiters.length) {

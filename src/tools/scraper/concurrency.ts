@@ -1,7 +1,9 @@
+import { SCRAPER_DEFAULT_CONCURRENCY } from "@/lib/config";
+
 export async function mapWithConcurrency<T, R>(
   items: T[],
   mapper: (item: T, index: number) => Promise<R>,
-  concurrency = 4,
+  concurrency = SCRAPER_DEFAULT_CONCURRENCY,
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let nextIndex = 0;

@@ -1,5 +1,10 @@
 import type { StorageHelper } from "@/lib/common/scraperHelpers";
-import { IMAGE_BUCKET } from "@/lib/config";
+import {
+  IMAGE_BUCKET,
+  IMAGE_UPLOAD_RETRIES,
+  IMAGE_UPLOAD_BACKOFF_FACTOR,
+  IMAGE_UPLOAD_MIN_DELAY_MS,
+} from "@/lib/config";
 import { ensureBucket, uploadWithFallback } from "./storageHelper";
 import { retryWithBackoff } from "./retryHelpers";
 
@@ -23,7 +28,11 @@ export async function uploadBufferToStorage(
       if (r.error) throw r.error;
       return r;
     },
-    { retries: 3, factor: 2, minDelayMs: 250 },
+    {
+      retries: IMAGE_UPLOAD_RETRIES,
+      factor: IMAGE_UPLOAD_BACKOFF_FACTOR,
+      minDelayMs: IMAGE_UPLOAD_MIN_DELAY_MS,
+    },
   );
 
   if (!res) return { error: "upload_failed" };

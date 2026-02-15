@@ -4,7 +4,11 @@ import {
   createSuccessResponse,
 } from "@/lib/toolResponses";
 import { getClient } from "@/lib/common/supabaseClients";
-import { IMAGE_BUCKET, NEXT_PUBLIC_SUPABASE_URL } from "@/lib/config";
+import {
+  IMAGE_BUCKET,
+  NEXT_PUBLIC_SUPABASE_URL,
+  SCRAPER_QUERY_DEFAULT_LIMIT,
+} from "@/lib/config";
 import { PageData } from "./shared";
 
 // Get the Supabase project URL for constructing storage URLs
@@ -35,7 +39,7 @@ export const queryZeroheightDataTool = {
     limit: z
       .number()
       .optional()
-      .default(10)
+      .default(SCRAPER_QUERY_DEFAULT_LIMIT)
       .describe("Maximum number of results to return"),
   }),
   handler: async ({
@@ -56,7 +60,7 @@ export const queryZeroheightDataTool = {
 
     // Set defaults
     const effectiveIncludeImages = includeImages ?? true;
-    const effectiveLimit = limit ?? 10;
+    const effectiveLimit = limit ?? SCRAPER_QUERY_DEFAULT_LIMIT;
 
     let pages: PageData[] = [];
 

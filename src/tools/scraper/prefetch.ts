@@ -2,7 +2,19 @@ import type { Browser, Page as PuppeteerPage } from "puppeteer";
 import { extractPageData } from "./pageExtraction";
 import { tryLogin } from "@/lib/common/scraperHelpers";
 import { mapWithConcurrency } from "./concurrency";
-import { SCRAPER_SEED_PREFETCH_CONCURRENCY } from "@/lib/config";
+import {
+  SCRAPER_SEED_PREFETCH_CONCURRENCY,
+  SCRAPER_PREFETCH_WAIT_MS,
+  SCRAPER_PREFETCH_SCROLL_STEP_MS,
+  SCRAPER_PREFETCH_FINAL_WAIT_MS,
+  SCRAPER_PREFETCH_SCROLL_STEP_PX,
+  SCRAPER_VIEWPORT_WIDTH,
+  SCRAPER_VIEWPORT_HEIGHT,
+  SCRAPER_NAV_WAITUNTIL,
+  SCRAPER_NAV_TIMEOUT_MS,
+  SCRAPER_MAX_ATTEMPTS,
+  SCRAPER_RETRY_BASE_MS,
+} from "@/lib/config";
 
 export function normalizeUrl(u: string, base?: string) {
   try {
@@ -44,8 +56,14 @@ export async function prefetchSeeds(options: {
   if (password) {
     try {
       const p = await browser.newPage();
-      await p.setViewport({ width: 1280, height: 1024 });
-      await p.goto(rootUrl, { waitUntil: "networkidle2", timeout: 30000 });
+      await p.setViewport({
+        width: SCRAPER_VIEWPORT_WIDTH,
+        height: SCRAPER_VIEWPORT_HEIGHT,
+      });
+      await p.goto(rootUrl, {
+        waitUntil: SCRAPER_NAV_WAITUNTIL,
+        timeout: SCRAPER_NAV_TIMEOUT_MS,
+      });
       try {
         await tryLogin(p, password);
         if (logger) logger("Root login attempt complete");
@@ -83,11 +101,14 @@ export async function prefetchSeeds(options: {
     normSeeds,
     async (u) => {
       let attempts = 0;
-      while (attempts < 3) {
+      while (attempts < SCRAPER_MAX_ATTEMPTS) {
         attempts++;
         try {
           const p = await browser.newPage();
-          await p.setViewport({ width: 1280, height: 1024 });
+          await p.setViewport({
+            width: SCRAPER_VIEWPORT_WIDTH,
+            height: SCRAPER_VIEWPORT_HEIGHT,
+          });
           try {
             // If we collected cookies from the root login, set them on the page
             if (cookies && cookies.length > 0) {
@@ -96,7 +117,10 @@ export async function prefetchSeeds(options: {
                 await p.setCookie(...cookies);
               } catch {}
             }
-            await p.goto(u, { waitUntil: "networkidle2", timeout: 30000 });
+            await p.goto(u, {
+              waitUntil: SCRAPER_NAV_WAITUNTIL,
+              timeout: SCRAPER_NAV_TIMEOUT_MS,
+            });
             if (password) {
               try {
                 await tryLogin(p, password);
@@ -108,22 +132,36 @@ export async function prefetchSeeds(options: {
             }
 
             // Small wait + gentle scroll to surface lazy-loaded content
-            await new Promise((r) => setTimeout(r, 400));
+            await new Promise((r) => setTimeout(r, SCRAPER_PREFETCH_WAIT_MS));
             try {
-              await p.evaluate(async () => {
-                const step = window.innerHeight || 800;
-                let pos = 0;
-                const max =
-                  document.body.scrollHeight ||
-                  document.documentElement.scrollHeight;
-                while (pos < max) {
-                  window.scrollBy(0, step);
-                  await new Promise((rr) => setTimeout(rr, 120));
-                  pos += step;
-                }
-                await new Promise((rr) => setTimeout(rr, 200));
-                window.scrollTo(0, 0);
-              });
+              const stepPx = SCRAPER_PREFETCH_SCROLL_STEP_PX;
+              const stepMs = SCRAPER_PREFETCH_SCROLL_STEP_MS;
+              const finalWait = SCRAPER_PREFETCH_FINAL_WAIT_MS;
+              await p.evaluate(
+                async (
+                  stepPxArg: number,
+                  stepMsArg: number,
+                  finalWaitArg: number,
+                  fallbackArg: number,
+                ) => {
+                  const step = stepPxArg || window.innerHeight || fallbackArg;
+                  let pos = 0;
+                  const max =
+                    document.body.scrollHeight ||
+                    document.documentElement.scrollHeight;
+                  while (pos < max) {
+                    window.scrollBy(0, step);
+                    await new Promise((rr) => setTimeout(rr, stepMsArg));
+                    pos += step;
+                  }
+                  await new Promise((rr) => setTimeout(rr, finalWaitArg));
+                  window.scrollTo(0, 0);
+                },
+                stepPx,
+                stepMs,
+                finalWait,
+                SCRAPER_PREFETCH_SCROLL_STEP_PX,
+              );
             } catch {}
 
             const extracted = await extractPageData(p, u, hostname).catch(
@@ -145,11 +183,13 @@ export async function prefetchSeeds(options: {
           }
           break; // success
         } catch (err) {
-          if (attempts >= 3) {
+          if (attempts >= SCRAPER_MAX_ATTEMPTS) {
             if (logger) logger(`Seed prefetch failed for ${u}: ${String(err)}`);
           } else {
             // small backoff
-            await new Promise((r) => setTimeout(r, 250 * attempts));
+            await new Promise((r) =>
+              setTimeout(r, SCRAPER_RETRY_BASE_MS * attempts),
+            );
           }
         }
       }

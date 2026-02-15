@@ -5,6 +5,11 @@ import { uploadBufferToStorage } from "./uploadHelpers";
 import { addPendingImageRecord } from "./pendingRecords";
 import { SCRAPER_DEBUG } from "@/lib/config";
 import { retryWithBackoff } from "./retryHelpers";
+import {
+  IMAGE_UPLOAD_RETRIES,
+  IMAGE_UPLOAD_BACKOFF_FACTOR,
+  IMAGE_UPLOAD_MIN_DELAY_MS,
+} from "@/lib/config";
 import { JobCancelled } from "@/lib/common/errors";
 
 export type LogProgressFn = (icon: string, message: string) => void;
@@ -54,9 +59,9 @@ export async function processAndUploadImage(options: {
     const file = await retryWithBackoff(
       () => downloadImageToBuffer(downloadUrl, filename),
       {
-        retries: 3,
-        factor: 2,
-        minDelayMs: 250,
+        retries: IMAGE_UPLOAD_RETRIES,
+        factor: IMAGE_UPLOAD_BACKOFF_FACTOR,
+        minDelayMs: IMAGE_UPLOAD_MIN_DELAY_MS,
       },
     );
     if (!file) return { uploaded: false, error: "download_failed" };

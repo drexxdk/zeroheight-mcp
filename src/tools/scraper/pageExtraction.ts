@@ -1,5 +1,12 @@
 import type { Page } from "puppeteer";
-import { EXCLUDE_IMAGE_FORMATS } from "@/lib/config";
+import {
+  EXCLUDE_IMAGE_FORMATS,
+  SCRAPER_PREFETCH_WAIT_MS,
+  SCRAPER_PREFETCH_SCROLL_STEP_MS,
+  SCRAPER_PREFETCH_FINAL_WAIT_MS,
+  SCRAPER_PREFETCH_SCROLL_STEP_PX,
+  SCRAPER_CONTENT_MAX_CHARS,
+} from "@/lib/config";
 
 export type ExtractedImage = {
   src: string;
@@ -32,38 +39,50 @@ export async function extractPageData(
             "main, .main, .content, .zh-content, [role='main']",
           );
           if (mainContent) return mainContent.textContent?.trim() || "";
-          return clone.textContent?.trim().substring(0, 10000) || "";
+          return (
+            clone.textContent?.trim().substring(0, SCRAPER_CONTENT_MAX_CHARS) ||
+            ""
+          );
         })
         .catch(() => "");
-
-      // Allow brief time for client-side rendered images/backgrounds to load.
-      // This helps surface lazy-loaded images that may not be present immediately
-      // after `goto`/`networkidle2`.
-      await new Promise((r) => setTimeout(r, 500));
-
-      // Perform an automated gentle scroll to trigger lazy-loading of images.
-      // Scroll in viewport-sized steps with short pauses to allow observers
-      // to load images. This is a lightweight approach that helps discover
-      // images injected on scroll without forcing a long wait.
-      try {
-        await page.evaluate(async () => {
-          const step = window.innerHeight || 800;
-          let pos = 0;
-          const max =
-            document.body.scrollHeight || document.documentElement.scrollHeight;
-          while (pos < max) {
-            window.scrollBy(0, step);
-            await new Promise((r) => setTimeout(r, 120));
-            pos += step;
-          }
-          // Small pause to let lazy-loaders finish
-          await new Promise((r) => setTimeout(r, 250));
-          window.scrollTo(0, 0);
-        });
-      } catch {
-        // ignore scrolling failures and proceed with extraction
-      }
     });
+
+  // Allow brief time for client-side rendered images/backgrounds to load.
+  await new Promise((r) => setTimeout(r, SCRAPER_PREFETCH_WAIT_MS));
+
+  // Perform an automated gentle scroll to trigger lazy-loading of images.
+  try {
+    const stepPx = SCRAPER_PREFETCH_SCROLL_STEP_PX;
+    const stepMs = SCRAPER_PREFETCH_SCROLL_STEP_MS;
+    const finalWait = SCRAPER_PREFETCH_FINAL_WAIT_MS;
+    await page.evaluate(
+      async (
+        stepPxArg: number,
+        stepMsArg: number,
+        finalWaitArg: number,
+        fallbackArg: number,
+      ) => {
+        const step = stepPxArg || window.innerHeight || fallbackArg;
+        let pos = 0;
+        const max =
+          document.body.scrollHeight || document.documentElement.scrollHeight;
+        while (pos < max) {
+          window.scrollBy(0, step);
+          // small pause between scroll steps
+          await new Promise((rr) => setTimeout(rr, stepMsArg));
+          pos += step;
+        }
+        await new Promise((rr) => setTimeout(rr, finalWaitArg));
+        window.scrollTo(0, 0);
+      },
+      stepPx,
+      stepMs,
+      finalWait,
+      SCRAPER_PREFETCH_SCROLL_STEP_PX,
+    );
+  } catch {
+    // ignore scrolling failures and proceed with extraction
+  }
 
   const images = await page.$$eval("img", (imgs: HTMLImageElement[]) =>
     imgs.map((img, index) => {

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { HASH_TRUNCATE_LENGTH } from "@/lib/config";
 
 export function normalizeImageUrl(src: string): string {
   try {
@@ -15,7 +16,7 @@ export function hashFilenameFromUrl(url: string, ext = "jpg"): string {
     .createHash("md5")
     .update(normalized)
     .digest("hex")
-    .substring(0, 8);
+    .substring(0, HASH_TRUNCATE_LENGTH);
   return `${h}.${ext}`;
 }
 
