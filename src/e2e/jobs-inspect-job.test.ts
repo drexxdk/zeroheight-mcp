@@ -3,6 +3,11 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
+import {
+  NEXT_PUBLIC_SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_ACCESS_TOKEN,
+} from "@/lib/config";
 
 const jobId = process.argv[2];
 if (!jobId) {
@@ -10,9 +15,8 @@ if (!jobId) {
   process.exit(2);
 }
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ACCESS_TOKEN;
+const SUPABASE_URL = NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ACCESS_TOKEN;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("Missing Supabase config in .env.local");

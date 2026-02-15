@@ -193,7 +193,7 @@ export async function performBucketClear(
   deleteErrors: unknown[];
 }> {
   const { getSupabaseClient } = await import("./common");
-  const bucketName = process.env.SUPABASE_IMAGE_BUCKET || undefined;
+  const bucketName = IMAGE_BUCKET || undefined;
   const targetBucket = bucketName || IMAGE_BUCKET;
   console.log(
     "Preparing to clear storage bucket...",
@@ -203,9 +203,9 @@ export async function performBucketClear(
   const maybeClient = getSupabaseClient();
 
   // Prefer the explicitly provided client instance, otherwise fall back to the global client
-  const storageClientToUse = (clientInstance || maybeClient) as
-    | ReturnType<typeof createClient<Database>>
-    | null;
+  const storageClientToUse = (clientInstance || maybeClient) as ReturnType<
+    typeof createClient<Database>
+  > | null;
 
   const buckets: string[] = [];
   const files: Array<{ name: string }> = [];
@@ -227,7 +227,10 @@ export async function performBucketClear(
   let deleteSummary = { deletedCount: 0, deleteErrors: [] as unknown[] };
   try {
     if (storageClientToUse) {
-      deleteSummary = await clearStorageBucket(storageClientToUse, targetBucket);
+      deleteSummary = await clearStorageBucket(
+        storageClientToUse,
+        targetBucket,
+      );
     }
   } catch (err) {
     console.error("Error during storage clear:", err);

@@ -1,7 +1,7 @@
 import { scrapeZeroheightProject } from "@/tools/scraper/scrapeZeroheightProject";
-
+import { SCRAPE_TEST_PAGE_URLS } from "@/lib/config";
 async function run() {
-  const raw = process.env.SCRAPE_TEST_PAGE_URLS || "";
+  const raw = SCRAPE_TEST_PAGE_URLS || "";
   if (!raw) {
     console.log(
       "SKIP: SCRAPE_TEST_PAGE_URLS not set - provide comma-separated URLs to run",

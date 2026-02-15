@@ -16,6 +16,13 @@ import type { OverallProgress } from "./processPageAndImages";
 import { extractPageData } from "./pageExtraction";
 import type { ExtractedImage } from "./pageExtraction";
 import { processPageAndImages } from "./processPageAndImages";
+import { mapWithConcurrency } from "./concurrency";
+import {
+  SCRAPER_CONCURRENCY,
+  SCRAPER_IDLE_TIMEOUT_MS,
+  SCRAPER_SEED_PREFETCH_CONCURRENCY,
+  ZEROHEIGHT_PROJECT_URL,
+} from "@/lib/config";
 import {
   bulkUpsertPagesAndImages,
   formatSummaryBox,
@@ -38,8 +45,8 @@ export async function scrapeZeroheightProject(
   shouldCancel?: () => boolean | Promise<boolean>,
 ) {
   try {
-    const concurrency = Number(process.env.SCRAPER_CONCURRENCY || 6);
-    const idleTimeout = Number(process.env.SCRAPER_IDLE_TIMEOUT_MS || 1000);
+    const concurrency = SCRAPER_CONCURRENCY;
+    const idleTimeout = SCRAPER_IDLE_TIMEOUT_MS;
     const browser = await puppeteer.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -190,44 +197,52 @@ export async function scrapeZeroheightProject(
     // Seed
     if (pageUrls && pageUrls.length > 0) {
       const normalized = pageUrls.map((p) => normalizeUrl(p));
-      // Prefetch each seed page to reserve image totals and store pre-extracted data
+      // Prefetch each seed page (parallelized) to reserve image totals and store pre-extracted data
       const hostname = new URL(rootUrl).hostname;
-      for (const u of normalized) {
-        try {
-          const p = await browser.newPage();
-          await p.setViewport({ width: 1280, height: 1024 });
-          await p.goto(u, { waitUntil: "networkidle2", timeout: 30000 });
-          if (password) {
-            try {
-              await tryLogin(p, password);
-              if (logger) logger(`Login attempt complete on seed ${u}`);
-            } catch (e) {
-              if (logger)
-                logger(`Login attempt failed on seed ${u}: ${String(e)}`);
-            }
-          }
+
+      const seedPrefetchConcurrency = SCRAPER_SEED_PREFETCH_CONCURRENCY;
+
+      await mapWithConcurrency(
+        normalized,
+        async (u) => {
           try {
-            const extracted = await extractPageData(p, u, hostname).catch(
-              () => ({
-                pageLinks: [] as string[],
-                normalizedImages: [] as ExtractedImage[],
-                supportedImages: [] as ExtractedImage[],
-                title: "",
-                content: "",
-              }),
-            );
-            preExtractedMap.set(u, extracted as PreExtracted);
-            // Do not modify `progress.total` here; workers will reserve image
-            // totals to keep counting consistent and avoid double increments.
-          } finally {
+            const p = await browser.newPage();
+            await p.setViewport({ width: 1280, height: 1024 });
+            await p.goto(u, { waitUntil: "networkidle2", timeout: 30000 });
+            if (password) {
+              try {
+                await tryLogin(p, password);
+                if (logger) logger(`Login attempt complete on seed ${u}`);
+              } catch (e) {
+                if (logger)
+                  logger(`Login attempt failed on seed ${u}: ${String(e)}`);
+              }
+            }
             try {
-              await p.close();
-            } catch {}
+              const extracted = await extractPageData(p, u, hostname).catch(
+                () => ({
+                  pageLinks: [] as string[],
+                  normalizedImages: [] as ExtractedImage[],
+                  supportedImages: [] as ExtractedImage[],
+                  title: "",
+                  content: "",
+                }),
+              );
+              preExtractedMap.set(u, extracted as PreExtracted);
+              // Do not modify `progress.total` here; workers will reserve image
+              // totals to keep counting consistent and avoid double increments.
+            } finally {
+              try {
+                await p.close();
+              } catch {}
+            }
+          } catch (e) {
+            if (logger) logger(`Seed prefetch failed for ${u}: ${String(e)}`);
           }
-        } catch (e) {
-          if (logger) logger(`Seed prefetch failed for ${u}: ${String(e)}`);
-        }
-      }
+        },
+        seedPrefetchConcurrency,
+      );
+
       // preExtractedMap is populated above and will be used by workers
       enqueueLinks(normalized);
       logProgress("⚑", `Seeded ${normalized.length} initial links`);
@@ -610,7 +625,7 @@ export const scrapeZeroheightProjectTool = {
     pageUrls: z.array(z.string()).optional(),
   }),
   handler: async ({ pageUrls }: { pageUrls?: string[] }) => {
-    const projectUrl = process.env.ZEROHEIGHT_PROJECT_URL;
+    const projectUrl = ZEROHEIGHT_PROJECT_URL;
     if (!projectUrl)
       return createErrorResponse("ZEROHEIGHT_PROJECT_URL not set");
 

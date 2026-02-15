@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
+import { MCP_API_KEY } from "./config";
 
 export function authenticateRequest(request: NextRequest): {
   isValid: boolean;
   error?: string;
 } {
-  const apiKey = process.env.MCP_API_KEY;
+  const apiKey = MCP_API_KEY;
 
   if (!apiKey) {
     return {

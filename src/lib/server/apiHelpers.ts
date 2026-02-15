@@ -5,7 +5,8 @@ import { NextRequest } from "next/server";
 type Bucket = { tokens: number; lastRefill: number };
 
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_TOKENS = Number(process.env.SERVER_RATE_LIMIT_TOKENS || 60);
+import { SERVER_RATE_LIMIT_TOKENS } from "@/lib/config";
+const RATE_LIMIT_TOKENS = SERVER_RATE_LIMIT_TOKENS;
 
 const buckets = new Map<string, Bucket>();
 

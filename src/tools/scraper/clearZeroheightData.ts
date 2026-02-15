@@ -5,6 +5,7 @@ import {
 import { getClient } from "@/lib/common/supabaseClients";
 import { getSupabaseAdminClient } from "@/lib/common";
 import { performBucketClear } from "@/lib/image-utils";
+import { MCP_API_KEY } from "@/lib/config";
 
 async function clearZeroheightData() {
   try {
@@ -123,7 +124,7 @@ export const clearZeroheightDataTool = {
   }),
   handler: async ({ apiKey }: { apiKey: string }) => {
     // Validate API key
-    const expectedApiKey = process.env.MCP_API_KEY;
+    const expectedApiKey = MCP_API_KEY;
     if (!expectedApiKey) {
       return createErrorResponse(
         "MCP_API_KEY environment variable not configured",

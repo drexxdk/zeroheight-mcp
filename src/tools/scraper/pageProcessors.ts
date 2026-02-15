@@ -4,6 +4,7 @@ import type { StorageHelper } from "@/lib/common/scraperHelpers";
 import { normalizeImageUrl } from "./imageHelpers";
 import { processAndUploadImage } from "./imagePipeline";
 import { mapWithConcurrency } from "./concurrency";
+import { SCRAPER_IMAGE_CONCURRENCY } from "@/lib/config";
 
 export type Progress = {
   current: number;
@@ -51,7 +52,7 @@ export async function processImagesForPage(options: {
     shouldCancel,
   } = options;
 
-  const concurrency = Number(process.env.SCRAPER_IMAGE_CONCURRENCY || 4);
+  const concurrency = SCRAPER_IMAGE_CONCURRENCY;
   // Use module-level set so multiple concurrent page-processing tasks in the
   // same Node process coordinate and avoid duplicate uploads for the same
   // normalized URL.

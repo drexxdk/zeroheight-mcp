@@ -1,4 +1,9 @@
 ﻿import "dotenv/config";
+import {
+  SCRAPER_PAGE_UPSERT_CHUNK,
+  SCRAPER_IMAGE_INSERT_CHUNK,
+  SCRAPER_DEBUG,
+} from "@/lib/config";
 import type { PagesType, ImagesType } from "@/lib/database.types";
 import { getClient } from "@/lib/common/supabaseClients";
 import boxen from "boxen";
@@ -74,7 +79,7 @@ export async function bulkUpsertPagesAndImages(options: {
   );
 
   // Upsert pages in chunks with retries
-  const pageChunkSize = Number(process.env.SCRAPER_PAGE_UPSERT_CHUNK || 200);
+  const pageChunkSize = SCRAPER_PAGE_UPSERT_CHUNK;
   const upsertedPagesAll: Array<{ id?: number; url?: string }> = [];
   for (let i = 0; i < uniquePages.length; i += pageChunkSize) {
     const chunk = uniquePages.slice(i, i + pageChunkSize);
@@ -167,7 +172,7 @@ export async function bulkUpsertPagesAndImages(options: {
 
   // Insert new images in manageable chunks to avoid very large single inserts.
   // We retry transient failures a few times. Skip writes when doing a dry run.
-  const imageChunkSize = Number(process.env.SCRAPER_IMAGE_INSERT_CHUNK || 500);
+  const imageChunkSize = SCRAPER_IMAGE_INSERT_CHUNK;
   // Deduplicate image insert rows by original_url+storage_path to avoid
   // inserting the same image multiple times (can happen when the same
   // image appears on multiple pages).
@@ -181,7 +186,7 @@ export async function bulkUpsertPagesAndImages(options: {
     }
   }
 
-  const debug = !!process.env.SCRAPER_DEBUG;
+  const debug = SCRAPER_DEBUG;
   // Start with the preloaded set (from DB at startup). We'll optionally
   // replace it with a fresh DB check when debugging.
   let dbExistingImageUrls = allExistingImageUrls;

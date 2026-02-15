@@ -6,9 +6,11 @@
  * Run with: npx tsx src/e2e/api-mcp.test.ts
  */
 
+import { MCP_API_KEY } from "@/lib/config";
+
 async function testApi() {
   const API_URL = "http://localhost:3000/api/mcp";
-  const API_KEY = process.env.MCP_API_KEY;
+  const API_KEY = MCP_API_KEY;
 
   if (!API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");

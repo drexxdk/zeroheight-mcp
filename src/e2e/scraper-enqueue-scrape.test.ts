@@ -7,13 +7,14 @@
 
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
+import { MCP_API_KEY } from "@/lib/config";
 
 const args = process.argv.slice(2);
 const pageUrls = args.length > 0 ? args : undefined;
 
 async function runEnqueue() {
   const API_URL = "http://localhost:3000/api/mcp";
-  const API_KEY = process.env.MCP_API_KEY;
+  const API_KEY = MCP_API_KEY;
 
   if (!API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");

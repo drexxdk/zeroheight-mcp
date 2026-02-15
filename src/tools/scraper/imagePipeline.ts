@@ -3,6 +3,7 @@ import type { StorageHelper } from "@/lib/common/scraperHelpers";
 import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
 import { uploadBufferToStorage } from "./uploadHelpers";
 import { addPendingImageRecord } from "./pendingRecords";
+import { SCRAPER_DEBUG } from "@/lib/config";
 import { retryWithBackoff } from "./retryHelpers";
 import { JobCancelled } from "@/lib/common/errors";
 
@@ -73,7 +74,7 @@ export async function processAndUploadImage(options: {
     }
     const path = uploadRes.path;
     if (!path) return { uploaded: false, error: "no_path_returned" };
-    if (process.env.SCRAPER_DEBUG) {
+    if (SCRAPER_DEBUG) {
       console.log(
         `[scraper] uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
       );

@@ -4,12 +4,12 @@ import {
   createSuccessResponse,
 } from "@/lib/toolResponses";
 import { getClient } from "@/lib/common/supabaseClients";
-import { IMAGE_BUCKET } from "@/lib/config";
+import { IMAGE_BUCKET, NEXT_PUBLIC_SUPABASE_URL } from "@/lib/config";
 import { PageData } from "./shared";
 
 // Get the Supabase project URL for constructing storage URLs
 const getSupabaseProjectUrl = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = NEXT_PUBLIC_SUPABASE_URL;
   if (!supabaseUrl) {
     console.warn("NEXT_PUBLIC_SUPABASE_URL not found, using fallback");
     return "https://qyoexslrsblaphbcvjdk.supabase.co";

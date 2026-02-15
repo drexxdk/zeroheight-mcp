@@ -1,5 +1,9 @@
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
+import {
+  ZEROHEIGHT_PROJECT_URL,
+  ZEROHEIGHT_PROJECT_PASSWORD,
+} from "../src/lib/config";
 
 import {
   claimNextJob,
@@ -38,9 +42,8 @@ async function runLoop() {
         const pageUrls = Array.isArray(args?.pageUrls)
           ? (args.pageUrls as string[])
           : undefined;
-        const projectUrl = process.env.ZEROHEIGHT_PROJECT_URL || "";
-        const projectPassword =
-          process.env.ZEROHEIGHT_PROJECT_PASSWORD || undefined;
+        const projectUrl = ZEROHEIGHT_PROJECT_URL || "";
+        const projectPassword = ZEROHEIGHT_PROJECT_PASSWORD || undefined;
 
         await scrapeZeroheightProject(
           projectUrl,
