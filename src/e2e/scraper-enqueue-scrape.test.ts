@@ -14,9 +14,7 @@ const pageUrls = args.length > 0 ? args : undefined;
 
 async function runEnqueue() {
   const API_URL = "http://localhost:3000/api/mcp";
-  const API_KEY = MCP_API_KEY;
-
-  if (!API_KEY) {
+  if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
     process.exit(1);
   }
@@ -38,7 +36,7 @@ async function runEnqueue() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": API_KEY,
+        "X-API-Key": MCP_API_KEY,
         Accept: "application/json, text/event-stream",
       },
       body,

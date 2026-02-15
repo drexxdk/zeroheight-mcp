@@ -11,9 +11,7 @@ import { MCP_API_KEY } from "../src/lib/config";
 
 async function runClear() {
   const API_URL = "http://localhost:3000/api/mcp";
-  const API_KEY = MCP_API_KEY;
-
-  if (!API_KEY) {
+  if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
     process.exit(1);
   }
@@ -26,7 +24,7 @@ async function runClear() {
     method: "tools/call",
     params: {
       name: "clear-zeroheight-data",
-      arguments: { apiKey: API_KEY },
+      arguments: { apiKey: MCP_API_KEY },
     },
   });
 
@@ -35,7 +33,7 @@ async function runClear() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": API_KEY,
+        "X-API-Key": MCP_API_KEY,
         Accept: "application/json, text/event-stream",
       },
       body,

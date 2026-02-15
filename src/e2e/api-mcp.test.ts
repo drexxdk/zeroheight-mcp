@@ -10,9 +10,7 @@ import { MCP_API_KEY } from "@/lib/config";
 
 async function testApi() {
   const API_URL = "http://localhost:3000/api/mcp";
-  const API_KEY = MCP_API_KEY;
-
-  if (!API_KEY) {
+  if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
     console.log("");
     console.log("Set it with:");
@@ -25,7 +23,7 @@ async function testApi() {
   console.log("🧪 Testing Zeroheight MCP API...");
   console.log(`📍 API URL: ${API_URL}`);
   console.log(
-    `🔑 API Key: ${API_KEY ? API_KEY.substring(0, 8) + "..." : "NOT SET"}`,
+    `🔑 API Key: ${MCP_API_KEY ? MCP_API_KEY.substring(0, 8) + "..." : "NOT SET"}`,
   );
   console.log("");
 
@@ -36,7 +34,7 @@ async function testApi() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": API_KEY!,
+        "X-API-Key": MCP_API_KEY,
         Accept: "application/json, text/event-stream",
       },
       body: JSON.stringify({
