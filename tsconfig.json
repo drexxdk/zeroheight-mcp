@@ -28,7 +28,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "**/*.mts",
-    "scripts/scrape-all.ts",
+    "scripts/tasks/start-scrape-project.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules", "scripts/**/*"]

@@ -228,6 +228,7 @@ PowerShell (inline JSON argument):
   # Use your editor's MCP integration or call the MCP API directly with appropriate headers and JSON-RPC body
   # Example: POST to https://zeroheight-mcp.vercel.app/api/mcp with Authorization header and Accept: application/json, text/event-stream
 ```
+
         "--header",
         Direct calls (server-first)
 
@@ -284,7 +285,7 @@ Automatically discovers and scrapes all pages from your configured Zeroheight de
     "arguments": {}
   }
 }
-````
+```
 
 #### 2. Query Zeroheight Data
 
@@ -399,6 +400,44 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
   -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
   -Body '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute-sql","arguments":{"query":"SELECT COUNT(*) FROM pages;"}}}' | Format-List
 ```
+
+## 🛠️ Local Task Scripts
+
+This repository includes convenience scripts that now start scraper work as DB-backed tasks (so progress, logs and results are persisted). The scripts call the registered MCP tool handlers and return the tool response.
+
+- Start a short test task (default 5 minutes):
+
+```bash
+npx tsx scripts/tasks/start-test-task.ts            # default 5 minutes
+npx tsx scripts/tasks/start-test-task.ts 10         # run for 10 minutes
+```
+
+- Start the full scraper as a task (uses `ZEROHEIGHT_PROJECT_URL`):
+
+```bash
+npx tsx scripts/tasks/start-scrape-project.ts
+```
+
+- Start the scraper for specific pages (passes `pageUrls` to the task):
+
+```bash
+npx tsx scripts/tasks/start-scrape-pages.ts
+```
+
+- Utilities:
+
+```bash
+# Inspect a task (admin DB client)
+npx tsx scripts/tasks/tail-job-admin.ts <taskId>
+
+# Tail a job via public tool (non-admin) — use when available
+npx tsx scripts/tasks/tail-job.ts <taskId>
+```
+
+Notes:
+
+- Scripts under `scripts/` now prefer the task-based helper `scripts/tasks/start-task.ts` so they start a DB-backed task instead of invoking scrapers directly.
+- The tool response typically contains a `jobId` you can use with the tail/inspect scripts to watch progress.
 
 ### Automated Testing
 
