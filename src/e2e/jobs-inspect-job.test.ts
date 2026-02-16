@@ -7,7 +7,7 @@ import {
   NEXT_PUBLIC_SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_ACCESS_TOKEN,
-} from "@/lib/config";
+} from "@/utils/config";
 
 const jobId = process.argv[2];
 if (!jobId) {

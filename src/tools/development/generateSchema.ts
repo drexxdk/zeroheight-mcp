@@ -4,7 +4,7 @@ import { join } from "path";
 import {
   createErrorResponse,
   createSuccessResponse,
-} from "@/lib/toolResponses";
+} from "@/utils/toolResponses";
 
 export const generateTypescriptTypesTool = {
   title: "get-database-schema",

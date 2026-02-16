@@ -1,10 +1,10 @@
 // download is handled by `imagePipeline` now
-import { JobCancelled } from "@/lib/common/errors";
-import type { StorageHelper } from "@/lib/common/scraperHelpers";
+import { JobCancelled } from "@/utils/common/errors";
+import type { StorageHelper } from "@/utils/common/scraperHelpers";
 import { normalizeImageUrl } from "./imageHelpers";
 import { processAndUploadImage } from "./imagePipeline";
 import { mapWithConcurrency } from "./concurrency";
-import { SCRAPER_IMAGE_CONCURRENCY } from "@/lib/config";
+import { SCRAPER_IMAGE_CONCURRENCY } from "@/utils/config";
 
 export type Progress = {
   current: number;

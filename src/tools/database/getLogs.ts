@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createErrorResponse } from "@/lib/toolResponses";
-import { getClient } from "@/lib/common/supabaseClients";
+import { createErrorResponse } from "@/utils/toolResponses";
+import { getClient } from "@/utils/common/supabaseClients";
 
 export const getLogsTool = {
   title: "get-logs",

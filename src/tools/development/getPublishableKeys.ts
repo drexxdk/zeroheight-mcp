@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createErrorResponse } from "@/lib/toolResponses";
+import { createErrorResponse } from "@/utils/toolResponses";
 
 export const getPublishableKeysTool = {
   title: "get-publishable-api-keys",

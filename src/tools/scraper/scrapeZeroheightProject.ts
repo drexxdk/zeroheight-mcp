@@ -4,26 +4,26 @@ import type { Page } from "puppeteer";
 import {
   createSuccessResponse,
   createErrorResponse,
-} from "@/lib/toolResponses";
-import { JobCancelled } from "@/lib/common/errors";
+} from "@/utils/toolResponses";
+import { JobCancelled } from "@/utils/common/errors";
 import {
   getClient,
   checkProgressInvariant,
-} from "@/lib/common/supabaseClients";
+} from "@/utils/common/supabaseClients";
 import { createProgressHelpers } from "./shared";
-import type { PagesType, ImagesType } from "@/lib/database.types";
+import type { PagesType, ImagesType } from "@/database.types";
 import type { OverallProgress } from "./processPageAndImages";
 import { extractPageData } from "./pageExtraction";
 import type { ExtractedImage } from "./pageExtraction";
 import { processPageAndImages } from "./processPageAndImages";
 import prefetchSeeds, { normalizeUrl } from "./prefetch";
-import { SCRAPER_LOG_LINK_SAMPLE } from "@/lib/config";
+import { SCRAPER_LOG_LINK_SAMPLE } from "@/utils/config";
 import {
   SCRAPER_CONCURRENCY,
   SCRAPER_IDLE_TIMEOUT_MS,
   SCRAPER_SEED_PREFETCH_CONCURRENCY,
   ZEROHEIGHT_PROJECT_URL,
-} from "@/lib/config";
+} from "@/utils/config";
 import {
   SCRAPER_VIEWPORT_WIDTH,
   SCRAPER_VIEWPORT_HEIGHT,
@@ -31,7 +31,7 @@ import {
   SCRAPER_NAV_TIMEOUT_MS,
   SCRAPER_MONITOR_POLL_MS,
   SCRAPER_MONITOR_IDLE_POLL_MS,
-} from "@/lib/config";
+} from "@/utils/config";
 import {
   bulkUpsertPagesAndImages,
   formatSummaryBox,
@@ -43,7 +43,7 @@ import {
   finishJob,
   getJobFromDb,
 } from "./jobStore";
-import { tryLogin } from "@/lib/common/scraperHelpers";
+import { tryLogin } from "@/utils/common/scraperHelpers";
 
 // Primary scraper (previously V2) - coordinator-based queue, deterministic totals, parallel workers
 export async function scrapeZeroheightProject(

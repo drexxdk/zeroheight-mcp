@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { HASH_TRUNCATE_LENGTH } from "@/lib/config";
+import { HASH_TRUNCATE_LENGTH } from "@/utils/config";
 
 export function normalizeImageUrl(src: string): string {
   try {

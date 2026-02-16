@@ -1,11 +1,11 @@
 import {
   createErrorResponse,
   createSuccessResponse,
-} from "@/lib/toolResponses";
-import { getClient } from "@/lib/common/supabaseClients";
-import { getSupabaseAdminClient } from "@/lib/common";
-import { performBucketClear } from "@/lib/image-utils";
-import { MCP_API_KEY } from "@/lib/config";
+} from "@/utils/toolResponses";
+import { getClient } from "@/utils/common/supabaseClients";
+import { getSupabaseAdminClient } from "@/utils/common";
+import { performBucketClear } from "@/utils/image-utils";
+import { MCP_API_KEY } from "@/utils/config";
 
 async function clearZeroheightData() {
   try {

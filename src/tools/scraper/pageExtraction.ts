@@ -6,7 +6,7 @@ import {
   SCRAPER_PREFETCH_FINAL_WAIT_MS,
   SCRAPER_PREFETCH_SCROLL_STEP_PX,
   SCRAPER_CONTENT_MAX_CHARS,
-} from "@/lib/config";
+} from "@/utils/config";
 
 export type ExtractedImage = {
   src: string;

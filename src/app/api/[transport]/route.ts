@@ -1,6 +1,6 @@
 import { createMcpHandler } from "mcp-handler";
 import { NextRequest } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { authenticateRequest } from "@/utils/auth";
 import {
   listTablesTool,
   executeSqlTool,

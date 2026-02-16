@@ -14,7 +14,7 @@
   - Use `unknown` for truly unknown values that need type checking before use
   - Leverage TypeScript's built-in utility types (`Record<string, unknown>`, `Partial<T>`, etc.)
 
-- **Note to Copilot (agent-specific)**: You are the repository assistant. When editing or generating TypeScript code in this project, never emit the `any` type. Prefer concrete types, generated DB types (`lib/database.schema.ts` / `lib/database.types.ts`), `unknown` with runtime checks, or explicit unions. If you cannot determine an appropriate type, ask the user instead of using `any`.
+- **Note to Copilot (agent-specific)**: You are the repository assistant. When editing or generating TypeScript code in this project, never emit the `any` type. Prefer concrete types, generated DB types (`src/database.schema.ts` / `src/database.types.ts`), `unknown` with runtime checks, or explicit unions. If you cannot determine an appropriate type, ask the user instead of using `any`.
 
 ### Always fix ESLint errors
 
@@ -142,13 +142,13 @@
 
 ### Database Schema & Types
 
-- **Purpose**: Use the auto-generated `lib/database.schema.ts` and `lib/database.types.ts` as the authoritative source of truth for DB table shapes and runtime Zod schemas. Always regenerate them after migrations and import their types in code instead of hand-writing table shapes or using `any`.
+- **Purpose**: Use the auto-generated `src/database.schema.ts` and `src/database.types.ts` as the authoritative source of truth for DB table shapes and runtime Zod schemas. Always regenerate them after migrations and import their types in code instead of hand-writing table shapes or using `any`.
 - **When to regenerate**: After applying migrations (for example, running `001_create_scrape_jobs_table.sql`), run the schema/type generation scripts immediately.
 - **Commands**:
   - Generate the TypeScript DB schema (supabase CLI):
 
     ```bash
-    npx -y supabase@2.72.8 gen types typescript --project-id <project-id> --schema public > lib/database.schema.ts
+    npx -y supabase@2.72.8 gen types typescript --project-id <project-id> --schema public > src/database.schema.ts
     ```
 
   - Convert the schema into runtime Zod schemas and inferred types (project helper):
@@ -160,14 +160,14 @@
     ```
 
 - **Files produced**:
-  - `lib/database.schema.ts` — static TS types representing DB tables (use this as the generic for Supabase clients)
-  - `lib/database.types.ts` — runtime Zod schemas and inferred TS types (`Scrape_jobsType`, `PagesType`, etc.)
+  - `src/database.schema.ts` — static TS types representing DB tables (use this as the generic for Supabase clients)
+  - `src/database.types.ts` — runtime Zod schemas and inferred TS types (`Scrape_jobsType`, `PagesType`, etc.)
 
 - **How to use in code**:
   - Create a typed Supabase client:
 
     ```ts
-    import type { Database } from "lib/database.schema";
+    import type { Database } from "src/database.schema";
     const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY);
     ```
 
@@ -181,12 +181,12 @@
   - Import generated runtime/inferred types when you need a concrete shape:
 
     ```ts
-    import type { Scrape_jobsType } from "lib/database.types";
+    import type { Scrape_jobsType } from "src/database.types";
     type JobRecord = Scrape_jobsType;
     ```
 
 - **Guidelines for changes**:
-  - Regenerate the schema & types after any DB migration and commit the generated `lib/` files to the repo.
+  - Regenerate the schema & types after any DB migration and commit the generated `src/` files to the repo.
   - Prefer the generated `Database` generic on Supabase clients to avoid `any` casts and manual `as any` workarounds.
   - Avoid using dynamic `string` table names; use `as const` literals to satisfy typed table names.
   - If a new table is added and TypeScript errors appear, regenerate types then run `npm run build` and `npm run lint`.

@@ -1,7 +1,7 @@
 import type { Page } from "puppeteer";
 import { extractPageData, ExtractedImage } from "./pageExtraction";
 import { processImagesForPage } from "./pageProcessors";
-import type { ImagesType, PagesType } from "@/lib/database.types";
+import type { ImagesType, PagesType } from "@/database.types";
 
 export type OverallProgress = {
   current: number;
@@ -17,7 +17,7 @@ export type ProcessPageParams = {
   link: string;
   allowedHostname: string;
   storage: ReturnType<
-    typeof import("@/lib/common/supabaseClients").getClient
+    typeof import("@/utils/common/supabaseClients").getClient
   >["storage"];
   overallProgress: OverallProgress;
   allExistingImageUrls: Set<string>;

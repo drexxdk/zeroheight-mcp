@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "./database.schema";
+import type { Database } from "../database.schema";
 import {
   EXCLUDE_IMAGE_FORMATS,
   IMAGE_MAX_DIM,

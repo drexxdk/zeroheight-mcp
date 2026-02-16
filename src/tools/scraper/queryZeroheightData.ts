@@ -2,13 +2,13 @@ import { z } from "zod";
 import {
   createErrorResponse,
   createSuccessResponse,
-} from "@/lib/toolResponses";
-import { getClient } from "@/lib/common/supabaseClients";
+} from "@/utils/toolResponses";
+import { getClient } from "@/utils/common/supabaseClients";
 import {
   IMAGE_BUCKET,
   NEXT_PUBLIC_SUPABASE_URL,
   SCRAPER_QUERY_DEFAULT_LIMIT,
-} from "@/lib/config";
+} from "@/utils/config";
 import { PageData } from "./shared";
 
 // Get the Supabase project URL for constructing storage URLs

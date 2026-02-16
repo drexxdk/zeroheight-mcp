@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../database.schema";
-import type { PagesType, ImagesType } from "../database.types";
+import type { Database } from "../../database.schema";
+import type { PagesType, ImagesType } from "../../database.types";
 
 export async function commitPagesAndImages(options: {
   client: SupabaseClient<Database>;

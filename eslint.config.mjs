@@ -22,13 +22,13 @@ const eslintConfig = defineConfig([
           object: "process",
           property: "env",
           message:
-            "Do not access process.env directly. Import values from src/lib/config.ts instead.",
+            "Do not access process.env directly. Import values from src/utils/config.ts instead.",
         },
       ],
     },
   },
   {
-    files: ["src/lib/config.ts"],
+    files: ["src/utils/config.ts"],
     rules: {
       "no-restricted-properties": "off",
     },

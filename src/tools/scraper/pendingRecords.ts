@@ -6,7 +6,7 @@ export type PendingImageRecord = {
   storage_path: string;
 };
 
-import { SCRAPER_DEBUG } from "@/lib/config";
+import { SCRAPER_DEBUG } from "@/utils/config";
 
 export function addPendingImageRecord(
   pendingImageRecords: PendingImageRecord[],

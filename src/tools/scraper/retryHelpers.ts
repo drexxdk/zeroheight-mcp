@@ -4,7 +4,7 @@ export type RetryOptions = {
   minDelayMs?: number;
 };
 
-import { SCRAPER_RETRY_BASE_MS } from "@/lib/config";
+import { SCRAPER_RETRY_BASE_MS } from "@/utils/config";
 
 export async function retryWithBackoff<T>(
   fn: () => Promise<T | null>,

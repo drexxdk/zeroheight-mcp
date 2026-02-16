@@ -6,7 +6,7 @@
  * Run with: npx tsx src/e2e/api-mcp.test.ts
  */
 
-import { MCP_API_KEY } from "@/lib/config";
+import { MCP_API_KEY } from "@/utils/config";
 
 async function testApi() {
   const API_URL = "http://localhost:3000/api/mcp";

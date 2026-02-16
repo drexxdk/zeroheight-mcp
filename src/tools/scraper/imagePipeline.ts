@@ -1,16 +1,16 @@
-import { downloadImage } from "@/lib/image-utils";
-import type { StorageHelper } from "@/lib/common/scraperHelpers";
+import { downloadImage } from "@/utils/image-utils";
+import type { StorageHelper } from "@/utils/common/scraperHelpers";
 import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
 import { uploadBufferToStorage } from "./uploadHelpers";
 import { addPendingImageRecord } from "./pendingRecords";
-import { SCRAPER_DEBUG } from "@/lib/config";
+import { SCRAPER_DEBUG } from "@/utils/config";
 import { retryWithBackoff } from "./retryHelpers";
 import {
   IMAGE_UPLOAD_RETRIES,
   IMAGE_UPLOAD_BACKOFF_FACTOR,
   IMAGE_UPLOAD_MIN_DELAY_MS,
-} from "@/lib/config";
-import { JobCancelled } from "@/lib/common/errors";
+} from "@/utils/config";
+import { JobCancelled } from "@/utils/common/errors";
 
 export type LogProgressFn = (icon: string, message: string) => void;
 

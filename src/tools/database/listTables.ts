@@ -2,8 +2,8 @@ import { z } from "zod";
 import {
   createErrorResponse,
   createSuccessResponse,
-} from "@/lib/toolResponses";
-import { getClient } from "@/lib/common/supabaseClients";
+} from "@/utils/toolResponses";
+import { getClient } from "@/utils/common/supabaseClients";
 
 export const listTablesTool = {
   title: "list-tables",

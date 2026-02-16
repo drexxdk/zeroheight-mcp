@@ -1,6 +1,6 @@
 import type { Browser, Page as PuppeteerPage } from "puppeteer";
 import { extractPageData } from "./pageExtraction";
-import { tryLogin } from "@/lib/common/scraperHelpers";
+import { tryLogin } from "@/utils/common/scraperHelpers";
 import { mapWithConcurrency } from "./concurrency";
 import {
   SCRAPER_SEED_PREFETCH_CONCURRENCY,
@@ -14,7 +14,7 @@ import {
   SCRAPER_NAV_TIMEOUT_MS,
   SCRAPER_MAX_ATTEMPTS,
   SCRAPER_RETRY_BASE_MS,
-} from "@/lib/config";
+} from "@/utils/config";
 
 export function normalizeUrl(u: string, base?: string) {
   try {

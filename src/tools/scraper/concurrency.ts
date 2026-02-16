@@ -1,4 +1,4 @@
-import { SCRAPER_DEFAULT_CONCURRENCY } from "@/lib/config";
+import { SCRAPER_DEFAULT_CONCURRENCY } from "@/utils/config";
 
 export async function mapWithConcurrency<T, R>(
   items: T[],

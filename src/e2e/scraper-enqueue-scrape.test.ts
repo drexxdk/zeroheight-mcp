@@ -7,7 +7,7 @@
 
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
-import { MCP_API_KEY } from "@/lib/config";
+import { MCP_API_KEY } from "@/utils/config";
 
 const args = process.argv.slice(2);
 const pageUrls = args.length > 0 ? args : undefined;

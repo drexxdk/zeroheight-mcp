@@ -1,5 +1,5 @@
 import { scrapeZeroheightProject } from "@/tools/scraper/scrapeZeroheightProject";
-import { SCRAPE_TEST_PAGE_URLS } from "@/lib/config";
+import { SCRAPE_TEST_PAGE_URLS } from "@/utils/config";
 
 async function run() {
   const raw = SCRAPE_TEST_PAGE_URLS || "";

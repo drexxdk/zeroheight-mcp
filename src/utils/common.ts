@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "./database.schema";
+import type { Database } from "../database.schema";
 import {
   NEXT_PUBLIC_SUPABASE_URL,
   SUPABASE_ACCESS_TOKEN,

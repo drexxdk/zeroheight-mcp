@@ -3,7 +3,7 @@ dotenv.config({ path: ".env.local" });
 import {
   ZEROHEIGHT_PROJECT_URL,
   ZEROHEIGHT_PROJECT_PASSWORD,
-} from "../src/lib/config";
+} from "../src/utils/config";
 
 import {
   claimNextJob,
@@ -11,7 +11,7 @@ import {
   finishJob,
 } from "../src/tools/scraper/jobStore";
 import { scrapeZeroheightProject } from "../src/tools/scraper/scrapeZeroheightProject";
-import { JobCancelled } from "../src/lib/common/errors";
+import { JobCancelled } from "../src/utils/common/errors";
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

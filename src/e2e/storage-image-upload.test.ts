@@ -1,6 +1,6 @@
 import { config as dotenvConfig } from "dotenv";
-import { getSupabaseClient } from "@/lib/common";
-import { IMAGE_BUCKET } from "@/lib/config";
+import { getSupabaseClient } from "@/utils/common";
+import { IMAGE_BUCKET } from "@/utils/config";
 
 dotenvConfig({ path: ".env.local" });
 

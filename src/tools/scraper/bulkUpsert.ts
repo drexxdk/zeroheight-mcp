@@ -10,9 +10,9 @@ import {
   SCRAPER_LOG_SAMPLE_SIZE,
   SCRAPER_DB_INSPECT_LIMIT,
   SCRAPER_DB_INSPECT_SAMPLE_SIZE,
-} from "@/lib/config";
-import type { PagesType, ImagesType } from "@/lib/database.types";
-import { getClient } from "@/lib/common/supabaseClients";
+} from "@/utils/config";
+import type { PagesType, ImagesType } from "@/database.types";
+import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
 
 type DbClient = ReturnType<typeof getClient>["client"];

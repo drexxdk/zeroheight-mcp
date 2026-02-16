@@ -3,7 +3,7 @@ import {
   createErrorResponse,
   createSuccessResponse,
   getSupabaseAdminClient,
-} from "@/lib/common";
+} from "@/utils/common";
 
 export const cancelJobTool = {
   title: "cancel-job",

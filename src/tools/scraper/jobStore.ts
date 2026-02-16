@@ -1,11 +1,11 @@
-import type { Scrape_jobsType } from "@/lib/database.types";
-import type { Json } from "@/lib/database.schema";
-import { getSupabaseAdminClient } from "@/lib/common";
+import type { Scrape_jobsType } from "@/database.types";
+import type { Json } from "@/database.schema";
+import { getSupabaseAdminClient } from "@/utils/common";
 import {
   JOBID_RANDOM_START,
   JOBID_RANDOM_LEN,
   TESTRUNID_RANDOM_LEN,
-} from "@/lib/config";
+} from "@/utils/config";
 
 export type JobRecord = Scrape_jobsType;
 

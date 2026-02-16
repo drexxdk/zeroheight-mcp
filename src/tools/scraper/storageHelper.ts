@@ -1,15 +1,15 @@
 import type {
   StorageHelper,
   StorageUploadResult,
-} from "@/lib/common/scraperHelpers";
-import { uploadWithRetry } from "@/lib/common/scraperHelpers";
+} from "@/utils/common/scraperHelpers";
+import { uploadWithRetry } from "@/utils/common/scraperHelpers";
 import {
   IMAGE_BUCKET,
   ALLOWED_MIME_TYPES,
   STORAGE_CACHE_CONTROL_SEC,
   STORAGE_FILE_SIZE_LIMIT_BYTES,
-} from "@/lib/config";
-import { getSupabaseAdminClient } from "@/lib/common";
+} from "@/utils/config";
+import { getSupabaseAdminClient } from "@/utils/common";
 
 export async function ensureBucket(
   storage: StorageHelper,

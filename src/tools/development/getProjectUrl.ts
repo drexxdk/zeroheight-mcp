@@ -2,8 +2,8 @@ import { z } from "zod";
 import {
   createErrorResponse,
   createSuccessResponse,
-} from "@/lib/toolResponses";
-import { NEXT_PUBLIC_SUPABASE_URL } from "@/lib/config";
+} from "@/utils/toolResponses";
+import { NEXT_PUBLIC_SUPABASE_URL } from "@/utils/config";
 
 export const getProjectUrlTool = {
   title: "get-project-url",

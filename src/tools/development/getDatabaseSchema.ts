@@ -4,7 +4,7 @@ import { join } from "path";
 import {
   createErrorResponse,
   createSuccessResponse,
-} from "@/lib/toolResponses";
+} from "@/utils/toolResponses";
 
 export const generateTypescriptTypesTool = {
   title: "get-database-schema",
@@ -14,7 +14,7 @@ export const generateTypescriptTypesTool = {
   handler: async () => {
     try {
       // Read the database schema file
-      const schemaPath = join(process.cwd(), "lib", "database.schema.ts");
+      const schemaPath = join(process.cwd(), "database.schema.ts");
       const schemaContent = readFileSync(schemaPath, "utf-8");
 
       return createSuccessResponse(schemaContent);

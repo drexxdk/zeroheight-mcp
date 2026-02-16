@@ -1,10 +1,10 @@
-import type { StorageHelper } from "@/lib/common/scraperHelpers";
+import type { StorageHelper } from "@/utils/common/scraperHelpers";
 import {
   IMAGE_BUCKET,
   IMAGE_UPLOAD_RETRIES,
   IMAGE_UPLOAD_BACKOFF_FACTOR,
   IMAGE_UPLOAD_MIN_DELAY_MS,
-} from "@/lib/config";
+} from "@/utils/config";
 import { ensureBucket, uploadWithFallback } from "./storageHelper";
 import { retryWithBackoff } from "./retryHelpers";
 
