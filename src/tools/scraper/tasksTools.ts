@@ -29,7 +29,6 @@ export const tasksGetTool = {
     requestedTtlMs?: number;
   }) => {
     try {
-      // eslint-disable-next-line no-console
       console.log("tasks/get handler called with", { taskId, requestedTtlMs });
       const admin = getSupabaseAdminClient();
       if (!admin)

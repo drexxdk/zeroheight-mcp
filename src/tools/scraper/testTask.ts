@@ -37,7 +37,7 @@ export const testTaskTool = {
       // mark the job as running so it appears active in the DB
       try {
         await claimJobById(jobId as string);
-      } catch (e) {
+      } catch {
         // ignore claim failures; job will remain queued but background worker can still run
       }
 

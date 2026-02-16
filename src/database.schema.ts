@@ -67,42 +67,6 @@ export type Database = {
         }
         Relationships: []
       }
-      scrape_jobs: {
-        Row: {
-          args: Json | null
-          created_at: string | null
-          error: string | null
-          finished_at: string | null
-          id: string
-          logs: string | null
-          name: string
-          started_at: string | null
-          status: string
-        }
-        Insert: {
-          args?: Json | null
-          created_at?: string | null
-          error?: string | null
-          finished_at?: string | null
-          id: string
-          logs?: string | null
-          name: string
-          started_at?: string | null
-          status: string
-        }
-        Update: {
-          args?: Json | null
-          created_at?: string | null
-          error?: string | null
-          finished_at?: string | null
-          id?: string
-          logs?: string | null
-          name?: string
-          started_at?: string | null
-          status?: string
-        }
-        Relationships: []
-      }
       tasks: {
         Row: {
           args: Json | null

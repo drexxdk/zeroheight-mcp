@@ -1,5 +1,5 @@
-import { z } from "zod";
-import type { Database } from "./database.schema";
+import { z } from 'zod';
+import type { Database } from './database.schema';
 
 // Auto-generated Zod schemas based on database.schema.ts
 
@@ -18,18 +18,6 @@ export const publicPagesSchema = z.object({
   url: z.string(),
 });
 
-export const publicScrape_jobsSchema = z.object({
-  args: z.any().nullable(),
-  created_at: z.string().nullable(),
-  error: z.string().nullable(),
-  finished_at: z.string().nullable(),
-  id: z.string(),
-  logs: z.string().nullable(),
-  name: z.string(),
-  started_at: z.string().nullable(),
-  status: z.string(),
-});
-
 export const publicTasksSchema = z.object({
   args: z.any().nullable(),
   created_at: z.string().nullable(),
@@ -46,7 +34,6 @@ export const publicTasksSchema = z.object({
 // Export inferred types
 export type ImagesType = z.infer<typeof publicImagesSchema>;
 export type PagesType = z.infer<typeof publicPagesSchema>;
-export type Scrape_jobsType = z.infer<typeof publicScrape_jobsSchema>;
 export type TasksType = z.infer<typeof publicTasksSchema>;
 
 // Database type for reference

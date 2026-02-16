@@ -435,7 +435,6 @@ async function authenticatedHandler(request: NextRequest) {
                 toolName === tasksResultTool.title
               ) {
                 // log arguments for debugging TTL propagation
-                // eslint-disable-next-line no-console
                 console.log("Invoking tool", toolName, "with args:", args);
               }
               const result = await toolHandler(args);
