@@ -3,7 +3,7 @@ import "dotenv/config";
 import {
   formatSummaryBox,
   SummaryParams,
-} from "../src/tools/scraper/bulkUpsert";
+} from "../src/tools/scraper/utils/bulkUpsert";
 
 async function main() {
   const params: SummaryParams = {
@@ -23,7 +23,7 @@ async function main() {
     imagesAlreadyAssociatedCount: 7,
   };
 
-  const lines = formatSummaryBox(params);
+  const lines = formatSummaryBox({ p: params });
   console.log(lines.join("\n"));
 }
 
