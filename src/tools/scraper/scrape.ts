@@ -17,7 +17,7 @@ import { extractPageData } from "./utils/pageExtraction";
 import type { ExtractedImage } from "./utils/pageExtraction";
 import { processPageAndImages } from "./utils/processPageAndImages";
 import prefetchSeeds, { normalizeUrl } from "./utils/prefetch";
-import { SCRAPER_LOG_LINK_SAMPLE } from "@/utils/config";
+import { SCRAPER_LOG_LINK_SAMPLE, SCRAPER_DEBUG } from "@/utils/config";
 import {
   SCRAPER_CONCURRENCY,
   SCRAPER_IDLE_TIMEOUT_MS,
@@ -159,6 +159,7 @@ export async function scrape(
 
     const { client: db } = getClient();
     const imagesTable = "images" as const;
+    const loggedInHostnames = new Set<string>();
     let allExistingImageUrls = new Set<string>();
     try {
       const { data: allExistingImages } = await db!
@@ -198,6 +199,10 @@ export async function scrape(
 
       for (const [k, v] of seedMap) preExtractedMap.set(k, v as PreExtracted);
 
+      // If we provided a password and prefetchSeeds ran, assume we've logged
+      // into the project hostname so workers don't repeatedly try to login.
+      if (password) loggedInHostnames.add(new URL(rootUrl).hostname);
+
       enqueueLinks(normalized);
       logProgress("⚑", `Seeded ${normalized.length} initial links`);
     } else {
@@ -213,6 +218,7 @@ export async function scrape(
       if (password) {
         try {
           await tryLogin(p, password);
+          loggedInHostnames.add(new URL(rootUrl).hostname);
           if (logger) logger("Login attempt complete on root page");
         } catch (e) {
           if (logger) logger(`Login attempt failed: ${String(e)}`);
@@ -274,17 +280,21 @@ export async function scrape(
                   timeout: SCRAPER_NAV_TIMEOUT_MS,
                 });
                 if (password) {
-                  try {
-                    await tryLogin(page, password);
-                    if (logger)
-                      logger(
-                        `Login attempt complete on ${formatLinkForConsole(link)}`,
-                      );
-                  } catch (e) {
-                    if (logger)
-                      logger(
-                        `Login attempt failed on ${formatLinkForConsole(link)}: ${String(e)}`,
-                      );
+                  const host = new URL(rootUrl).hostname;
+                  if (!loggedInHostnames.has(host)) {
+                    try {
+                      await tryLogin(page, password);
+                      loggedInHostnames.add(host);
+                      if (logger)
+                        logger(
+                          `Login attempt complete on ${formatLinkForConsole(link)}`,
+                        );
+                    } catch (e) {
+                      if (logger)
+                        logger(
+                          `Login attempt failed on ${formatLinkForConsole(link)}: ${String(e)}`,
+                        );
+                    }
                   }
                 }
 
@@ -380,15 +390,6 @@ export async function scrape(
                   "🔗",
                   `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}`,
                 );
-                if (logger && allowed.length)
-                  logger(
-                    `Discovered ${allowed.length} links on ${formatLinkForConsole(
-                      processingLink,
-                    )}: ${allowed
-                      .slice(0, SCRAPER_LOG_LINK_SAMPLE)
-                      .map(formatLinkForConsole)
-                      .join(", ")}`,
-                  );
                 if (!restrictToSeeds) enqueueLinks(allowed);
 
                 for (const img of retNorm || [])
@@ -488,7 +489,7 @@ export async function scrape(
         providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
       });
       bulkLines = res.lines;
-      for (const line of bulkLines) printer(line);
+      if (bulkLines && bulkLines.length) printer(bulkLines.join("\n"));
       printedBox = true;
     } catch (e) {
       console.warn("V2 bulkUpsert failed:", e);
@@ -514,7 +515,7 @@ export async function scrape(
               pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
             dryRun: true,
           });
-          for (const line of res.lines) printer(line);
+          if (res.lines && res.lines.length) printer(res.lines.join("\n"));
         } catch {
           const uniquePageMap = new Map(
             pagesToUpsert.map((p) => [p.url, p] as const),
@@ -551,7 +552,7 @@ export async function scrape(
             ).filter((u) => allExistingImageUrls.has(u)).length,
           };
           const boxed = formatSummaryBox(params);
-          for (const l of boxed) printer(l);
+          if (boxed && boxed.length) printer(boxed.join("\n"));
         }
       }
     }
@@ -573,8 +574,15 @@ export const scrapeTool = {
   description: "A faster, coordinator-based scraper (was v2).",
   inputSchema: z.object({
     pageUrls: z.array(z.string()).optional(),
+    password: z.string().optional(),
   }),
-  handler: async ({ pageUrls }: { pageUrls?: string[] }) => {
+  handler: async ({
+    pageUrls,
+    password,
+  }: {
+    pageUrls?: string[];
+    password?: string;
+  }) => {
     const projectUrl = ZEROHEIGHT_PROJECT_URL;
     if (!projectUrl)
       return createErrorResponse("ZEROHEIGHT_PROJECT_URL not set");
@@ -598,13 +606,14 @@ export const scrapeTool = {
             `[${new Date().toISOString()}] ${s}`,
           );
         } catch {}
-        console.log(`[scraper][${new Date().toISOString()}] ${s}`);
+        if (SCRAPER_DEBUG) console.log(`[debug] ${s}`);
+        else console.log(s);
       };
 
       try {
         const res = await scrape(
           projectUrl,
-          undefined,
+          password,
           pageUrls || undefined,
           (msg: string) => {
             void logger(msg);

@@ -81,7 +81,7 @@ export async function processAndUploadImage(options: {
     if (!path) return { uploaded: false, error: "no_path_returned" };
     if (SCRAPER_DEBUG) {
       console.log(
-        `[scraper] uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
+        `[debug] uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
       );
     }
     addPendingImageRecord(

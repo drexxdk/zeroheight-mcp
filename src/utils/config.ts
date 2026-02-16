@@ -14,7 +14,8 @@ export const SCRAPER_PAGE_UPSERT_CHUNK = Number(
 export const SCRAPER_IMAGE_INSERT_CHUNK = Number(
   process.env.SCRAPER_IMAGE_INSERT_CHUNK || 500,
 );
-export const SCRAPER_DEBUG = (process.env.SCRAPER_DEBUG || "false") === "true";
+export const SCRAPER_DEBUG =
+  (process.env.SCRAPER_DEBUG || "").toLowerCase().trim() === "true";
 export const SCRAPER_IMAGE_CONCURRENCY = Number(
   process.env.SCRAPER_IMAGE_CONCURRENCY || 4,
 );

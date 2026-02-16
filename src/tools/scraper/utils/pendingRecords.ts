@@ -24,7 +24,7 @@ export function addPendingImageRecord(
   allExistingImageUrls.add(normalized);
   if (SCRAPER_DEBUG) {
     console.log(
-      `[scraper] addPendingImageRecord page=${pageUrl} download=${downloadUrl} normalized=${normalized} storage=${storagePath}`,
+      `[debug] addPendingImageRecord page=${pageUrl} download=${downloadUrl} normalized=${normalized} storage=${storagePath}`,
     );
   }
 }

@@ -205,9 +205,14 @@ export async function bulkUpsertPagesAndImages(options: {
   // already exists. This keeps behavior deterministic regardless of the
   // `SCRAPER_DEBUG` flag and avoids racey heuristics based on the initial
   // `allExistingImageUrls` snapshot.
-  console.log(
-    `[scraper] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
-  );
+  if (debug)
+    console.log(
+      `[debug] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
+    );
+  else
+    console.log(
+      `image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
+    );
 
   if (db && uniqueAllowedImageUrls.size > 0) {
     try {
@@ -228,7 +233,9 @@ export async function bulkUpsertPagesAndImages(options: {
         dbExistingImageUrls = new Set();
       }
     } catch (err) {
-      console.log(`[scraper] DB existence check error: ${String(err)}`);
+      if (debug)
+        console.log(`[debug] DB existence check error: ${String(err)}`);
+      else console.log(`DB existence check error: ${String(err)}`);
       dbExistingImageUrls = allExistingImageUrls;
     }
   }
@@ -238,19 +245,31 @@ export async function bulkUpsertPagesAndImages(options: {
   );
   if (debug) {
     console.log(
-      `[scraper] uniqueAllowed=${uniqueAllowedImageUrls.size} uniqueSkipped(before)=${skippedList.length} sampleSkipped=${skippedList.slice(0, SCRAPER_LOG_SAMPLE_SIZE).join(", ")}`,
+      `[debug] uniqueAllowed=${uniqueAllowedImageUrls.size} uniqueSkipped(before)=${skippedList.length} sampleSkipped=${skippedList
+        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+        .join(", ")}`,
     );
     console.log(
-      `[scraper] sample allExisting (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${Array.from(allExistingImageUrls).slice(0, SCRAPER_LOG_SAMPLE_SIZE).join(", ")}`,
+      `[debug] sample allExisting (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${Array.from(
+        allExistingImageUrls,
+      )
+        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+        .join(", ")}`,
     );
     console.log(
-      `[scraper] sample uniqueAllowed (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${Array.from(uniqueAllowedImageUrls).slice(0, SCRAPER_LOG_SAMPLE_SIZE).join(", ")}`,
+      `[debug] sample uniqueAllowed (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${Array.from(
+        uniqueAllowedImageUrls,
+      )
+        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+        .join(", ")}`,
     );
     const intersection = Array.from(uniqueAllowedImageUrls).filter((u) =>
       dbExistingImageUrls.has(u),
     );
     console.log(
-      `[scraper] intersection sample (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${intersection.slice(0, SCRAPER_LOG_SAMPLE_SIZE).join(", ")}`,
+      `[debug] intersection sample (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${intersection
+        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+        .join(", ")}`,
     );
 
     // If we have intersection URLs, fetch DB rows for inspection (up to 50)
@@ -271,21 +290,25 @@ export async function bulkUpsertPagesAndImages(options: {
           error?: unknown;
         };
         console.log(
-          `[scraper] DB inspection for intersection (up to ${SCRAPER_DB_INSPECT_LIMIT} rows): ${JSON.stringify(dbData.data?.slice(0, SCRAPER_DB_INSPECT_SAMPLE_SIZE) ?? [], null, 2)}`,
+          `[debug] DB inspection for intersection (up to ${SCRAPER_DB_INSPECT_LIMIT} rows): ${JSON.stringify(
+            dbData.data?.slice(0, SCRAPER_DB_INSPECT_SAMPLE_SIZE) ?? [],
+            null,
+            2,
+          )}`,
         );
       } catch (err) {
-        console.log(`[scraper] DB inspection error: ${String(err)}`);
+        console.log(`[debug] DB inspection error: ${String(err)}`);
       }
     }
 
     console.log(
-      `[scraper] pendingImageRecords (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${pendingImageRecords
+      `[debug] pendingImageRecords (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${pendingImageRecords
         .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
         .map((p) => p.original_url)
         .join(", ")}`,
     );
     console.log(
-      `[scraper] imagesToInsert (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${imagesToInsert
+      `[debug] imagesToInsert (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${imagesToInsert
         .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
         .map((i) => i.original_url + " -> " + i.storage_path)
         .join(", ")}`,
@@ -321,12 +344,12 @@ export async function bulkUpsertPagesAndImages(options: {
             insertedCountTotal += insertRes.data.length;
             if (debug) {
               console.log(
-                `[scraper] inserted chunk: count=${insertRes.data.length} totalInserted=${insertedCountTotal}`,
+                `[debug] inserted chunk: count=${insertRes.data.length} totalInserted=${insertedCountTotal}`,
               );
               try {
                 const first = (insertRes.data[0] as Record<string, unknown>)
                   ?.id;
-                console.log(`[scraper] sample inserted id=${String(first)}`);
+                console.log(`[debug] sample inserted id=${String(first)}`);
               } catch {}
             }
           }
