@@ -103,6 +103,45 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          args: Json | null
+          created_at: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          logs: string | null
+          name: string
+          result: Json | null
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          args?: Json | null
+          created_at?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id: string
+          logs?: string | null
+          name: string
+          result?: Json | null
+          started_at?: string | null
+          status: string
+        }
+        Update: {
+          args?: Json | null
+          created_at?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          logs?: string | null
+          name?: string
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

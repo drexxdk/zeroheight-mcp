@@ -62,7 +62,7 @@ async function main() {
           await finishJob(jobId, false);
         } else {
           await appendJobLog(jobId, `Error: ${errMsg}`);
-          await finishJob(jobId, false, errMsg);
+          await finishJob(jobId, false, undefined, errMsg);
         }
       }
     } catch (e: unknown) {

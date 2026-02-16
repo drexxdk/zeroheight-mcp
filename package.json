@@ -12,6 +12,7 @@
     "scrape-all": "npx tsx scripts/scrape-all.ts",
     "scrape-pages": "npx tsx scripts/scrape-pages.ts",
     "clear-data": "npx tsx scripts/clear-data.ts",
+    "test-task-ttl": "npx tsx src/e2e/test-task-ttl.test.ts",
     "test-count-run": "npx tsx scripts/test-count-run.ts",
     "worker": "npx tsx scripts/worker.ts",
     "restart-ts-server": "node -e \"const cp=require('child_process');try{cp.execSync('npx tsc --noEmit',{stdio:'inherit'})}catch(e){};console.log('If using VS Code, run \\\"TypeScript: Restart TS Server\\\" from Command Palette (Ctrl+Shift+P)')\"",

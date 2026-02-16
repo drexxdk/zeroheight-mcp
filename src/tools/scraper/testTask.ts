@@ -8,13 +8,13 @@ import {
   appendJobLog,
   finishJob,
   getJobFromDb,
+  claimJobById,
 } from "./jobStore";
-// Uses shared `jobStore` helpers for job lifecycle and logging; no local DB logic.
 
-export const scrapeZeroheightProjectTestTool = {
-  title: "scrape-zeroheight-project-test",
+export const testTaskTool = {
+  title: "testtask",
   description:
-    "Start a safe test scraper job that ticks once per second for a duration (minutes).",
+    "Start a safe test task that ticks once per second for a duration (minutes).",
   inputSchema: z.object({
     durationMinutes: z
       .number()
@@ -23,10 +23,10 @@ export const scrapeZeroheightProjectTestTool = {
       .optional()
       .describe("Duration in minutes; defaults to 10"),
   }),
-  handler: async ({ durationMinutes }: { durationMinutes?: number }) => {
-    const minutes = durationMinutes ?? 10;
+  handler: async ({ durationMinutes }: { durationMinutes?: number } = {}) => {
+    const minutes = durationMinutes ?? 15;
     try {
-      const jobId = await createTestJobInDb("scrape-zeroheight-project-test", {
+      const jobId = await createTestJobInDb("testtask", {
         durationMinutes: minutes,
       });
 
@@ -34,7 +34,13 @@ export const scrapeZeroheightProjectTestTool = {
         return createErrorResponse("Failed to create test job");
       }
 
-      // Start background worker that mirrors real scraper's logging and lifecycle
+      // mark the job as running so it appears active in the DB
+      try {
+        await claimJobById(jobId as string);
+      } catch (e) {
+        // ignore claim failures; job will remain queued but background worker can still run
+      }
+
       (async () => {
         try {
           const totalSeconds = minutes * 60;
@@ -42,25 +48,25 @@ export const scrapeZeroheightProjectTestTool = {
             const j = await getJobFromDb(jobId as string);
             if (j && j.status === "cancelled") {
               await appendJobLog(jobId as string, "Job cancelled by user");
-              await finishJob(jobId as string, false, "cancelled");
+              await finishJob(jobId as string, false, undefined, "cancelled");
               return;
             }
             await appendJobLog(jobId as string, `tick ${i}/${totalSeconds}`);
             await new Promise((res) => setTimeout(res, 1000));
           }
-          await appendJobLog(jobId as string, "Test job completed");
-          await finishJob(jobId as string, true);
+          await appendJobLog(jobId as string, "Test task completed");
+          await finishJob(jobId as string, true, { message: "completed" });
         } catch (e) {
           const errMsg = e instanceof Error ? e.message : String(e);
           await appendJobLog(jobId as string, `Error: ${errMsg}`);
-          await finishJob(jobId as string, false, errMsg);
+          await finishJob(jobId as string, false, undefined, errMsg);
         }
       })();
 
-      return createSuccessResponse({ message: "Test job started", jobId });
+      return createSuccessResponse({ message: "Test task started", jobId });
     } catch (e) {
       return createErrorResponse(
-        `Test job failed: ${e instanceof Error ? e.message : String(e)}`,
+        `Test task failed: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
   },

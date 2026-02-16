@@ -11,7 +11,7 @@ async function main() {
   const jobId = process.argv[2] || "mlp32d3twsjjwy";
   console.log("Fetching job via admin client:", jobId);
   const { data, error } = await supabase
-    .from("scrape_jobs")
+    .from("tasks")
     .select("id, status, logs, started_at, finished_at")
     .eq("id", jobId)
     .maybeSingle();

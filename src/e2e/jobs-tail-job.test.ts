@@ -39,7 +39,7 @@ let lastLogs = "";
 
 async function fetchOnce() {
   const { data, error } = await supabase
-    .from("scrape_jobs")
+    .from("tasks")
     .select("id, status, logs, started_at, finished_at, error")
     .eq("id", jobId)
     .limit(1)
@@ -86,7 +86,10 @@ async function fetchOnce() {
     `\n[status=${status} started=${started_at} finished=${finished_at} error=${err}]\n`,
   );
 
-  return { finished: status === "finished" || status === "failed" };
+  return {
+    finished:
+      status === "completed" || status === "failed" || status === "cancelled",
+  };
 }
 
 async function runTail() {

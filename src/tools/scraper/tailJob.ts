@@ -16,7 +16,7 @@ export const tailJobTool = {
         return createErrorResponse("Supabase client not configured");
 
       const { data, error } = await supabase
-        .from("scrape_jobs")
+        .from("tasks")
         .select("id, status, logs, started_at, finished_at")
         .eq("id", jobId)
         .limit(1)

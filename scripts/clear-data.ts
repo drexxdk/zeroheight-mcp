@@ -11,7 +11,7 @@ config({ path: ".env.local" });
 
 // Import config after dotenv has been loaded so `src/lib/config.ts`
 // reads the environment correctly at module initialization.
-const { MCP_API_KEY } = await import("../src/lib/config");
+const { MCP_API_KEY } = await import("../src/utils/config");
 
 async function main() {
   const API_URL = "http://localhost:3000/api/mcp";

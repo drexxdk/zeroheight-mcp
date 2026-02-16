@@ -1,4 +1,4 @@
--- Enable RLS and add basic policies for images, pages, and scrape_jobs
+-- Enable RLS and add basic policies for images, pages, and tasks
 -- WARNING: These policies allow access for the 'anon' and 'authenticated' roles.
 -- Review and harden policies before applying to production.
 
@@ -7,7 +7,7 @@ BEGIN;
 -- Enable Row Level Security on tables
 ALTER TABLE IF EXISTS public.images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.pages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.scrape_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tasks ENABLE ROW LEVEL SECURITY;
 
 -- images: allow all operations for anon/authenticated (adjust as needed)
 DO $$
@@ -35,14 +35,14 @@ BEGIN
   END IF;
 END$$;
 
--- scrape_jobs: allow all operations for anon/authenticated (adjust as needed)
+-- tasks: allow all operations for anon/authenticated (adjust as needed)
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE tablename = 'scrape_jobs' AND policyname = 'scrape_jobs_allow_all_roles'
+    SELECT 1 FROM pg_policies WHERE tablename = 'tasks' AND policyname = 'tasks_allow_all_roles'
   ) THEN
-    CREATE POLICY scrape_jobs_allow_all_roles
-      ON public.scrape_jobs
+    CREATE POLICY tasks_allow_all_roles
+      ON public.tasks
       FOR ALL
       USING (auth.role() = 'anon' OR auth.role() = 'authenticated');
   END IF;

@@ -27,7 +27,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function inspect() {
   const { data, error } = await supabase
-    .from("scrape_jobs")
+    .from("tasks")
     .select("*")
     .eq("id", jobId)
     .limit(1);

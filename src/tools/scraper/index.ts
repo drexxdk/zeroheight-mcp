@@ -6,5 +6,11 @@ export { inspectJobTool } from "./inspectJob";
 export { tailJobTool } from "./tailJob";
 export { countRunTool } from "./countRun";
 export { cancelJobTool } from "./cancelJob";
-export { scrapeZeroheightProjectTestTool } from "./testScrape";
+export {
+  tasksGetTool,
+  tasksResultTool,
+  tasksListTool,
+  tasksCancelTool,
+} from "./tasksTools";
+export { testTaskTool } from "./testTask";
 // computeCountRunResult removed — use `countRunTool` via MCP instead

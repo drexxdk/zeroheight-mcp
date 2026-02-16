@@ -63,24 +63,24 @@ async function clearZeroheightData() {
         console.log(`Pages table cleared (${getRowCount(pagesData)} rows)`);
       }
 
-      // Clear finished/terminal scrape_jobs rows (completed, failed, cancelled)
+      // Clear finished/terminal tasks rows (completed, failed, cancelled)
       console.log(
-        "Clearing terminal scrape_jobs rows (completed, failed, cancelled)...",
+        "Clearing terminal tasks rows (completed, failed, cancelled)...",
       );
       try {
         const { data: jobsData, error: jobsError } = await adminClient
-          .from("scrape_jobs")
+          .from("tasks")
           .delete()
           .in("status", ["completed", "failed", "cancelled"]);
         if (jobsError) {
-          console.error("Error clearing terminal scrape_jobs:", jobsError);
+          console.error("Error clearing terminal tasks:", jobsError);
         } else {
           console.log(
-            `Terminal scrape_jobs rows cleared (${getRowCount(jobsData)} rows)`,
+            `Terminal tasks rows cleared (${getRowCount(jobsData)} rows)`,
           );
         }
       } catch (err) {
-        console.error("Unexpected error while clearing scrape_jobs:", err);
+        console.error("Unexpected error while clearing tasks:", err);
       }
 
       // Clear storage bucket (use configured bucket name if provided)

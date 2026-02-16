@@ -17,7 +17,7 @@ export const inspectJobTool = {
         return createErrorResponse("Supabase client not configured");
 
       const { data, error } = await supabase
-        .from("scrape_jobs")
+        .from("tasks")
         .select("*")
         .eq("id", jobId)
         .limit(1)

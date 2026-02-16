@@ -24,6 +24,14 @@ import {
   countRunTool,
   cancelJobTool,
 } from "@/tools/scraper";
+import type { ToolResponse } from "@/utils/toolResponses";
+import {
+  tasksGetTool,
+  tasksResultTool,
+  tasksListTool,
+  tasksCancelTool,
+  testTaskTool,
+} from "@/tools/scraper";
 // removed unused imports (kept tooling lightweight)
 
 const handler = createMcpHandler(
@@ -104,6 +112,113 @@ const handler = createMcpHandler(
         inputSchema: cancelJobTool.inputSchema,
       },
       cancelJobTool.handler,
+    );
+
+    // SEP-1686 Task tools
+    server.registerTool(
+      tasksGetTool.title,
+      {
+        title: tasksGetTool.title,
+        description: tasksGetTool.description,
+        inputSchema: tasksGetTool.inputSchema,
+      },
+      async (args: unknown): Promise<ToolResponse> => {
+        const h = tasksGetTool.handler as unknown as (
+          a: unknown,
+        ) => Promise<unknown>;
+        const res = await h(args);
+        if (res && typeof res === "object") {
+          const rObj = res as Record<string, unknown>;
+          if (Array.isArray(rObj.content))
+            return rObj as unknown as ToolResponse;
+        }
+        return { content: [{ type: "text", text: JSON.stringify(res) }] };
+      },
+    );
+
+    server.registerTool(
+      tasksResultTool.title,
+      {
+        title: tasksResultTool.title,
+        description: tasksResultTool.description,
+        inputSchema: tasksResultTool.inputSchema,
+      },
+      async (args: unknown): Promise<ToolResponse> => {
+        const h = tasksResultTool.handler as unknown as (
+          a: unknown,
+        ) => Promise<unknown>;
+        const res = await h(args);
+        if (res && typeof res === "object") {
+          const rObj = res as Record<string, unknown>;
+          if (Array.isArray(rObj.content))
+            return rObj as unknown as ToolResponse;
+        }
+        return { content: [{ type: "text", text: JSON.stringify(res) }] };
+      },
+    );
+
+    server.registerTool(
+      tasksListTool.title,
+      {
+        title: tasksListTool.title,
+        description: tasksListTool.description,
+        inputSchema: tasksListTool.inputSchema,
+      },
+      async (args: unknown): Promise<ToolResponse> => {
+        const h = tasksListTool.handler as unknown as (
+          a: unknown,
+        ) => Promise<unknown>;
+        const res = await h(args);
+        if (res && typeof res === "object") {
+          const rObj = res as Record<string, unknown>;
+          if (Array.isArray(rObj.content))
+            return rObj as unknown as ToolResponse;
+        }
+        return { content: [{ type: "text", text: JSON.stringify(res) }] };
+      },
+    );
+
+    server.registerTool(
+      tasksCancelTool.title,
+      {
+        title: tasksCancelTool.title,
+        description: tasksCancelTool.description,
+        inputSchema: tasksCancelTool.inputSchema,
+      },
+      async (args: unknown): Promise<ToolResponse> => {
+        const h = tasksCancelTool.handler as unknown as (
+          a: unknown,
+        ) => Promise<unknown>;
+        const res = await h(args);
+        if (res && typeof res === "object") {
+          const rObj = res as Record<string, unknown>;
+          if (Array.isArray(rObj.content))
+            return rObj as unknown as ToolResponse;
+        }
+        return { content: [{ type: "text", text: JSON.stringify(res) }] };
+      },
+    );
+
+    // Test tool to create short-lived demo tasks
+    server.registerTool(
+      testTaskTool.title,
+      {
+        title: testTaskTool.title,
+        description: testTaskTool.description,
+        inputSchema: testTaskTool.inputSchema,
+      },
+      async (args: unknown): Promise<ToolResponse> => {
+        const h = testTaskTool.handler as unknown as (
+          a: unknown,
+        ) => Promise<unknown>;
+        const res = await h(args);
+        if (res && typeof res === "object") {
+          const rObj = res as Record<string, unknown>;
+          if (Array.isArray(rObj.content))
+            return rObj as unknown as ToolResponse;
+        }
+        return { content: [{ type: "text", text: JSON.stringify(res) }] };
+      },
     );
 
     // Database Inspection & Management Tools
@@ -228,6 +343,149 @@ async function authenticatedHandler(request: NextRequest) {
   }
 
   // Call the MCP handler with the authenticated request
+  try {
+    // Read body and, if it's a tools/call with params.task.ttl, merge it into params.arguments.requestedTtlMs
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await request.json().catch(() => null);
+      if (body && typeof body === "object") {
+        // Support single JSON-RPC object or batch array
+        const normalizeAndInject = (obj: unknown) => {
+          if (typeof obj !== "object" || obj === null) return;
+          const o = obj as Record<string, unknown>;
+          const method = o["method"];
+          if (method !== "tools/call") return;
+          const params = o["params"];
+          if (typeof params !== "object" || params === null) return;
+          const p = params as Record<string, unknown>;
+          const task = p["task"];
+          if (typeof task !== "object" || task === null) return;
+          const t = task as Record<string, unknown>;
+          const ttl = t["ttl"];
+          if (typeof ttl === "number") {
+            if (typeof p["arguments"] !== "object" || p["arguments"] === null)
+              p["arguments"] = {};
+            const args = p["arguments"] as Record<string, unknown>;
+            if (typeof args["requestedTtlMs"] === "undefined")
+              args["requestedTtlMs"] = ttl;
+          }
+        };
+
+        if (Array.isArray(body)) {
+          body.forEach(normalizeAndInject);
+        } else {
+          normalizeAndInject(body);
+        }
+
+        // If this is a tools/call with task metadata, attempt to handle it locally
+        // by invoking the matching tool handler and returning a JSON-RPC response.
+        const isSingle = !Array.isArray(body);
+        const normalized = isSingle ? (body as Record<string, unknown>) : null;
+        if (normalized && normalized["method"] === "tools/call") {
+          const params = normalized["params"] as
+            | Record<string, unknown>
+            | undefined;
+          const toolName = params?.["name"] as string | undefined;
+          const args =
+            (params?.["arguments"] as Record<string, unknown> | undefined) ??
+            {};
+          // Ensure TTL from params.task.ttl is applied to arguments for task-aware calls
+          const taskNode = params?.["task"] as
+            | Record<string, unknown>
+            | undefined;
+          if (taskNode && typeof taskNode["ttl"] === "number") {
+            args["requestedTtlMs"] = taskNode["ttl"] as number;
+          }
+
+          // Local tool mapping
+          const localTools: Record<string, unknown> = {
+            [scrapeZeroheightProjectTool.title]:
+              scrapeZeroheightProjectTool.handler,
+            [queryZeroheightDataTool.title]: queryZeroheightDataTool.handler,
+            [clearZeroheightDataTool.title]: clearZeroheightDataTool.handler,
+            [inspectJobTool.title]: inspectJobTool.handler,
+            [tailJobTool.title]: tailJobTool.handler,
+            [countRunTool.title]: countRunTool.handler,
+            [cancelJobTool.title]: cancelJobTool.handler,
+            [tasksGetTool.title]: tasksGetTool.handler,
+            [tasksResultTool.title]: tasksResultTool.handler,
+            [tasksListTool.title]: tasksListTool.handler,
+            [tasksCancelTool.title]: tasksCancelTool.handler,
+            [testTaskTool.title]: testTaskTool.handler,
+            [listTablesTool.title]: listTablesTool.handler,
+            [executeSqlTool.title]: executeSqlTool.handler,
+            [listMigrationsTool.title]: listMigrationsTool.handler,
+            [getLogsTool.title]: getLogsTool.handler,
+            [getDatabaseSchemaTool.title]: getDatabaseSchemaTool.handler,
+            [getProjectUrlTool.title]: getProjectUrlTool.handler,
+            [getPublishableKeysTool.title]: getPublishableKeysTool.handler,
+            [getDatabaseTypesTool.title]: getDatabaseTypesTool.handler,
+          };
+
+          if (
+            toolName &&
+            Object.prototype.hasOwnProperty.call(localTools, toolName)
+          ) {
+            try {
+              const toolHandler = localTools[toolName] as unknown as (
+                a: unknown,
+              ) => Promise<unknown>;
+              if (
+                toolName === tasksGetTool.title ||
+                toolName === tasksResultTool.title
+              ) {
+                // log arguments for debugging TTL propagation
+                // eslint-disable-next-line no-console
+                console.log("Invoking tool", toolName, "with args:", args);
+              }
+              const result = await toolHandler(args);
+              let rpcResult: unknown;
+              if (result && typeof result === "object") {
+                const rObj = result as Record<string, unknown>;
+                if (Array.isArray(rObj.content)) rpcResult = rObj;
+                else
+                  rpcResult = { content: [{ text: JSON.stringify(result) }] };
+              } else {
+                rpcResult = { content: [{ text: JSON.stringify(result) }] };
+              }
+              const rpc = {
+                jsonrpc: "2.0",
+                id: normalized["id"] ?? null,
+                result: rpcResult,
+              };
+              return new Response(JSON.stringify(rpc), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              });
+            } catch (e) {
+              const rpcErr = {
+                jsonrpc: "2.0",
+                id: normalized["id"] ?? null,
+                error: {
+                  code: -32603,
+                  message: String(e instanceof Error ? e.message : e),
+                },
+              };
+              return new Response(JSON.stringify(rpcErr), {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+          }
+        }
+
+        const newReq = new Request(request.url, {
+          method: request.method,
+          headers: request.headers,
+          body: JSON.stringify(body),
+        });
+        return handler(newReq as unknown as NextRequest);
+      }
+    }
+  } catch {
+    // If anything goes wrong while parsing/injecting, fall back to original request
+  }
+
   return handler(request);
 }
 

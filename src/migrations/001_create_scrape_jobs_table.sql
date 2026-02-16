@@ -1,5 +1,5 @@
--- Creates a table to track background scrape jobs
-CREATE TABLE IF NOT EXISTS scrape_jobs (
+-- Creates a table to track background tasks (SEP-1686)
+CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   status TEXT NOT NULL,
@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS scrape_jobs (
   logs TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_scrape_jobs_status_created_at ON scrape_jobs(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_tasks_status_created_at ON tasks(status, created_at);

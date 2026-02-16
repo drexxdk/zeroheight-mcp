@@ -143,7 +143,7 @@
 ### Database Schema & Types
 
 - **Purpose**: Use the auto-generated `src/database.schema.ts` and `src/database.types.ts` as the authoritative source of truth for DB table shapes and runtime Zod schemas. Always regenerate them after migrations and import their types in code instead of hand-writing table shapes or using `any`.
-- **When to regenerate**: After applying migrations (for example, running `001_create_scrape_jobs_table.sql`), run the schema/type generation scripts immediately.
+- **When to regenerate**: After applying migrations (for example, running `001_create_tasks_table.sql`), run the schema/type generation scripts immediately.
 - **Commands**:
   - Generate the TypeScript DB schema (supabase CLI):
 
@@ -161,7 +161,7 @@
 
 - **Files produced**:
   - `src/database.schema.ts` — static TS types representing DB tables (use this as the generic for Supabase clients)
-  - `src/database.types.ts` — runtime Zod schemas and inferred TS types (`Scrape_jobsType`, `PagesType`, etc.)
+  - `src/database.types.ts` — runtime Zod schemas and inferred TS types (`TasksType`, `PagesType`, etc.)
 
 - **How to use in code**:
   - Create a typed Supabase client:
@@ -174,15 +174,15 @@
   - When referencing a table name in `supabase.from(...)`, prefer a `const` literal so the type system recognizes it:
 
     ```ts
-    const table = "scrape_jobs" as const;
+    const table = "tasks" as const;
     await supabase.from(table).select("*");
     ```
 
   - Import generated runtime/inferred types when you need a concrete shape:
 
     ```ts
-    import type { Scrape_jobsType } from "src/database.types";
-    type JobRecord = Scrape_jobsType;
+    import type { TasksType } from "src/database.types";
+    type JobRecord = TasksType;
     ```
 
 - **Guidelines for changes**:

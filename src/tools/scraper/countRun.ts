@@ -30,7 +30,7 @@ export const countRunTool = {
         return createErrorResponse("Supabase client not configured");
 
       const { data: job, error: jobErr } = await supabase
-        .from("scrape_jobs")
+        .from("tasks")
         .select("started_at, finished_at")
         .eq("id", jobId)
         .limit(1)

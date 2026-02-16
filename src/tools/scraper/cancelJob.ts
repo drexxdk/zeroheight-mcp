@@ -18,7 +18,7 @@ export const cancelJobTool = {
 
       // Fetch current status
       const { data, error } = await supabase
-        .from("scrape_jobs")
+        .from("tasks")
         .select("status")
         .eq("id", jobId)
         .limit(1)
@@ -32,7 +32,7 @@ export const cancelJobTool = {
       if (status === "queued") {
         // Mark queued row as cancelled to preserve history
         const { error: updErr } = await supabase
-          .from("scrape_jobs")
+          .from("tasks")
           .update({
             status: "cancelled",
             finished_at: new Date().toISOString(),
@@ -51,7 +51,7 @@ export const cancelJobTool = {
       if (status === "running") {
         // Mark running job as cancelled in DB so external workers can see it
         const { error: updErr } = await supabase
-          .from("scrape_jobs")
+          .from("tasks")
           .update({
             status: "cancelled",
             finished_at: new Date().toISOString(),

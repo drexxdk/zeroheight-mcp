@@ -56,7 +56,7 @@ async function run() {
       if (job && job.status === "cancelled") {
         console.log("Worker: detected cancellation");
         await appendJobLog(claimed.id, "worker detected cancellation");
-        await finishJob(claimed.id, false, "cancelled by test");
+        await finishJob(claimed.id, false, undefined, "cancelled by test");
         return;
       }
       await sleep(200);

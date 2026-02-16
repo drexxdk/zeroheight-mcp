@@ -1,17 +1,11 @@
--- Harden RLS policies for images, pages, and scrape_jobs
--- This migration tightens access:
---  - `images` and `pages`: allow public SELECT, require authenticated role for INSERT/UPDATE/DELETE
---  - `scrape_jobs`: require authenticated role for all operations
--- Review and adapt if you need finer ownership controls.
+-- Harden RLS policies for images, pages, and tasks
 
 BEGIN;
 
--- Ensure RLS enabled
 ALTER TABLE IF EXISTS public.images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.pages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.scrape_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tasks ENABLE ROW LEVEL SECURITY;
 
--- Drop permissive policies if they exist
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'images' AND policyname = 'images_allow_all_roles') THEN
@@ -20,12 +14,11 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'pages' AND policyname = 'pages_allow_all_roles') THEN
     EXECUTE 'DROP POLICY IF EXISTS pages_allow_all_roles ON public.pages';
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'scrape_jobs' AND policyname = 'scrape_jobs_allow_all_roles') THEN
-    EXECUTE 'DROP POLICY IF EXISTS scrape_jobs_allow_all_roles ON public.scrape_jobs';
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'tasks' AND policyname = 'tasks_allow_all_roles') THEN
+    EXECUTE 'DROP POLICY IF EXISTS tasks_allow_all_roles ON public.tasks';
   END IF;
 END$$;
 
--- images: allow anyone to SELECT, but require authenticated for writes
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'images' AND policyname = 'images_select_public') THEN
@@ -42,7 +35,6 @@ BEGIN
   END IF;
 END$$;
 
--- pages: allow anyone to SELECT, require authenticated for writes
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'pages' AND policyname = 'pages_select_public') THEN
@@ -59,15 +51,12 @@ BEGIN
   END IF;
 END$$;
 
--- scrape_jobs: require authenticated for all operations
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'scrape_jobs' AND policyname = 'scrape_jobs_auth_all') THEN
-    CREATE POLICY scrape_jobs_auth_all ON public.scrape_jobs FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'tasks' AND policyname = 'tasks_auth_all') THEN
+    CREATE POLICY tasks_auth_all ON public.tasks FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
   END IF;
 END$$;
 
 COMMIT;
 
--- NOTE: These policies assume you want public read access to pages/images.
--- If you prefer no public reads, change the SELECT policies to require auth.role() = 'authenticated'.

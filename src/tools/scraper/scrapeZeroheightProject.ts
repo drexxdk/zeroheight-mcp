@@ -630,7 +630,7 @@ export const scrapeZeroheightProjectTool = {
       };
 
       try {
-        await scrapeZeroheightProject(
+        const res = await scrapeZeroheightProject(
           projectUrl,
           undefined,
           pageUrls || undefined,
@@ -649,7 +649,17 @@ export const scrapeZeroheightProjectTool = {
             }
           },
         );
-        await finishJob(jobId as string, true);
+        // Store structured result if available (prefer `progress` field)
+        let structuredResult: unknown = res;
+        if (
+          res &&
+          typeof res === "object" &&
+          Object.prototype.hasOwnProperty.call(res, "progress")
+        ) {
+          const r = res as Record<string, unknown>;
+          structuredResult = r.progress ?? res;
+        }
+        await finishJob(jobId as string, true, structuredResult);
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
         if (e instanceof JobCancelled) {
@@ -657,7 +667,7 @@ export const scrapeZeroheightProjectTool = {
           await finishJob(jobId as string, false);
         } else {
           await appendJobLog(jobId as string, `Error: ${errMsg}`);
-          await finishJob(jobId as string, false, errMsg);
+          await finishJob(jobId as string, false, undefined, errMsg);
         }
       }
     })();
