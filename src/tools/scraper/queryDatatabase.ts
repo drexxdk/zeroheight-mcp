@@ -9,7 +9,7 @@ import {
   NEXT_PUBLIC_SUPABASE_URL,
   SCRAPER_QUERY_DEFAULT_LIMIT,
 } from "@/utils/config";
-import { PageData } from "./shared";
+import { PageData } from "./utils/shared";
 
 // Get the Supabase project URL for constructing storage URLs
 const getSupabaseProjectUrl = () => {
@@ -21,8 +21,8 @@ const getSupabaseProjectUrl = () => {
   return supabaseUrl;
 };
 
-export const queryZeroheightDataTool = {
-  title: "query-zeroheight-data",
+export const queryDatatabaseTool = {
+  title: "query-database",
   description:
     "Query the cached Zeroheight design system data from the database. Supports searching by title, content, or URL, and can include image data with full Supabase storage URLs.",
   inputSchema: z.object({

@@ -59,7 +59,7 @@
 ### Never run scraper scripts from chat (MCP-only)
 
 - **Priority**: Highest
-- **Action**: Under no circumstance should the assistant start or execute any local scraper script or call `scrapeZeroheightProject` directly from the project while interacting in chat. Always invoke scraping via the MCP-exposed tool (`scrape-zeroheight-project`) through the MCP server API. Do not run `npx tsx scripts/test-scrape-specific-pages.ts`, `scripts/worker.ts`, or any other script that executes the scraper from the repository unless the user explicitly and unambiguously instructs you to "run locally" and grants permission.
+- **Action**: Under no circumstance should the assistant start or execute any local scraper script or call `scrape` directly from the project while interacting in chat. Always invoke scraping via the MCP-exposed tool (`scrape`) through the MCP server API. Do not run `npx tsx scripts/test-scrape-specific-pages.ts`, `scripts/worker.ts`, or any other script that executes the scraper from the repository unless the user explicitly and unambiguously instructs you to "run locally" and grants permission.
 - **Rationale**: This prevents inadvertent long-running browser/scraping processes started by the assistant, centralizes control via the MCP API endpoint, and preserves auditability and permissions for destructive or heavy operations.
 - **When to run**: Use the MCP `scrape-zeroheight-project` tool by calling the server API (`tools/call`) with the appropriate `MCP_API_KEY`. Only run local scraper scripts when the user explicitly requests a local run.
 - **Enforcement**: The assistant must refuse to run or start any scraper script from the repository in chat and should instead inform the user how to run it locally or call the MCP tool on their behalf.

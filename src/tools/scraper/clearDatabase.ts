@@ -7,7 +7,7 @@ import { getSupabaseAdminClient } from "@/utils/common";
 import { performBucketClear } from "@/utils/image-utils";
 import { MCP_API_KEY } from "@/utils/config";
 
-async function clearZeroheightData() {
+async function clearDatabase() {
   try {
     console.log("Clearing existing Zeroheight data...");
 
@@ -111,8 +111,8 @@ async function clearZeroheightData() {
 
 import { z } from "zod";
 
-export const clearZeroheightDataTool = {
-  title: "clear-zeroheight-data",
+export const clearDatabaseTool = {
+  title: "clear-database",
   description:
     "Clear all Zeroheight design system data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
   inputSchema: z.object({
@@ -123,7 +123,6 @@ export const clearZeroheightDataTool = {
       ),
   }),
   handler: async ({ apiKey }: { apiKey: string }) => {
-    // Validate API key
     const expectedApiKey = MCP_API_KEY;
     if (!expectedApiKey) {
       return createErrorResponse(
@@ -135,6 +134,6 @@ export const clearZeroheightDataTool = {
       return createErrorResponse("Invalid MCP API key provided");
     }
 
-    return await clearZeroheightData();
+    return await clearDatabase();
   },
 };

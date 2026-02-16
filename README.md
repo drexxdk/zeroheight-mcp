@@ -240,10 +240,10 @@ PowerShell (inline JSON argument):
         node -e "const k=process.env.MCP_API_KEY; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})});console.log(await res.text());}catch(e){console.error(e);} })()"
         ```
 
-        Call a tool (Node) — `clear-zeroheight-data` example (destructive):
+        Call a tool (Node) — `clear-database` example (destructive):
 
         ```bash
-        node -e "const k=process.env.MCP_API_KEY; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'clear-zeroheight-data',arguments:{apiKey:k}}})});console.log(await res.text());}catch(e){console.error(e);} })()"
+        node -e "const k=process.env.MCP_API_KEY; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'clear-database',arguments:{apiKey:k}}})});console.log(await res.text());}catch(e){console.error(e);} })()"
         ```
 
         PowerShell example (prompt before destructive action):
@@ -253,7 +253,7 @@ PowerShell (inline JSON argument):
         # convert back to plain (only do this locally and carefully)
         $plain = ConvertTo-SecureString $k -AsPlainText -Force
         # call with header
-        Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/mcp -Headers @{ Authorization = "Bearer $plain" } -Body (@{ jsonrpc = '2.0'; id = 1; method = 'tools/call'; params = @{ name = 'clear-zeroheight-data'; arguments = @{ apiKey = $plain } } } | ConvertTo-Json -Depth 10)
+        Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/mcp -Headers @{ Authorization = "Bearer $plain" } -Body (@{ jsonrpc = '2.0'; id = 1; method = 'tools/call'; params = @{ name = 'clear-database'; arguments = @{ apiKey = $plain } } } | ConvertTo-Json -Depth 10)
         ```
 
         Using `mcp-remote` (if available) is also supported by many editors and tools — just configure it to call the same MCP endpoint and supply the `MCP_API_KEY` via your environment or secure editor secrets.
@@ -281,7 +281,7 @@ Automatically discovers and scrapes all pages from your configured Zeroheight de
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "scrape-zeroheight-project",
+    "name": "scrape",
     "arguments": {}
   }
 }
@@ -307,7 +307,7 @@ Queries the cached Zeroheight data with flexible search options. Returns complet
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "query-zeroheight-data",
+    "name": "query-database",
     "arguments": {}
   }
 }
@@ -318,7 +318,7 @@ Queries the cached Zeroheight data with flexible search options. Returns complet
   "id": 3,
   "method": "tools/call",
   "params": {
-    "name": "query-zeroheight-data",
+    "name": "query-database",
     "arguments": {
       "search": "brand",
       "includeImages": true
@@ -332,7 +332,7 @@ Queries the cached Zeroheight data with flexible search options. Returns complet
   "id": 4,
   "method": "tools/call",
   "params": {
-    "name": "query-zeroheight-data",
+    "name": "query-database",
     "arguments": {
       "url": "https://example.zeroheight.com/p/project/page-slug",
       "includeImages": true
@@ -356,7 +356,7 @@ curl -X POST http://localhost:3000/api/mcp \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scrape-zeroheight-project","arguments":{}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scrape","arguments":{}}}'
 ```
 
 **Query Data:**
@@ -366,7 +366,7 @@ curl -X POST http://localhost:3000/api/mcp \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-zeroheight-data","arguments":{"search":"color"}}}'
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-database","arguments":{"search":"color"}}}'
 ```
 
 **Execute SQL:**
@@ -388,12 +388,12 @@ $env:MCP_API_KEY = "your-api-key-here"
 # Scrape project
 Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
   -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
-  -Body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scrape-zeroheight-project","arguments":{}}}' | Format-List
+  -Body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scrape","arguments":{}}}' | Format-List
 
 # Query data
 Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
   -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
-  -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-zeroheight-data","arguments":{"search":"color"}}}' | Format-List
+  -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-database","arguments":{"search":"color"}}}' | Format-List
 
 # Execute SQL
 Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `

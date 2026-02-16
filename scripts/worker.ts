@@ -10,7 +10,7 @@ import {
   appendJobLog,
   finishJob,
 } from "../src/tools/scraper/jobStore";
-import { scrapeZeroheightProject } from "../src/tools/scraper/scrapeZeroheightProject";
+import { scrape } from "../src/tools/scraper/scrape";
 import { JobCancelled } from "../src/utils/common/errors";
 
 async function sleep(ms: number) {
@@ -45,14 +45,9 @@ async function main() {
         const projectUrl = ZEROHEIGHT_PROJECT_URL || "";
         const projectPassword = ZEROHEIGHT_PROJECT_PASSWORD || undefined;
 
-        await scrapeZeroheightProject(
-          projectUrl,
-          projectPassword,
-          pageUrls,
-          (msg: string) => {
-            void logger(msg);
-          },
-        );
+        await scrape(projectUrl, projectPassword, pageUrls, (msg: string) => {
+          void logger(msg);
+        });
         await finishJob(jobId, true);
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);

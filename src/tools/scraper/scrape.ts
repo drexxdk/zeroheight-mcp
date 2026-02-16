@@ -10,13 +10,13 @@ import {
   getClient,
   checkProgressInvariant,
 } from "@/utils/common/supabaseClients";
-import { createProgressHelpers } from "./shared";
+import { createProgressHelpers } from "./utils/shared";
 import type { PagesType, ImagesType } from "@/database.types";
-import type { OverallProgress } from "./processPageAndImages";
-import { extractPageData } from "./pageExtraction";
-import type { ExtractedImage } from "./pageExtraction";
-import { processPageAndImages } from "./processPageAndImages";
-import prefetchSeeds, { normalizeUrl } from "./prefetch";
+import type { OverallProgress } from "./utils/processPageAndImages";
+import { extractPageData } from "./utils/pageExtraction";
+import type { ExtractedImage } from "./utils/pageExtraction";
+import { processPageAndImages } from "./utils/processPageAndImages";
+import prefetchSeeds, { normalizeUrl } from "./utils/prefetch";
 import { SCRAPER_LOG_LINK_SAMPLE } from "@/utils/config";
 import {
   SCRAPER_CONCURRENCY,
@@ -36,17 +36,17 @@ import {
   bulkUpsertPagesAndImages,
   formatSummaryBox,
   SummaryParams,
-} from "./bulkUpsert";
+} from "./utils/bulkUpsert";
 import {
   createJobInDb,
   appendJobLog,
   finishJob,
   getJobFromDb,
-} from "./jobStore";
+} from "../tasks/utils/jobStore";
 import { tryLogin } from "@/utils/common/scraperHelpers";
 
 // Primary scraper (previously V2) - coordinator-based queue, deterministic totals, parallel workers
-export async function scrapeZeroheightProject(
+export async function scrape(
   rootUrl: string,
   password?: string,
   pageUrls?: string[],
@@ -107,8 +107,6 @@ export async function scrapeZeroheightProject(
 
     const waiters: Array<(val: string | null) => void> = [];
 
-    // Use `normalizeUrl` from `prefetch.ts` to keep canonicalization consistent.
-
     function formatLinkForConsole(u: string) {
       try {
         const parsed = new URL(u);
@@ -131,7 +129,6 @@ export async function scrapeZeroheightProject(
       if (added.length) {
         progress.total += added.length;
         lastActivity = Date.now();
-        // Wake any waiters
         while (waiters.length && queue.length) {
           const w = waiters.shift()!;
           const item = queue.shift()!;
@@ -160,7 +157,6 @@ export async function scrapeZeroheightProject(
 
     const restrictToSeeds = !!(pageUrls && pageUrls.length > 0);
 
-    // Load existing images from DB so image processors can skip duplicates
     const { client: db } = getClient();
     const imagesTable = "images" as const;
     let allExistingImageUrls = new Set<string>();
@@ -176,9 +172,7 @@ export async function scrapeZeroheightProject(
           try {
             const u = new URL(normalizedUrl);
             normalizedUrl = `${u.protocol}//${u.hostname}${u.pathname}`;
-          } catch {
-            // keep original if parsing fails or empty
-          }
+          } catch {}
           return normalizedUrl;
         }),
       );
@@ -191,10 +185,8 @@ export async function scrapeZeroheightProject(
       allExistingImageUrls = new Set<string>();
     }
 
-    // Seed
     if (pageUrls && pageUrls.length > 0) {
       const normalized = pageUrls.map((p) => normalizeUrl(p, rootUrl));
-      // Prefetch seeds in a robust helper (root login, retries, scrolls)
       const { preExtractedMap: seedMap } = await prefetchSeeds({
         browser,
         rootUrl,
@@ -204,10 +196,8 @@ export async function scrapeZeroheightProject(
         logger,
       });
 
-      // Merge into local preExtractedMap used by workers
       for (const [k, v] of seedMap) preExtractedMap.set(k, v as PreExtracted);
 
-      // Enqueue normalized seeds
       enqueueLinks(normalized);
       logProgress("⚑", `Seeded ${normalized.length} initial links`);
     } else {
@@ -261,7 +251,6 @@ export async function scrapeZeroheightProject(
       } catch {}
     }
 
-    // Workers
     const workers: Promise<void>[] = [];
     for (let i = 0; i < concurrency; i++) {
       workers.push(
@@ -277,7 +266,6 @@ export async function scrapeZeroheightProject(
                 throw new JobCancelled();
               const link = await getNextLink();
               if (!link) break;
-              // Log page start so progress bar shows each step
               logProgress("🔎", `Starting ${formatLinkForConsole(link)}`);
 
               try {
@@ -300,7 +288,6 @@ export async function scrapeZeroheightProject(
                   }
                 }
 
-                // If the page redirected, use the final normalized URL as canonical
                 const finalRaw = page.url();
                 const final = normalizeUrl(finalRaw, rootUrl);
                 let processingLink = link;
@@ -310,7 +297,6 @@ export async function scrapeZeroheightProject(
                 }
 
                 const hostname = new URL(rootUrl).hostname;
-                // If seeds were pre-extracted, use that to avoid double extraction
                 const preExtractedLocal = preExtractedMap;
                 let title: string;
                 let content: string;
@@ -390,7 +376,6 @@ export async function scrapeZeroheightProject(
                       return false;
                     }
                   });
-                // Show discovery with progress bar (use canonical processingLink)
                 logProgress(
                   "🔗",
                   `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}`,
@@ -426,7 +411,6 @@ export async function scrapeZeroheightProject(
                 imagesStats.failed += imgStats.failed || 0;
 
                 progress.pagesProcessed++;
-                // Mark canonical and original as processed to avoid requeue after redirects
                 processed.add(processingLink);
                 if (processingLink !== link) processed.add(link);
                 logProgress(
@@ -453,7 +437,6 @@ export async function scrapeZeroheightProject(
       );
     }
 
-    // Monitor
     while (true) {
       if (shouldCancel && (await Promise.resolve(shouldCancel()))) {
         while (waiters.length) {
@@ -484,7 +467,6 @@ export async function scrapeZeroheightProject(
 
     await Promise.all(workers);
 
-    // Bulk upsert
     let bulkLines: string[] | undefined;
     let printedBox = false;
     try {
@@ -507,15 +489,10 @@ export async function scrapeZeroheightProject(
       });
       bulkLines = res.lines;
       for (const line of bulkLines) printer(line);
-      // Do not print an additional boxed summary here; rely on the bulkUpsert
-      // output so the console output matches the full-project run exactly.
       printedBox = true;
     } catch (e) {
       console.warn("V2 bulkUpsert failed:", e);
     } finally {
-      // If bulk upsert failed or didn't print, attempt to reuse the exact same
-      // formatting logic from bulkUpsert by calling it in dryRun mode. If that
-      // also fails, fall back to a concise in-process box.
       if (!printedBox) {
         const printer = (s: string) => {
           if (logger) logger(s);
@@ -539,8 +516,6 @@ export async function scrapeZeroheightProject(
           });
           for (const line of res.lines) printer(line);
         } catch {
-          // Best-effort fallback: derive counts from what we have and use the
-          // shared `formatSummaryBox` to ensure consistent formatting.
           const uniquePageMap = new Map(
             pagesToUpsert.map((p) => [p.url, p] as const),
           );
@@ -593,8 +568,8 @@ export async function scrapeZeroheightProject(
   }
 }
 
-export const scrapeZeroheightProjectTool = {
-  title: "scrape-zeroheight-project",
+export const scrapeTool = {
+  title: "scrape",
   description: "A faster, coordinator-based scraper (was v2).",
   inputSchema: z.object({
     pageUrls: z.array(z.string()).optional(),
@@ -604,10 +579,9 @@ export const scrapeZeroheightProjectTool = {
     if (!projectUrl)
       return createErrorResponse("ZEROHEIGHT_PROJECT_URL not set");
 
-    // Create a DB-backed job so external tools can observe progress
     let jobId: string | null = null;
     try {
-      jobId = await createJobInDb("scrape-zeroheight-project", {
+      jobId = await createJobInDb("scrape", {
         pageUrls: pageUrls || null,
       });
     } catch (err) {
@@ -623,14 +597,12 @@ export const scrapeZeroheightProjectTool = {
             jobId as string,
             `[${new Date().toISOString()}] ${s}`,
           );
-        } catch {
-          /* ignore logging errors */
-        }
+        } catch {}
         console.log(`[scraper][${new Date().toISOString()}] ${s}`);
       };
 
       try {
-        const res = await scrapeZeroheightProject(
+        const res = await scrape(
           projectUrl,
           undefined,
           pageUrls || undefined,
@@ -649,7 +621,6 @@ export const scrapeZeroheightProjectTool = {
             }
           },
         );
-        // Store structured result if available (prefer `progress` field)
         let structuredResult: unknown = res;
         if (
           res &&

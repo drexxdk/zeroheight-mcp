@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Test script to enqueue a scrape via the MCP `scrape-zeroheight-project` tool.
+ * Test script to enqueue a scrape via the MCP `scrape` tool.
  * Usage: npx tsx src/e2e/scraper-enqueue-scrape.test.ts [pageUrl1 pageUrl2 ...]
  */
 
@@ -26,7 +26,7 @@ async function runEnqueue() {
     id: 1,
     method: "tools/call",
     params: {
-      name: "scrape-zeroheight-project",
+      name: "scrape",
       arguments: { pageUrls },
     },
   });

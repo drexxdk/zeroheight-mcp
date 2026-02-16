@@ -11,8 +11,7 @@ async function main() {
   }
 
   try {
-    const { tasksCancelTool } =
-      await import("../../src/tools/scraper/tasksTools");
+    const { tasksCancelTool } = await import("../../src/tools/tasks");
     for (const id of ids) {
       const res = await tasksCancelTool.handler({ taskId: id });
       console.log(JSON.stringify(res, null, 2));

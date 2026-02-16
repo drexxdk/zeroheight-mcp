@@ -1,16 +1,6 @@
-export { clearZeroheightDataTool } from "./clearZeroheightData";
-export { scrapeZeroheightProjectTool } from "./scrapeZeroheightProject";
-export { queryZeroheightDataTool } from "./queryZeroheightData";
-// jobManager removed; job status/logs are now stored in DB via jobStore
-export { inspectJobTool } from "./inspectJob";
-export { tailJobTool } from "./tailJob";
-export { countRunTool } from "./countRun";
-export { cancelJobTool } from "./cancelJob";
-export {
-  tasksGetTool,
-  tasksResultTool,
-  tasksListTool,
-  tasksCancelTool,
-} from "./tasksTools";
-export { testTaskTool } from "./testTask";
+export { clearDatabaseTool } from "./clearDatabase";
+export { scrapeTool } from "./scrape";
+export { queryDatatabaseTool } from "./queryDatatabase";
+// jobManager removed; job status/logs are stored in DB via jobStore
+// testTaskTool moved to `src/tools/tasks` — see `src/tools/tasks/testTask.ts`
 // computeCountRunResult removed — use `countRunTool` via MCP instead

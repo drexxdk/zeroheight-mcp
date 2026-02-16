@@ -145,7 +145,7 @@ async function main() {
       console.warn(
         "Server rejected task-aware tools/call. Falling back to direct tool call for verification.",
       );
-      const { tasksGetTool } = await import("@/tools/scraper/tasksTools");
+      const { tasksGetTool } = await import("@/tools/tasks/get");
       const direct = await tasksGetTool.handler({
         taskId: jobId,
         requestedTtlMs: requestedTtl,

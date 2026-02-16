@@ -7,10 +7,13 @@ async function main() {
     console.error("Usage: npx tsx scripts/tasks/tail-job.ts <taskId>");
     process.exit(2);
   }
-  const { tailJobTool } = await import("../../src/tools/scraper/tailJob");
+  const { tasksResultTool } = await import("../../src/tools/tasks");
   for (const jobId of ids) {
-    console.log("Tailing job:", jobId);
-    const res = await tailJobTool.handler({ jobId, tail: 200 });
+    console.log("Querying task result:", jobId);
+    const res = await tasksResultTool.handler({
+      taskId: jobId,
+      timeoutMs: 10000,
+    });
     console.log(JSON.stringify(res, null, 2));
   }
 }

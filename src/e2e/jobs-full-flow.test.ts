@@ -10,7 +10,7 @@ import {
   getJobFromDb,
   markJobCancelledInDb,
   deleteJobInDb,
-} from "@/tools/scraper/jobStore";
+} from "@/tools/tasks/utils/jobStore";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -25,15 +25,15 @@ async function run() {
   }
   console.log("Created job id:", id);
 
-  // Verify initial state is `queued`
+  // Verify initial state is `working` per SEP-1686
   const before = await getJobFromDb(id);
   if (!before) {
     console.error("Failed to read job after creation");
     process.exit(4);
   }
-  if (before.status !== "queued") {
+  if (before.status !== "working") {
     console.error(
-      "Expected job to be 'queued' after creation, got:",
+      "Expected job to be 'working' after creation, got:",
       before.status,
     );
     process.exit(5);
@@ -77,9 +77,9 @@ async function run() {
     console.error("Failed to read job before cancel");
     process.exit(6);
   }
-  if (pre.status !== "running") {
+  if (pre.status !== "running" && pre.status !== "working") {
     console.error(
-      "Expected job to be 'running' before cancel, got:",
+      "Expected job to be 'running' or 'working' before cancel, got:",
       pre.status,
     );
     process.exit(7);

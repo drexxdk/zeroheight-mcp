@@ -14,15 +14,9 @@ import {
   getDatabaseTypesTool,
 } from "@/tools/development";
 import {
-  scrapeZeroheightProjectTool,
-  queryZeroheightDataTool,
-  clearZeroheightDataTool,
-} from "@/tools/scraper";
-import {
-  inspectJobTool,
-  tailJobTool,
-  countRunTool,
-  cancelJobTool,
+  scrapeTool,
+  queryDatatabaseTool,
+  clearDatabaseTool,
 } from "@/tools/scraper";
 import type { ToolResponse } from "@/utils/toolResponses";
 import {
@@ -31,7 +25,8 @@ import {
   tasksListTool,
   tasksCancelTool,
   testTaskTool,
-} from "@/tools/scraper";
+} from "@/tools/tasks";
+// `testTaskTool` now lives in `src/tools/tasks`
 // removed unused imports (kept tooling lightweight)
 
 const handler = createMcpHandler(
@@ -39,80 +34,41 @@ const handler = createMcpHandler(
     // Scraper tools
     // Example: { "method": "tools/call", "params": { "name": "Scrape Zeroheight Project", "arguments": {} } }
     server.registerTool(
-      scrapeZeroheightProjectTool.title,
+      scrapeTool.title,
       {
-        title: scrapeZeroheightProjectTool.title,
-        description: scrapeZeroheightProjectTool.description,
-        inputSchema: scrapeZeroheightProjectTool.inputSchema,
+        title: scrapeTool.title,
+        description: scrapeTool.description,
+        inputSchema: scrapeTool.inputSchema,
       },
-      scrapeZeroheightProjectTool.handler,
+      scrapeTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "Query Zeroheight Data", "arguments": { "search": "button", "includeImages": true, "limit": 10 } } }
     server.registerTool(
-      queryZeroheightDataTool.title,
+      queryDatatabaseTool.title,
       {
-        title: queryZeroheightDataTool.title,
-        description: queryZeroheightDataTool.description,
-        inputSchema: queryZeroheightDataTool.inputSchema,
+        title: queryDatatabaseTool.title,
+        description: queryDatatabaseTool.description,
+        inputSchema: queryDatatabaseTool.inputSchema,
       },
-      queryZeroheightDataTool.handler,
+      queryDatatabaseTool.handler,
     );
 
     // Example: { "method": "tools/call", "params": { "name": "Clear Zeroheight Data", "arguments": { "apiKey": "your-mcp-api-key" } } }
     server.registerTool(
-      clearZeroheightDataTool.title,
+      clearDatabaseTool.title,
       {
-        title: clearZeroheightDataTool.title,
-        description: clearZeroheightDataTool.description,
-        inputSchema: clearZeroheightDataTool.inputSchema,
+        title: clearDatabaseTool.title,
+        description: clearDatabaseTool.description,
+        inputSchema: clearDatabaseTool.inputSchema,
       },
-      clearZeroheightDataTool.handler,
+      clearDatabaseTool.handler,
     );
 
     // Job status/logs are persisted in DB via jobStore; tools for inspecting
     // jobs use `inspectJobTool` and `tailJobTool` registered below.
 
-    // New job inspection tools
-    server.registerTool(
-      inspectJobTool.title,
-      {
-        title: inspectJobTool.title,
-        description: inspectJobTool.description,
-        inputSchema: inspectJobTool.inputSchema,
-      },
-      inspectJobTool.handler,
-    );
-
-    server.registerTool(
-      tailJobTool.title,
-      {
-        title: tailJobTool.title,
-        description: tailJobTool.description,
-        inputSchema: tailJobTool.inputSchema,
-      },
-      tailJobTool.handler,
-    );
-
-    server.registerTool(
-      countRunTool.title,
-      {
-        title: countRunTool.title,
-        description: countRunTool.description,
-        inputSchema: countRunTool.inputSchema,
-      },
-      countRunTool.handler,
-    );
-
-    server.registerTool(
-      cancelJobTool.title,
-      {
-        title: cancelJobTool.title,
-        description: cancelJobTool.description,
-        inputSchema: cancelJobTool.inputSchema,
-      },
-      cancelJobTool.handler,
-    );
+    // Job-related scraper tools
 
     // SEP-1686 Task tools
     server.registerTool(
@@ -399,14 +355,10 @@ async function authenticatedHandler(request: NextRequest) {
 
           // Local tool mapping
           const localTools: Record<string, unknown> = {
-            [scrapeZeroheightProjectTool.title]:
-              scrapeZeroheightProjectTool.handler,
-            [queryZeroheightDataTool.title]: queryZeroheightDataTool.handler,
-            [clearZeroheightDataTool.title]: clearZeroheightDataTool.handler,
-            [inspectJobTool.title]: inspectJobTool.handler,
-            [tailJobTool.title]: tailJobTool.handler,
-            [countRunTool.title]: countRunTool.handler,
-            [cancelJobTool.title]: cancelJobTool.handler,
+            [scrapeTool.title]: scrapeTool.handler,
+            [queryDatatabaseTool.title]: queryDatatabaseTool.handler,
+            [clearDatabaseTool.title]: clearDatabaseTool.handler,
+
             [tasksGetTool.title]: tasksGetTool.handler,
             [tasksResultTool.title]: tasksResultTool.handler,
             [tasksListTool.title]: tasksListTool.handler,

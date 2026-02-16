@@ -20,7 +20,7 @@ Example (Node / fetch):
 const res = await fetch(`${process.env.SERVER_BASE_URL}/api/jobs`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'x-server-api-key': process.env.MCP_API_KEY },
-  body: JSON.stringify({ name: 'scrape-zeroheight-project', args: { pageUrls: [...] } }),
+  body: JSON.stringify({ name: 'scrape', args: { pageUrls: [...] } }),
 });
 ```
 

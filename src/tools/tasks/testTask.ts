@@ -9,7 +9,7 @@ import {
   finishJob,
   getJobFromDb,
   claimJobById,
-} from "./jobStore";
+} from "./utils/jobStore";
 
 export const testTaskTool = {
   title: "testtask",
@@ -38,7 +38,7 @@ export const testTaskTool = {
       try {
         await claimJobById(jobId as string);
       } catch {
-        // ignore claim failures; job will remain queued but background worker can still run
+        // ignore claim failures; job may remain unclaimed but background worker can still run
       }
 
       (async () => {

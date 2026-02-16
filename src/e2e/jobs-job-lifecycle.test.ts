@@ -9,7 +9,7 @@ import {
   finishJob,
   getJobFromDb,
   deleteJobInDb,
-} from "@/tools/scraper/jobStore";
+} from "@/tools/tasks/utils/jobStore";
 
 async function run() {
   try {

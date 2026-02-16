@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Test script to call the `clear-zeroheight-data` MCP tool on the local server.
+ * Test script to call the `clear-database` MCP tool on the local server.
  * Usage: npx tsx src/e2e/maintenance-clear-data.test.ts
  */
 import { config } from "dotenv";
@@ -20,14 +20,14 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Calling clear-zeroheight-data (destructive) ...`);
+  console.log(`Calling clear-database (destructive) ...`);
 
   const body = JSON.stringify({
     jsonrpc: "2.0",
     id: 1,
     method: "tools/call",
     params: {
-      name: "clear-zeroheight-data",
+      name: "clear-database",
       arguments: { apiKey: MCP_API_KEY },
     },
   });
