@@ -14,7 +14,10 @@ export async function createJobInDb(
   args?: Record<string, unknown> | null,
 ) {
   const supabase = getSupabaseAdminClient();
-  if (!supabase) return null;
+  if (!supabase) {
+    console.error("createJobInDb: admin supabase client not available");
+    return null;
+  }
 
   const id =
     Date.now().toString(36) +
@@ -30,9 +33,35 @@ export async function createJobInDb(
     args: (args ? (args as unknown as Json) : null) as Json | null,
   };
 
-  const { error } = await supabase.from("scrape_jobs").insert([payload]);
-  if (error) {
-    console.error("createJobInDb supabase error:", error);
+  try {
+    const { data, error } = await supabase
+      .from("scrape_jobs")
+      .insert([payload]);
+    if (error) {
+      const errObj = error as unknown;
+      const details =
+        errObj && typeof errObj === "object" && "details" in errObj
+          ? String((errObj as Record<string, unknown>)["details"])
+          : undefined;
+      const hint =
+        errObj && typeof errObj === "object" && "hint" in errObj
+          ? String((errObj as Record<string, unknown>)["hint"])
+          : undefined;
+      const code =
+        errObj && typeof errObj === "object" && "code" in errObj
+          ? String((errObj as Record<string, unknown>)["code"])
+          : undefined;
+      console.error("createJobInDb supabase error:", {
+        message: (error as { message?: string })?.message ?? String(error),
+        details,
+        hint,
+        code,
+      });
+      return null;
+    }
+    // ignore returned row data; we use our generated `id` value as the job id
+  } catch (e) {
+    console.error("createJobInDb unexpected error:", String(e));
     return null;
   }
   return id;
@@ -50,7 +79,13 @@ export async function createTestJobInDb(
     string,
     unknown
   >;
-  return createJobInDb(name, merged);
+  const id = await createJobInDb(name, merged);
+  if (!id) {
+    console.error(
+      "createTestJobInDb: failed to create job in DB (createJobInDb returned null)",
+    );
+  }
+  return id;
 }
 
 export async function claimNextJob(): Promise<JobRecord | null> {
