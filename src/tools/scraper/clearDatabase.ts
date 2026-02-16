@@ -22,7 +22,7 @@ async function clearDatabase() {
       const errMsg =
         "Supabase admin client (service role key) not configured - cannot perform destructive clear operations";
       console.error(errMsg);
-      return createErrorResponse(errMsg);
+      return createErrorResponse({ message: errMsg });
     }
 
     if (supabase) {
@@ -40,9 +40,9 @@ async function clearDatabase() {
 
       if (imagesError) {
         console.error("Error clearing images table:", imagesError);
-        return createErrorResponse(
-          "Error clearing images table: " + imagesError.message,
-        );
+        return createErrorResponse({
+          message: "Error clearing images table: " + imagesError.message,
+        });
       } else {
         console.log(`Images table cleared (${getRowCount(imagesData)} rows)`);
       }
@@ -56,9 +56,9 @@ async function clearDatabase() {
 
       if (pagesError) {
         console.error("Error clearing pages table:", pagesError);
-        return createErrorResponse(
-          "Error clearing pages table: " + pagesError.message,
-        );
+        return createErrorResponse({
+          message: "Error clearing pages table: " + pagesError.message,
+        });
       } else {
         console.log(`Pages table cleared (${getRowCount(pagesData)} rows)`);
       }
@@ -84,28 +84,33 @@ async function clearDatabase() {
       }
 
       // Clear storage bucket (use configured bucket name if provided)
-      const bucketResult = await performBucketClear(adminClient);
+
+      const bucketResult = await performBucketClear({
+        clientInstance: adminClient,
+      });
 
       console.log("All Zeroheight data cleared successfully");
       return createSuccessResponse({
-        message: "Zeroheight data cleared successfully",
-        bucket: bucketResult.bucket,
-        foundCount: bucketResult.foundCount,
-        foundFiles: bucketResult.foundFiles,
-        availableBuckets: bucketResult.availableBuckets,
-        deletedCount: bucketResult.deletedCount,
-        deleteErrors: bucketResult.deleteErrors,
+        data: {
+          message: "Zeroheight data cleared successfully",
+          bucket: bucketResult.bucket,
+          foundCount: bucketResult.foundCount,
+          foundFiles: bucketResult.foundFiles,
+          availableBuckets: bucketResult.availableBuckets,
+          deletedCount: bucketResult.deletedCount,
+          deleteErrors: bucketResult.deleteErrors,
+        },
       });
     } else {
       const errorMsg = "Supabase clients not available, cannot clear data";
       console.log(errorMsg);
-      return createErrorResponse(errorMsg);
+      return createErrorResponse({ message: errorMsg });
     }
   } catch (error) {
     console.error("Error clearing Zeroheight data:", error);
-    return createErrorResponse(
-      "Error clearing Zeroheight data: " + (error as Error).message,
-    );
+    return createErrorResponse({
+      message: "Error clearing Zeroheight data: " + (error as Error).message,
+    });
   }
 }
 
@@ -125,13 +130,13 @@ export const clearDatabaseTool = {
   handler: async ({ apiKey }: { apiKey: string }) => {
     const expectedApiKey = MCP_API_KEY;
     if (!expectedApiKey) {
-      return createErrorResponse(
-        "MCP_API_KEY environment variable not configured",
-      );
+      return createErrorResponse({
+        message: "MCP_API_KEY environment variable not configured",
+      });
     }
 
     if (apiKey !== expectedApiKey) {
-      return createErrorResponse("Invalid MCP API key provided");
+      return createErrorResponse({ message: "Invalid MCP API key provided" });
     }
 
     return await clearDatabase();

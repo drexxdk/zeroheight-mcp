@@ -30,7 +30,7 @@ export const tasksGetTool = {
         return {
           error: { code: -32000, message: "Admin client not configured" },
         };
-      const j = await getJobFromDb(taskId);
+      const j = await getJobFromDb({ jobId: taskId });
       if (!j)
         return {
           error: { code: -32001, message: `No task found with id=${taskId}` },
@@ -43,7 +43,7 @@ export const tasksGetTool = {
       const res = {
         task: {
           taskId: j.id,
-          status: mapStatusToSep(j.status),
+          status: mapStatusToSep({ status: j.status }),
           statusMessage: j.error ?? null,
           createdAt: j.created_at ?? null,
           lastUpdatedAt: j.finished_at ?? j.started_at ?? null,

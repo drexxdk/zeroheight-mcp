@@ -13,18 +13,20 @@ export const listTablesTool = {
   handler: async () => {
     const { client: supabase } = getClient();
     if (!supabase) {
-      return createErrorResponse("Error: Supabase client not configured");
+      return createErrorResponse({
+        message: "Error: Supabase client not configured",
+      });
     }
 
     try {
       // Return known tables from the database schema
       const knownTables = ["pages", "images"];
 
-      return createSuccessResponse(knownTables);
+      return createSuccessResponse({ data: knownTables });
     } catch (error) {
-      return createErrorResponse(
-        `Error listing tables: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      return createErrorResponse({
+        message: `Error listing tables: ${error instanceof Error ? error.message : String(error)}`,
+      });
     }
   },
 };

@@ -11,10 +11,9 @@ config({ path: ".env.local" });
 
 // Import config after dotenv has been loaded so `src/lib/config.ts`
 // reads the environment correctly at module initialization.
-const { MCP_API_KEY } = await import("../src/utils/config");
+const { MCP_API_KEY, MCP_URL } = await import("../src/utils/config");
 
 async function main() {
-  const API_URL = "http://localhost:3000/api/mcp";
   if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
     process.exit(1);
@@ -33,7 +32,7 @@ async function main() {
   });
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch(MCP_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

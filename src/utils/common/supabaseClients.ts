@@ -45,10 +45,13 @@ export function getClient() {
 }
 
 // Simple runtime invariant check for progress tracking
-export function checkProgressInvariant(
-  overallProgress: { current: number; total: number },
-  context?: string,
-) {
+export function checkProgressInvariant({
+  overallProgress,
+  context,
+}: {
+  overallProgress: { current: number; total: number };
+  context?: string;
+}) {
   if (overallProgress.current > overallProgress.total) {
     console.warn(
       `⚠️ Progress invariant violated${context ? ` (${context})` : ""}: current (${overallProgress.current}) > total (${overallProgress.total})`,

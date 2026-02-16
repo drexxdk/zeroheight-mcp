@@ -14,11 +14,14 @@ import { JobCancelled } from "@/utils/common/errors";
 
 export type LogProgressFn = (icon: string, message: string) => void;
 
-export async function downloadImageToBuffer(
-  downloadUrl: string,
-  filename: string,
-): Promise<Buffer | null> {
-  const base64 = await downloadImage(downloadUrl, filename);
+export async function downloadImageToBuffer({
+  downloadUrl,
+  filename,
+}: {
+  downloadUrl: string;
+  filename: string;
+}): Promise<Buffer | null> {
+  const base64 = await downloadImage({ url: downloadUrl, filename });
   if (!base64) return null;
   return Buffer.from(base64, "base64");
 }
@@ -47,8 +50,9 @@ export async function processAndUploadImage(options: {
     allExistingImageUrls,
     shouldCancel,
   } = options;
-  const filename = options.filename ?? hashFilenameFromUrl(downloadUrl, "jpg");
-  const sanitizedUrl = normalizeImageUrl(downloadUrl);
+  const filename =
+    options.filename ?? hashFilenameFromUrl({ url: downloadUrl, ext: "jpg" });
+  const sanitizedUrl = normalizeImageUrl({ src: downloadUrl });
 
   try {
     if (shouldCancel && shouldCancel()) {
@@ -57,7 +61,7 @@ export async function processAndUploadImage(options: {
     }
 
     const file = await retryWithBackoff(
-      () => downloadImageToBuffer(downloadUrl, filename),
+      () => downloadImageToBuffer({ downloadUrl, filename }),
       {
         retries: IMAGE_UPLOAD_RETRIES,
         factor: IMAGE_UPLOAD_BACKOFF_FACTOR,
@@ -71,7 +75,11 @@ export async function processAndUploadImage(options: {
       throw new JobCancelled();
     }
 
-    const uploadRes = await uploadBufferToStorage(storage, filename, file);
+    const uploadRes = await uploadBufferToStorage({
+      storage,
+      filename,
+      fileBuffer: file,
+    });
     if (uploadRes.error) {
       const e = uploadRes.error;
       const msg = e instanceof Error ? e.message : String(e);
@@ -84,13 +92,13 @@ export async function processAndUploadImage(options: {
         `[debug] uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
       );
     }
-    addPendingImageRecord(
+    addPendingImageRecord({
       pendingImageRecords,
-      link,
-      sanitizedUrl,
-      path,
+      pageUrl: link,
+      downloadUrl: sanitizedUrl,
+      storagePath: path,
       allExistingImageUrls,
-    );
+    });
     const visibleName =
       sanitizedUrl.split("/").filter(Boolean).pop() ?? filename;
     logProgress("✅", `Successfully uploaded image: ${visibleName}`);

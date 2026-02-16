@@ -9,10 +9,13 @@ import {
 
 export type JobRecord = TasksType;
 
-export async function createJobInDb(
-  name: string,
-  args?: Record<string, unknown> | null,
-) {
+export async function createJobInDb({
+  name,
+  args,
+}: {
+  name: string;
+  args?: Record<string, unknown> | null;
+}) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
     console.error("createJobInDb: admin supabase client not available");
@@ -66,19 +69,23 @@ export async function createJobInDb(
   return id;
 }
 
-export async function createTestJobInDb(
-  name: string,
-  args?: Record<string, unknown> | null,
+export async function createTestJobInDb({
+  name,
+  args,
   testRunId = Date.now().toString(36) +
     Math.random()
       .toString(36)
       .slice(JOBID_RANDOM_START, JOBID_RANDOM_START + TESTRUNID_RANDOM_LEN),
-) {
+}: {
+  name: string;
+  args?: Record<string, unknown> | null;
+  testRunId?: string;
+}) {
   const merged = { ...(args || {}), __testRunId: testRunId } as Record<
     string,
     unknown
   >;
-  const id = await createJobInDb(name, merged);
+  const id = await createJobInDb({ name, args: merged });
   if (!id) {
     console.error(
       "createTestJobInDb: failed to create job in DB (createJobInDb returned null)",
@@ -121,7 +128,11 @@ export async function claimNextJob(): Promise<JobRecord | null> {
   }
 }
 
-export async function claimJobById(jobId: string): Promise<JobRecord | null> {
+export async function claimJobById({
+  jobId,
+}: {
+  jobId: string;
+}): Promise<JobRecord | null> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;
   try {
@@ -141,7 +152,13 @@ export async function claimJobById(jobId: string): Promise<JobRecord | null> {
   }
 }
 
-export async function appendJobLog(jobId: string, line: string) {
+export async function appendJobLog({
+  jobId,
+  line,
+}: {
+  jobId: string;
+  line: string;
+}) {
   if (!jobId) {
     console.warn("appendJobLog called with empty jobId - skipping");
     return;
@@ -170,12 +187,17 @@ export async function appendJobLog(jobId: string, line: string) {
   }
 }
 
-export async function finishJob(
-  jobId: string,
-  success: boolean,
-  result?: unknown,
-  errorMsg?: string,
-) {
+export async function finishJob({
+  jobId,
+  success,
+  result,
+  errorMsg,
+}: {
+  jobId: string;
+  success: boolean;
+  result?: unknown;
+  errorMsg?: string;
+}) {
   const body: Record<string, unknown> = { success };
   if (errorMsg) body.error = errorMsg;
   const supabase = getSupabaseAdminClient();
@@ -213,7 +235,7 @@ export async function finishJob(
   }
 }
 
-export async function markJobCancelledInDb(jobId: string) {
+export async function markJobCancelledInDb({ jobId }: { jobId: string }) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return;
   try {
@@ -227,7 +249,7 @@ export async function markJobCancelledInDb(jobId: string) {
   }
 }
 
-export async function deleteJobInDb(jobId: string) {
+export async function deleteJobInDb({ jobId }: { jobId: string }) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return;
   try {
@@ -238,7 +260,11 @@ export async function deleteJobInDb(jobId: string) {
   }
 }
 
-export async function deleteJobsByTestRun(testRunId: string) {
+export async function deleteJobsByTestRun({
+  testRunId,
+}: {
+  testRunId: string;
+}) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return;
   try {
@@ -252,7 +278,7 @@ export async function deleteJobsByTestRun(testRunId: string) {
   }
 }
 
-export async function getJobFromDb(jobId: string) {
+export async function getJobFromDb({ jobId }: { jobId: string }) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;
   try {

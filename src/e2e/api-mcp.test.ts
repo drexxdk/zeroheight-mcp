@@ -6,10 +6,9 @@
  * Run with: npx tsx src/e2e/api-mcp.test.ts
  */
 
-import { MCP_API_KEY } from "@/utils/config";
+import { MCP_API_KEY, MCP_URL } from "@/utils/config";
 
 async function testApi() {
-  const API_URL = "http://localhost:3000/api/mcp";
   if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
     console.log("");
@@ -30,7 +29,7 @@ async function testApi() {
   try {
     // Test: Query Zeroheight Data (assumes data was already scraped)
     console.log("🔍 Testing Query Zeroheight Data...");
-    const queryResponse = await fetch(API_URL, {
+    const queryResponse = await fetch(MCP_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

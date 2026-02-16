@@ -12,10 +12,10 @@ export const getProjectUrlTool = {
   handler: async () => {
     const url = NEXT_PUBLIC_SUPABASE_URL;
     if (!url) {
-      return createErrorResponse(
-        "Error: NEXT_PUBLIC_SUPABASE_URL not configured",
-      );
+      return createErrorResponse({
+        message: "Error: NEXT_PUBLIC_SUPABASE_URL not configured",
+      });
     }
-    return createSuccessResponse(url);
+    return createSuccessResponse({ data: url });
   },
 };

@@ -32,7 +32,7 @@ export const tasksResultTool = {
       const start = Date.now();
 
       while (Date.now() - start < poll) {
-        const j = await getJobFromDb(taskId);
+        const j = await getJobFromDb({ jobId: taskId });
         if (!j)
           return {
             error: { code: -32001, message: `No task found with id=${taskId}` },

@@ -5,11 +5,15 @@ export type Progress = {
   imagesProcessed?: number;
 };
 
-export function createProgressBar(
-  current: number,
-  total: number,
-  width: number = 20,
-): string {
+export function createProgressBar({
+  current,
+  total,
+  width = 20,
+}: {
+  current: number;
+  total: number;
+  width?: number;
+}): string {
   // Guard against division by zero
   const safeTotal = total <= 0 ? 1 : total;
   const filledBars = Math.min(Math.round((current / safeTotal) * width), width);
@@ -18,15 +22,22 @@ export function createProgressBar(
   return `[${progressBar}]`;
 }
 
-export function createProgressHelpers(
-  progress: Progress,
-  checkProgressInvariant: (p: Progress, reason: string) => void,
-  logger?: (msg: string) => void,
-) {
+export function createProgressHelpers(options: {
+  progress: Progress;
+  checkProgressInvariant: (opts: {
+    overallProgress: Progress;
+    context?: string;
+  }) => void;
+  logger?: (msg: string) => void;
+}) {
+  const { progress, checkProgressInvariant, logger } = options;
   const out = logger ?? ((msg: string) => console.log(msg));
 
   function logProgress(icon: string, message: string) {
-    const progressBar = createProgressBar(progress.current, progress.total);
+    const progressBar = createProgressBar({
+      current: progress.current,
+      total: progress.total,
+    });
     out(
       `${progressBar} [${progress.current}/${progress.total}] ${icon} ${message}`,
     );
@@ -34,7 +45,7 @@ export function createProgressHelpers(
 
   function markAttempt(reason: string, icon: string, message: string) {
     progress.current++;
-    checkProgressInvariant(progress, reason);
+    checkProgressInvariant({ overallProgress: progress, context: reason });
     logProgress(icon, message);
   }
 

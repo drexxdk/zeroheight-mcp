@@ -12,19 +12,22 @@ export const executeSqlTool = {
   handler: async () => {
     const { client: supabase } = getClient();
     if (!supabase) {
-      return createErrorResponse("Error: Supabase client not configured");
+      return createErrorResponse({
+        message: "Error: Supabase client not configured",
+      });
     }
 
     try {
       // Note: Direct SQL execution is not available through Supabase client
       // This would require a custom RPC function or direct database access
-      return createErrorResponse(
-        "Direct SQL execution is not supported. Use Supabase Dashboard or create custom RPC functions for complex queries.",
-      );
+      return createErrorResponse({
+        message:
+          "Direct SQL execution is not supported. Use Supabase Dashboard or create custom RPC functions for complex queries.",
+      });
     } catch (error) {
-      return createErrorResponse(
-        `Error executing SQL: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      return createErrorResponse({
+        message: `Error executing SQL: ${error instanceof Error ? error.message : String(error)}`,
+      });
     }
   },
 };

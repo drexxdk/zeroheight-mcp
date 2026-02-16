@@ -1,6 +1,10 @@
 import type { Page } from "puppeteer";
 
-export async function tryLogin(page: Page, password?: string): Promise<void> {
+export async function tryLogin(options: {
+  page: Page;
+  password?: string;
+}): Promise<void> {
+  const { page, password } = options;
   if (!password) return;
   const passwordInput = await page.$('input[type="password"]');
   if (!passwordInput) return;
@@ -9,11 +13,12 @@ export async function tryLogin(page: Page, password?: string): Promise<void> {
   await new Promise((r) => setTimeout(r, 2000));
 }
 
-export async function retryAsync<T>(
-  fn: () => Promise<T>,
-  retries = 3,
-  delayMs = 500,
-): Promise<T> {
+export async function retryAsync<T>(options: {
+  fn: () => Promise<T>;
+  retries?: number;
+  delayMs?: number;
+}): Promise<T> {
+  const { fn, retries = 3, delayMs = 500 } = options;
   let lastError: unknown;
   for (let i = 0; i < retries; i++) {
     try {
@@ -47,13 +52,14 @@ export type StorageHelper = {
   ) => Promise<{ data?: unknown; error?: unknown }>;
 };
 
-export async function uploadWithRetry(
-  storage: StorageHelper,
-  filename: string,
-  file: Buffer,
-): Promise<StorageUploadResult> {
+export async function uploadWithRetry(options: {
+  storage: StorageHelper;
+  filename: string;
+  file: Buffer;
+}): Promise<StorageUploadResult> {
+  const { storage, filename, file } = options;
   try {
-    return await retryAsync(() => storage.upload(filename, file), 3, 500);
+    return await retryAsync({ fn: () => storage.upload(filename, file) });
   } catch (e) {
     return { error: { message: String(e) } };
   }

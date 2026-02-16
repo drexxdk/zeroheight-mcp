@@ -1,4 +1,4 @@
-export function mapStatusToSep(status: string) {
+export function mapStatusToSep({ status }: { status: string }) {
   if (status === "running") return "working";
   return status;
 }

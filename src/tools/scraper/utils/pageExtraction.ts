@@ -15,11 +15,15 @@ export type ExtractedImage = {
   index?: number;
 };
 
-export async function extractPageData(
-  page: Page,
-  pageUrl: string,
-  allowedHostname: string,
-) {
+export async function extractPageData({
+  page,
+  pageUrl,
+  allowedHostname,
+}: {
+  page: Page;
+  pageUrl: string;
+  allowedHostname: string;
+}) {
   const title: string = await page.title();
 
   const content: string = await page

@@ -1,5 +1,4 @@
-import { config } from "dotenv";
-config({ path: ".env.local" });
+import { runTool } from "./start-task";
 
 async function main() {
   const ids = process.argv.slice(2);
@@ -11,14 +10,19 @@ async function main() {
   }
 
   try {
-    const { tasksCancelTool } = await import("../../src/tools/tasks");
     for (const id of ids) {
-      const res = await tasksCancelTool.handler({ taskId: id });
+      const res = await runTool(
+        "../../src/tools/tasks/cancel",
+        "tasksCancelTool",
+        {
+          taskId: id,
+        },
+      );
       console.log(JSON.stringify(res, null, 2));
     }
   } catch (e) {
-    console.error("Cancel script failed:", e instanceof Error ? e.message : e);
-    process.exit(1);
+    console.error("Cancel task failed:", e instanceof Error ? e.message : e);
+    process.exit(3);
   }
 }
 

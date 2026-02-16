@@ -9,8 +9,9 @@ export const getPublishableKeysTool = {
   handler: async () => {
     // This would require API calls to Supabase management API
     // For security, we'll return a message about checking environment variables
-    return createErrorResponse(
-      "API keys are configured via environment variables. Check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_ACCESS_TOKEN in your .env.local file.",
-    );
+    return createErrorResponse({
+      message:
+        "API keys are configured via environment variables. Check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_ACCESS_TOKEN in your .env.local file.",
+    });
   },
 };

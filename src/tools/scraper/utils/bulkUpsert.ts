@@ -408,7 +408,7 @@ export async function bulkUpsertPagesAndImages(options: {
     imagesAlreadyAssociatedCount,
   } as const;
 
-  const out = formatSummaryBox(params);
+  const out = formatSummaryBox({ p: params });
   return { lines: out };
 }
 
@@ -431,7 +431,7 @@ export type SummaryParams = Readonly<{
   imagesAlreadyAssociatedCount: number;
 }>;
 
-export function formatSummaryBox(p: SummaryParams): string[] {
+export function formatSummaryBox({ p }: { p: SummaryParams }): string[] {
   const lines: string[] = [];
   lines.push("Scraping Completed");
   lines.push("");

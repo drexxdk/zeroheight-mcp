@@ -12,7 +12,9 @@ export const listMigrationsTool = {
   handler: async () => {
     const { client: supabase } = getClient();
     if (!supabase) {
-      return createErrorResponse("Error: Supabase client not configured");
+      return createErrorResponse({
+        message: "Error: Supabase client not configured",
+      });
     }
 
     try {
@@ -26,16 +28,16 @@ export const listMigrationsTool = {
         .order("version", { ascending: false });
 
       if (error) {
-        return createErrorResponse(
-          `Error getting migrations: ${error.message}`,
-        );
+        return createErrorResponse({
+          message: `Error getting migrations: ${error.message}`,
+        });
       }
 
-      return createSuccessResponse(migrations);
+      return createSuccessResponse({ data: migrations });
     } catch (error) {
-      return createErrorResponse(
-        `Error listing migrations: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      return createErrorResponse({
+        message: `Error listing migrations: ${error instanceof Error ? error.message : String(error)}`,
+      });
     }
   },
 };

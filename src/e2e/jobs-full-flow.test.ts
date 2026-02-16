@@ -18,7 +18,10 @@ function sleep(ms: number) {
 
 async function run() {
   console.log("Creating test job...");
-  const id = await createTestJobInDb("test-job-full-flow", { foo: "bar" });
+  const id = await createTestJobInDb({
+    name: "test-job-full-flow",
+    args: { foo: "bar" },
+  });
   if (!id) {
     console.error("Failed to create job");
     process.exit(1);
@@ -26,7 +29,7 @@ async function run() {
   console.log("Created job id:", id);
 
   // Verify initial state is `working` per SEP-1686
-  const before = await getJobFromDb(id);
+  const before = await getJobFromDb({ jobId: id });
   if (!before) {
     console.error("Failed to read job after creation");
     process.exit(4);
@@ -42,7 +45,7 @@ async function run() {
   // Start a background "worker" that will claim and run the job.
   const worker = (async () => {
     console.log("Worker: claiming job by id...");
-    const claimed = await claimJobById(id);
+    const claimed = await claimJobById({ jobId: id });
     if (!claimed) {
       console.error("Worker: no job claimed");
       return;
@@ -51,12 +54,20 @@ async function run() {
 
     // Simulate work and periodically check DB for cancellation
     for (let i = 0; i < 30; i++) {
-      await appendJobLog(claimed.id, `worker log ${i}`);
-      const job = await getJobFromDb(claimed.id);
+      await appendJobLog({ jobId: claimed.id, line: `worker log ${i}` });
+      const job = await getJobFromDb({ jobId: claimed.id });
       if (job && job.status === "cancelled") {
         console.log("Worker: detected cancellation");
-        await appendJobLog(claimed.id, "worker detected cancellation");
-        await finishJob(claimed.id, false, undefined, "cancelled by test");
+        await appendJobLog({
+          jobId: claimed.id,
+          line: "worker detected cancellation",
+        });
+        await finishJob({
+          jobId: claimed.id,
+          success: false,
+          result: undefined,
+          errorMsg: "cancelled by test",
+        });
         return;
       }
       await sleep(200);
@@ -64,14 +75,14 @@ async function run() {
 
     // Completed normally
     console.log("Worker: finished normally");
-    await finishJob(claimed.id, true);
+    await finishJob({ jobId: claimed.id, success: true });
   })();
 
   // Give the worker a moment to start and write a couple logs
   await sleep(500);
 
   console.log("Main: reading job (pre-cancel)...");
-  const pre = await getJobFromDb(id);
+  const pre = await getJobFromDb({ jobId: id });
   console.log(JSON.stringify(pre, null, 2));
   if (!pre) {
     console.error("Failed to read job before cancel");
@@ -91,13 +102,13 @@ async function run() {
 
   // Cancel the job
   console.log("Main: cancelling job...");
-  await markJobCancelledInDb(id);
+  await markJobCancelledInDb({ jobId: id });
 
   // Wait for worker to observe cancellation and finish
   await worker;
 
   console.log("Main: fetching final job record...");
-  const final = await getJobFromDb(id);
+  const final = await getJobFromDb({ jobId: id });
   console.log(JSON.stringify(final, null, 2));
 
   if (!final) process.exit(2);
@@ -112,7 +123,7 @@ async function run() {
 
   // cleanup test job
   try {
-    await deleteJobInDb(id);
+    await deleteJobInDb({ jobId: id });
     console.log("Cleaned up test job", id);
   } catch (e) {
     console.warn("Cleanup failed:", e instanceof Error ? e.message : e);

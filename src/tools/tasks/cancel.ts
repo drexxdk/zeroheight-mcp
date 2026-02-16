@@ -13,7 +13,7 @@ export const tasksCancelTool = {
         return {
           error: { code: -32000, message: "Admin client not configured" },
         };
-      await markJobCancelledInDb(taskId);
+      await markJobCancelledInDb({ jobId: taskId });
       return { taskId, action: "cancelled" };
     } catch (e: unknown) {
       return {

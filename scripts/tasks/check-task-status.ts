@@ -7,10 +7,10 @@ async function main() {
     console.error("Usage: npx tsx scripts/tasks/check-task-status.ts <taskId>");
     process.exit(2);
   }
-  const { getJobFromDb } = await import("../../src/tools/scraper/jobStore");
+  const { getJobFromDb } = await import("../../src/tools/tasks/utils/jobStore");
   for (const jobId of ids) {
     console.log(`Checking status for jobId=${jobId}...`);
-    const job = await getJobFromDb(jobId);
+    const job = await getJobFromDb({ jobId });
     console.log(JSON.stringify(job, null, 2));
   }
 }

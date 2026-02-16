@@ -82,7 +82,8 @@ export async function processPageAndImages(
         }>;
         normalizedImages: Array<{ src: string; alt: string }>;
         pageLinks: string[];
-      }) ?? (await extractPageData(page, usedLink, allowedHostname));
+      }) ??
+  (await extractPageData({ page, pageUrl: usedLink, allowedHostname }));
 
   // Update progress counters for images
   // Note: callers should reserve `overallProgress.total` for images before

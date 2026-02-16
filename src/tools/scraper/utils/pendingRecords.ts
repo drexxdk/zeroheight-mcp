@@ -8,14 +8,20 @@ export type PendingImageRecord = {
 
 import { SCRAPER_DEBUG } from "@/utils/config";
 
-export function addPendingImageRecord(
-  pendingImageRecords: PendingImageRecord[],
-  pageUrl: string,
-  downloadUrl: string,
-  storagePath: string,
-  allExistingImageUrls: Set<string>,
-) {
-  const normalized = normalizeImageUrl(downloadUrl);
+export function addPendingImageRecord({
+  pendingImageRecords,
+  pageUrl,
+  downloadUrl,
+  storagePath,
+  allExistingImageUrls,
+}: {
+  pendingImageRecords: PendingImageRecord[];
+  pageUrl: string;
+  downloadUrl: string;
+  storagePath: string;
+  allExistingImageUrls: Set<string>;
+}) {
+  const normalized = normalizeImageUrl({ src: downloadUrl });
   pendingImageRecords.push({
     pageUrl,
     original_url: normalized,

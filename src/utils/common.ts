@@ -38,7 +38,7 @@ export function getSupabaseAdminClient(): ReturnType<
 export { createErrorResponse, createSuccessResponse } from "./toolResponses";
 
 // Map SQL types to TypeScript types
-export function mapSqlTypeToTs(sqlType: string): string {
+export function mapSqlTypeToTs({ sqlType }: { sqlType: string }): string {
   const typeMap: Record<string, string> = {
     integer: "number",
     bigint: "number",

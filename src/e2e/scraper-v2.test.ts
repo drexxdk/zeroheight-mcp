@@ -20,9 +20,12 @@ async function run() {
 
   console.log(`Running scrape-v2 on ${pageUrls.length} pages...`);
 
-  const res = await scrape(pageUrls[0], undefined, pageUrls, (s) =>
-    console.log(s),
-  );
+  const res = await scrape({
+    rootUrl: pageUrls[0],
+    password: undefined,
+    pageUrls,
+    logger: (s) => console.log(s),
+  });
 
   try {
     const text = res.content?.[0]?.text || "";

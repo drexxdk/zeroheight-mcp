@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { HASH_TRUNCATE_LENGTH } from "@/utils/config";
 
-export function normalizeImageUrl(src: string): string {
+export function normalizeImageUrl({ src }: { src: string }): string {
   try {
     const u = new URL(src);
     return `${u.protocol}//${u.hostname}${u.pathname}`;
@@ -10,8 +10,14 @@ export function normalizeImageUrl(src: string): string {
   }
 }
 
-export function hashFilenameFromUrl(url: string, ext = "jpg"): string {
-  const normalized = normalizeImageUrl(url);
+export function hashFilenameFromUrl({
+  url,
+  ext = "jpg",
+}: {
+  url: string;
+  ext?: string;
+}): string {
+  const normalized = normalizeImageUrl({ src: url });
   const h = crypto
     .createHash("md5")
     .update(normalized)

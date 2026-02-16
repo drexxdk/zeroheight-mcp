@@ -17,11 +17,11 @@ export const generateTypescriptTypesTool = {
       const schemaPath = join(process.cwd(), "database.schema.ts");
       const schemaContent = readFileSync(schemaPath, "utf-8");
 
-      return createSuccessResponse(schemaContent);
+      return createSuccessResponse({ data: schemaContent });
     } catch (error) {
-      return createErrorResponse(
-        `Error reading database schema file: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      return createErrorResponse({
+        message: `Error reading database schema file: ${error instanceof Error ? error.message : String(error)}`,
+      });
     }
   },
 };

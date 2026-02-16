@@ -10,21 +10,25 @@ import { retryWithBackoff } from "./retryHelpers";
 
 export type LogProgressFn = (icon: string, message: string) => void;
 
-export async function uploadBufferToStorage(
-  storage: StorageHelper,
-  filename: string,
-  fileBuffer: Buffer,
-): Promise<{ path?: string; error?: unknown }> {
-  await ensureBucket(storage, IMAGE_BUCKET);
+export async function uploadBufferToStorage({
+  storage,
+  filename,
+  fileBuffer,
+}: {
+  storage: StorageHelper;
+  filename: string;
+  fileBuffer: Buffer;
+}): Promise<{ path?: string; error?: unknown }> {
+  await ensureBucket({ storage, bucket: IMAGE_BUCKET });
 
   const res = await retryWithBackoff(
     async () => {
-      const r = await uploadWithFallback(
+      const r = await uploadWithFallback({
         storage,
         filename,
-        fileBuffer,
-        "image/jpeg",
-      );
+        file: fileBuffer,
+        contentType: "image/jpeg",
+      });
       if (r.error) throw r.error;
       return r;
     },

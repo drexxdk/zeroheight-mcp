@@ -55,7 +55,9 @@ export const queryDatatabaseTool = {
   }) => {
     const { client: supabase } = getClient();
     if (!supabase) {
-      return createErrorResponse("Error: Supabase client not configured");
+      return createErrorResponse({
+        message: "Error: Supabase client not configured",
+      });
     }
 
     // Set defaults
@@ -84,15 +86,15 @@ export const queryDatatabaseTool = {
 
       if (titleResult.error) {
         console.error("Error querying titles:", titleResult.error);
-        return createErrorResponse(
-          "Error querying data: " + titleResult.error.message,
-        );
+        return createErrorResponse({
+          message: "Error querying data: " + titleResult.error.message,
+        });
       }
       if (contentResult.error) {
         console.error("Error querying content:", contentResult.error);
-        return createErrorResponse(
-          "Error querying data: " + contentResult.error.message,
-        );
+        return createErrorResponse({
+          message: "Error querying data: " + contentResult.error.message,
+        });
       }
 
       // Combine and deduplicate results
@@ -114,7 +116,9 @@ export const queryDatatabaseTool = {
 
       if (urlError) {
         console.error("Error querying by URL:", urlError);
-        return createErrorResponse("Error querying data: " + urlError.message);
+        return createErrorResponse({
+          message: "Error querying data: " + urlError.message,
+        });
       }
 
       pages = urlPages || [];
@@ -127,7 +131,9 @@ export const queryDatatabaseTool = {
 
       if (allError) {
         console.error("Error querying all pages:", allError);
-        return createErrorResponse("Error querying data: " + allError.message);
+        return createErrorResponse({
+          message: "Error querying data: " + allError.message,
+        });
       }
 
       pages = allPages || [];
@@ -151,6 +157,6 @@ export const queryDatatabaseTool = {
       };
     });
 
-    return createSuccessResponse(result);
+    return createSuccessResponse({ data: result });
   },
 };

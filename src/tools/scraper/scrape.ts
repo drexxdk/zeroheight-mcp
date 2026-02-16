@@ -17,7 +17,7 @@ import { extractPageData } from "./utils/pageExtraction";
 import type { ExtractedImage } from "./utils/pageExtraction";
 import { processPageAndImages } from "./utils/processPageAndImages";
 import prefetchSeeds, { normalizeUrl } from "./utils/prefetch";
-import { SCRAPER_LOG_LINK_SAMPLE, SCRAPER_DEBUG } from "@/utils/config";
+import { SCRAPER_DEBUG } from "@/utils/config";
 import {
   SCRAPER_CONCURRENCY,
   SCRAPER_IDLE_TIMEOUT_MS,
@@ -46,13 +46,19 @@ import {
 import { tryLogin } from "@/utils/common/scraperHelpers";
 
 // Primary scraper (previously V2) - coordinator-based queue, deterministic totals, parallel workers
-export async function scrape(
-  rootUrl: string,
-  password?: string,
-  pageUrls?: string[],
-  logger?: (s: string) => void,
-  shouldCancel?: () => boolean | Promise<boolean>,
-) {
+export async function scrape({
+  rootUrl,
+  password,
+  pageUrls,
+  logger,
+  shouldCancel,
+}: {
+  rootUrl: string;
+  password?: string;
+  pageUrls?: string[];
+  logger?: (s: string) => void;
+  shouldCancel?: () => boolean | Promise<boolean>;
+}) {
   try {
     const concurrency = SCRAPER_CONCURRENCY;
     const idleTimeout = SCRAPER_IDLE_TIMEOUT_MS;
@@ -149,11 +155,11 @@ export async function scrape(
       }
       return new Promise((res) => waiters.push(res));
     }
-    const { logProgress } = createProgressHelpers(
+    const { logProgress } = createProgressHelpers({
       progress,
       checkProgressInvariant,
       logger,
-    );
+    });
 
     const restrictToSeeds = !!(pageUrls && pageUrls.length > 0);
 
@@ -187,7 +193,9 @@ export async function scrape(
     }
 
     if (pageUrls && pageUrls.length > 0) {
-      const normalized = pageUrls.map((p) => normalizeUrl(p, rootUrl));
+      const normalized = pageUrls.map((p) =>
+        normalizeUrl({ u: p, base: rootUrl }),
+      );
       const { preExtractedMap: seedMap } = await prefetchSeeds({
         browser,
         rootUrl,
@@ -217,7 +225,7 @@ export async function scrape(
       });
       if (password) {
         try {
-          await tryLogin(p, password);
+          await tryLogin({ page: p, password });
           loggedInHostnames.add(new URL(rootUrl).hostname);
           if (logger) logger("Login attempt complete on root page");
         } catch (e) {
@@ -226,15 +234,17 @@ export async function scrape(
       }
 
       const hostname = new URL(rootUrl).hostname;
-      const extracted = await extractPageData(p, rootUrl, hostname).catch(
-        () => ({
-          pageLinks: [] as string[],
-          normalizedImages: [] as ExtractedImage[],
-          supportedImages: [] as ExtractedImage[],
-          title: "",
-          content: "",
-        }),
-      );
+      const extracted = await extractPageData({
+        page: p,
+        pageUrl: rootUrl,
+        allowedHostname: hostname,
+      }).catch(() => ({
+        pageLinks: [] as string[],
+        normalizedImages: [] as ExtractedImage[],
+        supportedImages: [] as ExtractedImage[],
+        title: "",
+        content: "",
+      }));
 
       const anchors = await p
         .$$eval("a[href]", (links) =>
@@ -243,10 +253,11 @@ export async function scrape(
         .catch(() => [] as string[]);
 
       const initialSet = new Set<string>();
-      initialSet.add(normalizeUrl(rootUrl));
-      for (const a of anchors) initialSet.add(normalizeUrl(a, rootUrl));
+      initialSet.add(normalizeUrl({ u: rootUrl }));
+      for (const a of anchors)
+        initialSet.add(normalizeUrl({ u: a, base: rootUrl }));
       for (const a of extracted.pageLinks || [])
-        initialSet.add(normalizeUrl(a, rootUrl));
+        initialSet.add(normalizeUrl({ u: a, base: rootUrl }));
       const initial = Array.from(initialSet);
       if (logger) {
         logger(`Seeded ${initial.length} initial links from root`);
@@ -283,7 +294,7 @@ export async function scrape(
                   const host = new URL(rootUrl).hostname;
                   if (!loggedInHostnames.has(host)) {
                     try {
-                      await tryLogin(page, password);
+                      await tryLogin({ page, password });
                       loggedInHostnames.add(host);
                       if (logger)
                         logger(
@@ -299,7 +310,7 @@ export async function scrape(
                 }
 
                 const finalRaw = page.url();
-                const final = normalizeUrl(finalRaw, rootUrl);
+                const final = normalizeUrl({ u: finalRaw, base: rootUrl });
                 let processingLink = link;
                 if (final && final !== link) {
                   redirects.set(link, final);
@@ -324,11 +335,11 @@ export async function scrape(
                   normalizedImages = e.normalizedImages || [];
                   pageLinks = e.pageLinks || [];
                 } else {
-                  const extracted = await extractPageData(
+                  const extracted = await extractPageData({
                     page,
-                    processingLink,
-                    hostname,
-                  );
+                    pageUrl: processingLink,
+                    allowedHostname: hostname,
+                  });
                   title = extracted.title;
                   content = extracted.content;
                   supportedImages = extracted.supportedImages || [];
@@ -338,10 +349,10 @@ export async function scrape(
 
                 if (supportedImages.length > 0) {
                   progress.total += supportedImages.length;
-                  checkProgressInvariant(
-                    progress,
-                    "reserve images for page-v2",
-                  );
+                  checkProgressInvariant({
+                    overallProgress: progress,
+                    context: "reserve images for page-v2",
+                  });
                   lastActivity = Date.now();
                 }
 
@@ -364,7 +375,11 @@ export async function scrape(
                   pendingImageRecords,
                   logProgress,
                   shouldCancel: undefined,
-                  checkProgressInvariant,
+                  checkProgressInvariant: (p: OverallProgress, ctx: string) =>
+                    checkProgressInvariant({
+                      overallProgress: p,
+                      context: ctx,
+                    }),
                   preExtracted: {
                     title,
                     content,
@@ -378,7 +393,7 @@ export async function scrape(
                   pageLinks ||
                   []) as string[];
                 const allowed = rawLinks
-                  .map((h) => normalizeUrl(h, rootUrl))
+                  .map((h) => normalizeUrl({ u: h, base: rootUrl }))
                   .filter((h) => {
                     try {
                       return new URL(h).hostname === hostname;
@@ -551,7 +566,7 @@ export async function scrape(
               uniqueAllowedImageUrls,
             ).filter((u) => allExistingImageUrls.has(u)).length,
           };
-          const boxed = formatSummaryBox(params);
+          const boxed = formatSummaryBox({ p: params });
           if (boxed && boxed.length) printer(boxed.join("\n"));
         }
       }
@@ -559,13 +574,15 @@ export async function scrape(
 
     await browser.close();
 
-    return createSuccessResponse({ debug: { seedUrl: rootUrl }, progress });
+    return createSuccessResponse({
+      data: { debug: { seedUrl: rootUrl }, progress },
+    });
   } catch (err) {
     if (err instanceof JobCancelled)
-      return createSuccessResponse({ message: "Job cancelled" });
-    return createErrorResponse(
-      String(err instanceof Error ? err.message : err),
-    );
+      return createSuccessResponse({ data: { message: "Job cancelled" } });
+    return createErrorResponse({
+      message: String(err instanceof Error ? err.message : err),
+    });
   }
 }
 
@@ -585,12 +602,13 @@ export const scrapeTool = {
   }) => {
     const projectUrl = ZEROHEIGHT_PROJECT_URL;
     if (!projectUrl)
-      return createErrorResponse("ZEROHEIGHT_PROJECT_URL not set");
+      return createErrorResponse({ message: "ZEROHEIGHT_PROJECT_URL not set" });
 
     let jobId: string | null = null;
     try {
-      jobId = await createJobInDb("scrape", {
-        pageUrls: pageUrls || null,
+      jobId = await createJobInDb({
+        name: "scrape",
+        args: { pageUrls: pageUrls || null },
       });
     } catch (err) {
       console.warn("createJobInDb failed:", err);
@@ -601,26 +619,26 @@ export const scrapeTool = {
     (async () => {
       const logger = async (s: string) => {
         try {
-          await appendJobLog(
-            jobId as string,
-            `[${new Date().toISOString()}] ${s}`,
-          );
+          await appendJobLog({
+            jobId: jobId as string,
+            line: `[${new Date().toISOString()}] ${s}`,
+          });
         } catch {}
         if (SCRAPER_DEBUG) console.log(`[debug] ${s}`);
         else console.log(s);
       };
 
       try {
-        const res = await scrape(
-          projectUrl,
+        const res = await scrape({
+          rootUrl: projectUrl,
           password,
-          pageUrls || undefined,
-          (msg: string) => {
+          pageUrls: pageUrls || undefined,
+          logger: (msg: string) => {
             void logger(msg);
           },
-          async () => {
+          shouldCancel: async () => {
             try {
-              const j = await getJobFromDb(jobId as string);
+              const j = await getJobFromDb({ jobId: jobId as string });
               return !!(
                 j &&
                 (j.status === "cancelled" || j.status === "failed")
@@ -629,7 +647,7 @@ export const scrapeTool = {
               return false;
             }
           },
-        );
+        });
         let structuredResult: unknown = res;
         if (
           res &&
@@ -639,19 +657,34 @@ export const scrapeTool = {
           const r = res as Record<string, unknown>;
           structuredResult = r.progress ?? res;
         }
-        await finishJob(jobId as string, true, structuredResult);
+        await finishJob({
+          jobId: jobId as string,
+          success: true,
+          result: structuredResult,
+        });
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
         if (e instanceof JobCancelled) {
-          await appendJobLog(jobId as string, "Job cancelled by request");
-          await finishJob(jobId as string, false);
+          await appendJobLog({
+            jobId: jobId as string,
+            line: "Job cancelled by request",
+          });
+          await finishJob({ jobId: jobId as string, success: false });
         } else {
-          await appendJobLog(jobId as string, `Error: ${errMsg}`);
-          await finishJob(jobId as string, false, undefined, errMsg);
+          await appendJobLog({
+            jobId: jobId as string,
+            line: `Error: ${errMsg}`,
+          });
+          await finishJob({
+            jobId: jobId as string,
+            success: false,
+            result: undefined,
+            errorMsg: errMsg,
+          });
         }
       }
     })();
 
-    return createSuccessResponse({ message: "Job started" });
+    return createSuccessResponse({ data: { message: "Job started" } });
   },
 };

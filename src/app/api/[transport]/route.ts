@@ -277,7 +277,7 @@ const handler = createMcpHandler(
 
 // Authentication wrapper for Next.js API routes
 async function authenticatedHandler(request: NextRequest) {
-  const auth = authenticateRequest(request);
+  const auth = authenticateRequest({ request });
 
   if (!auth.isValid) {
     return new Response(

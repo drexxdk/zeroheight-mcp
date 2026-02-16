@@ -79,7 +79,7 @@ export async function processImagesForPage(options: {
         return { processed: 0, uploaded: 0, skipped: 0, failed: 1 };
       }
 
-      const normalizedSrc = normalizeImageUrl(img.src);
+      const normalizedSrc = normalizeImageUrl({ src: img.src });
       if (allExistingImageUrls.has(normalizedSrc)) {
         logProgress("🚫", "Skipping image - already processed");
         return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };

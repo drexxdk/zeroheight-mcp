@@ -5,8 +5,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 async function main() {
-  const API_URL = "http://localhost:3000/api/mcp";
-  const { MCP_API_KEY } = await import("@/utils/config");
+  const { MCP_API_KEY, MCP_URL } = await import("@/utils/config");
   if (!MCP_API_KEY) {
     console.error("MCP_API_KEY not set");
     process.exit(1);
@@ -15,7 +14,7 @@ async function main() {
   console.log("Starting TTL propagation e2e test...");
 
   // 1) Start a test task via MCP
-  const startRes = await fetch(API_URL, {
+  const startRes = await fetch(MCP_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -95,7 +94,7 @@ async function main() {
 
   // 2) Call tasks/get via MCP with params.task.ttl and verify response includes ttl
   const requestedTtl = 5000;
-  const getRes = await fetch(API_URL, {
+  const getRes = await fetch(MCP_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

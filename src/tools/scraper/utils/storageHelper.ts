@@ -11,10 +11,13 @@ import {
 } from "@/utils/config";
 import { getSupabaseAdminClient } from "@/utils/common";
 
-export async function ensureBucket(
-  storage: StorageHelper,
+export async function ensureBucket({
+  storage,
   bucket = IMAGE_BUCKET,
-): Promise<void> {
+}: {
+  storage: StorageHelper;
+  bucket?: string;
+}): Promise<void> {
   if (!storage.listBuckets) return;
   try {
     const { data: buckets, error: bucketError } = await storage.listBuckets();
@@ -38,13 +41,18 @@ export async function ensureBucket(
   }
 }
 
-export async function uploadWithFallback(
-  storage: StorageHelper,
-  filename: string,
-  file: Buffer,
+export async function uploadWithFallback({
+  storage,
+  filename,
+  file,
   contentType = "application/octet-stream",
-): Promise<StorageUploadResult> {
-  const result = await uploadWithRetry(storage, filename, file);
+}: {
+  storage: StorageHelper;
+  filename: string;
+  file: Buffer;
+  contentType?: string;
+}): Promise<StorageUploadResult> {
+  const result = await uploadWithRetry({ storage, filename, file });
   if (
     result.error &&
     /row-level security|violates row-level security|permission/i.test(

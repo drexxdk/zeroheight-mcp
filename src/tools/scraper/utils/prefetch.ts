@@ -16,7 +16,7 @@ import {
   SCRAPER_RETRY_BASE_MS,
 } from "@/utils/config";
 
-export function normalizeUrl(u: string, base?: string) {
+export function normalizeUrl({ u, base }: { u: string; base?: string }) {
   try {
     const parsed = new URL(u, base || undefined);
     parsed.hash = "";
@@ -48,7 +48,7 @@ export async function prefetchSeeds(options: {
 }) {
   const { browser, rootUrl, seeds, password, concurrency, logger } = options;
   const hostname = new URL(rootUrl).hostname;
-  const normSeeds = seeds.map((s) => normalizeUrl(s, rootUrl));
+  const normSeeds = seeds.map((s) => normalizeUrl({ u: s, base: rootUrl }));
   const preExtractedMap = new Map<string, PreExtracted>();
 
   // If a password is provided, attempt a root login once and reuse cookies.
@@ -65,7 +65,7 @@ export async function prefetchSeeds(options: {
         timeout: SCRAPER_NAV_TIMEOUT_MS,
       });
       try {
-        await tryLogin(p, password);
+        await tryLogin({ page: p, password });
         if (logger) logger("Root login attempt complete");
       } catch (e) {
         if (logger) logger(`Root login attempt failed: ${String(e)}`);
@@ -123,7 +123,7 @@ export async function prefetchSeeds(options: {
             });
             if (password) {
               try {
-                await tryLogin(p, password);
+                await tryLogin({ page: p, password });
                 if (logger) logger(`Login attempt complete on seed ${u}`);
               } catch (e) {
                 if (logger)
@@ -164,7 +164,11 @@ export async function prefetchSeeds(options: {
               );
             } catch {}
 
-            const extracted = await extractPageData(p, u, hostname).catch(
+            const extracted = await extractPageData({
+              page: p,
+              pageUrl: u,
+              allowedHostname: hostname,
+            }).catch(
               () =>
                 ({
                   pageLinks: [] as string[],

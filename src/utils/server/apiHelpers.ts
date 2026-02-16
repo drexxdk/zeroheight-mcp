@@ -31,7 +31,7 @@ function getBucket(key: string): Bucket {
   return b;
 }
 
-export function checkRateLimit(apiKey: string) {
+export function checkRateLimit({ apiKey }: { apiKey: string }) {
   const bucket = getBucket(apiKey || "anon");
   if (bucket.tokens <= 0) return false;
   bucket.tokens -= 1;
@@ -49,12 +49,17 @@ function ensureLogDir() {
   }
 }
 
-export async function auditRequest(
-  req: NextRequest,
-  route: string,
-  details?: Record<string, unknown>,
-  bodyProvided?: unknown,
-) {
+export async function auditRequest({
+  req,
+  route,
+  details,
+  bodyProvided,
+}: {
+  req: NextRequest;
+  route: string;
+  details?: Record<string, unknown>;
+  bodyProvided?: unknown;
+}) {
   try {
     ensureLogDir();
     const now = new Date().toISOString();

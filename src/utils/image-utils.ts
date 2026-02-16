@@ -9,10 +9,14 @@ import {
   IMAGE_UTILS_SAMPLE_LIMIT,
 } from "./config";
 
-export async function downloadImage(
-  url: string,
-  _filename: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-): Promise<string | null> {
+export async function downloadImage({
+  url,
+  filename,
+}: {
+  url: string;
+  filename?: string;
+}): Promise<string | null> {
+  void filename;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
@@ -68,10 +72,13 @@ export async function downloadImage(
   }
 }
 
-export async function clearStorageBucket(
-  client: ReturnType<typeof createClient<Database>>,
-  bucketName?: string,
-): Promise<{ deletedCount: number; deleteErrors: unknown[] }> {
+export async function clearStorageBucket({
+  client,
+  bucketName,
+}: {
+  client: ReturnType<typeof createClient<Database>>;
+  bucketName?: string;
+}): Promise<{ deletedCount: number; deleteErrors: unknown[] }> {
   try {
     // List all files in the bucket
     let allFiles: string[] = [];
@@ -137,10 +144,13 @@ export async function clearStorageBucket(
   }
 }
 
-export async function getBucketDebugInfo(
-  client: ReturnType<typeof createClient<Database>>,
-  bucketName?: string,
-): Promise<{ buckets: string[]; files: Array<{ name: string }> }> {
+export async function getBucketDebugInfo({
+  client,
+  bucketName,
+}: {
+  client: ReturnType<typeof createClient<Database>>;
+  bucketName?: string;
+}): Promise<{ buckets: string[]; files: Array<{ name: string }> }> {
   const targetBucket = bucketName || IMAGE_BUCKET || "zeroheight-images";
   const buckets: string[] = [];
   let files: Array<{ name: string }> = [];
@@ -183,9 +193,11 @@ export async function getBucketDebugInfo(
   return { buckets, files };
 }
 
-export async function performBucketClear(
-  clientInstance: ReturnType<typeof createClient<Database>> | null,
-): Promise<{
+export async function performBucketClear({
+  clientInstance,
+}: {
+  clientInstance: ReturnType<typeof createClient<Database>> | null;
+}): Promise<{
   bucket: string;
   foundCount: number;
   foundFiles: string[];
@@ -214,7 +226,10 @@ export async function performBucketClear(
   // Gather debug info about the bucket/files (helps explain zero-results)
   try {
     if (storageClientToUse) {
-      const debug = await getBucketDebugInfo(storageClientToUse, targetBucket);
+      const debug = await getBucketDebugInfo({
+        client: storageClientToUse,
+        bucketName: targetBucket,
+      });
       buckets.push(...debug.buckets);
       files.push(...debug.files);
     } else {
@@ -228,10 +243,10 @@ export async function performBucketClear(
   let deleteSummary = { deletedCount: 0, deleteErrors: [] as unknown[] };
   try {
     if (storageClientToUse) {
-      deleteSummary = await clearStorageBucket(
-        storageClientToUse,
-        targetBucket,
-      );
+      deleteSummary = await clearStorageBucket({
+        client: storageClientToUse,
+        bucketName: targetBucket,
+      });
     }
   } catch (err) {
     console.error("Error during storage clear:", err);

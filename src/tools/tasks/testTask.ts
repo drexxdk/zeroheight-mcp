@@ -26,17 +26,18 @@ export const testTaskTool = {
   handler: async ({ durationMinutes }: { durationMinutes?: number } = {}) => {
     const minutes = durationMinutes ?? 15;
     try {
-      const jobId = await createTestJobInDb("testtask", {
-        durationMinutes: minutes,
+      const jobId = await createTestJobInDb({
+        name: "testtask",
+        args: { durationMinutes: minutes },
       });
 
       if (!jobId) {
-        return createErrorResponse("Failed to create test job");
+        return createErrorResponse({ message: "Failed to create test job" });
       }
 
       // mark the job as running so it appears active in the DB
       try {
-        await claimJobById(jobId as string);
+        await claimJobById({ jobId: jobId as string });
       } catch {
         // ignore claim failures; job may remain unclaimed but background worker can still run
       }
@@ -45,29 +46,57 @@ export const testTaskTool = {
         try {
           const totalSeconds = minutes * 60;
           for (let i = 1; i <= totalSeconds; i++) {
-            const j = await getJobFromDb(jobId as string);
+            const j = await getJobFromDb({ jobId: jobId as string });
             if (j && j.status === "cancelled") {
-              await appendJobLog(jobId as string, "Job cancelled by user");
-              await finishJob(jobId as string, false, undefined, "cancelled");
+              await appendJobLog({
+                jobId: jobId as string,
+                line: "Job cancelled by user",
+              });
+              await finishJob({
+                jobId: jobId as string,
+                success: false,
+                result: undefined,
+                errorMsg: "cancelled",
+              });
               return;
             }
-            await appendJobLog(jobId as string, `tick ${i}/${totalSeconds}`);
+            await appendJobLog({
+              jobId: jobId as string,
+              line: `tick ${i}/${totalSeconds}`,
+            });
             await new Promise((res) => setTimeout(res, 1000));
           }
-          await appendJobLog(jobId as string, "Test task completed");
-          await finishJob(jobId as string, true, { message: "completed" });
+          await appendJobLog({
+            jobId: jobId as string,
+            line: "Test task completed",
+          });
+          await finishJob({
+            jobId: jobId as string,
+            success: true,
+            result: { message: "completed" },
+          });
         } catch (e) {
           const errMsg = e instanceof Error ? e.message : String(e);
-          await appendJobLog(jobId as string, `Error: ${errMsg}`);
-          await finishJob(jobId as string, false, undefined, errMsg);
+          await appendJobLog({
+            jobId: jobId as string,
+            line: `Error: ${errMsg}`,
+          });
+          await finishJob({
+            jobId: jobId as string,
+            success: false,
+            result: undefined,
+            errorMsg: errMsg,
+          });
         }
       })();
 
-      return createSuccessResponse({ message: "Test task started", jobId });
+      return createSuccessResponse({
+        data: { message: "Test task started", jobId },
+      });
     } catch (e) {
-      return createErrorResponse(
-        `Test task failed: ${e instanceof Error ? e.message : String(e)}`,
-      );
+      return createErrorResponse({
+        message: `Test task failed: ${e instanceof Error ? e.message : String(e)}`,
+      });
     }
   },
 };

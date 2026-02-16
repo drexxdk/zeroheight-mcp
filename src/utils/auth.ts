@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { MCP_API_KEY } from "./config";
 
-export function authenticateRequest(request: NextRequest): {
+export function authenticateRequest({ request }: { request: NextRequest }): {
   isValid: boolean;
   error?: string;
 } {
