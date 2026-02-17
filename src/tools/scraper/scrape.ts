@@ -1,6 +1,6 @@
 import { z } from "zod";
-import puppeteer from "puppeteer";
 import type { Page } from "puppeteer";
+import { launchBrowser, attachDefaultInterception } from "./utils/puppeteer";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -62,10 +62,7 @@ export async function scrape({
   try {
     const concurrency = SCRAPER_CONCURRENCY;
     const idleTimeout = SCRAPER_IDLE_TIMEOUT_MS;
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    const browser = await launchBrowser();
     const queue: string[] = [];
     const inQueue = new Set<string>();
     const processed = new Set<string>();
@@ -219,6 +216,10 @@ export async function scrape({
         width: SCRAPER_VIEWPORT_WIDTH,
         height: SCRAPER_VIEWPORT_HEIGHT,
       });
+      // attach default interception rules (blocks fonts/styles/ext images etc.)
+      try {
+        await attachDefaultInterception(p).catch(() => {});
+      } catch {}
       await p.goto(rootUrl, {
         waitUntil: SCRAPER_NAV_WAITUNTIL,
         timeout: SCRAPER_NAV_TIMEOUT_MS,
@@ -277,6 +278,9 @@ export async function scrape({
             width: SCRAPER_VIEWPORT_WIDTH,
             height: SCRAPER_VIEWPORT_HEIGHT,
           });
+          try {
+            await attachDefaultInterception(page).catch(() => {});
+          } catch {}
           try {
             while (true) {
               if (shouldCancel && (await Promise.resolve(shouldCancel())))

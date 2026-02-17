@@ -5,7 +5,11 @@ import path from "path";
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
 
-import puppeteer, { HTTPRequest, HTTPResponse, Page } from "puppeteer";
+import { HTTPRequest, HTTPResponse, Page } from "puppeteer";
+import {
+  launchBrowser as sharedLaunchBrowser,
+  attachDefaultInterception,
+} from "../../src/tools/scraper/utils/puppeteer";
 
 type ReqRecord = {
   id: number;
@@ -51,131 +55,38 @@ async function main() {
   const screenshotPath = path.join(outDir, `screenshot-${runTimestamp}.png`);
   const harPath = path.join(outDir, `trace-${runTimestamp}.har`);
 
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await sharedLaunchBrowser();
   const page = await browser.newPage();
-
-  await page.setRequestInterception(true);
 
   const records: ReqRecord[] = [];
   let counter = 0;
   let blockedCount = 0;
   let totalBytes = 0;
 
-  // Centralized blocking logic helper. Returns a string reason if the request
-  // should be blocked, otherwise null.
-  function getBlockReason(
-    reqUrl: string,
-    rType: string,
-    allowSetLocal: Set<string>,
-    blockSetLocal: Set<string>,
-  ): string | null {
-    const rTypeLower = rType.toLowerCase();
-
-    // If user explicitly allowed this resource type, do not block
-    if (allowSetLocal.has(rTypeLower)) return null;
-
-    const urlLower = reqUrl.toLowerCase();
-    let parsedHost = "";
-    let parsedPathLower = "";
-    try {
-      const p = new URL(reqUrl);
-      parsedHost = p.hostname.toLowerCase();
-      parsedPathLower = p.pathname.toLowerCase();
-    } catch {
-      parsedHost = "";
-      parsedPathLower = "";
-    }
-
-    // Host-based blocking rules (centralized)
-    if (
-      parsedHost === "fast.appcues.com" ||
-      parsedHost.endsWith(".fast.appcues.com")
-    ) {
-      return "blocked-appcues-fast";
-    }
-    if (parsedHost === "snap.licdn.com") {
-      return "blocked-licdn-snap";
-    }
-    // Block zeroheight API calls
-    if (
-      parsedHost === "api.zeroheight.com" ||
-      parsedHost.endsWith(".api.zeroheight.com")
-    ) {
-      return "blocked-zeroheight-api";
-    }
-
-    // 1) Block by resourceType for obvious cases (don't block scripts by default)
-    if (rTypeLower === "stylesheet" || rTypeLower === "font") {
-      return "blocked-resource-type";
-    }
-
-    // 2) Strict extension-based blocking (pathname only)
-    let pathnameLower = "";
-    try {
-      pathnameLower = new URL(reqUrl).pathname.toLowerCase();
-    } catch {
-      pathnameLower = reqUrl.toLowerCase();
-    }
-
-    const imageExtRe = /\.(svg|gif|ico)(?:[?#]|$)/i;
-    const fontExtRe = /\.(woff2?|ttf|otf|eot)(?:[?#]|$)/i;
-    if (imageExtRe.test(pathnameLower) || fontExtRe.test(pathnameLower)) {
-      return "blocked-ext";
-    }
-
-    // 3) Data: URI mime-based blocking (safe parse)
-    if (urlLower.startsWith("data:")) {
-      const m = urlLower.match(/^data:([^;,]+)[;,]/);
-      const mime = m ? m[1] : "";
-      if (
-        mime.startsWith("image/svg") ||
-        mime === "image/gif" ||
-        mime === "image/x-icon" ||
-        mime === "image/vnd.microsoft.icon" ||
-        mime.startsWith("font/") ||
-        mime.includes("woff") ||
-        mime.includes("truetype") ||
-        mime.includes("opentype")
-      ) {
-        return "blocked-data-uri";
+  // Use the shared interception helper and record decisions via onRequest
+  await attachDefaultInterception(page, {
+    allow: allowSet,
+    block: blockSet,
+    onRequest: (
+      req: HTTPRequest,
+      decision: "blocked" | "continued",
+      reason?: string,
+    ) => {
+      const id = ++counter;
+      const reqUrl = req.url();
+      const rec: ReqRecord = {
+        id,
+        url: reqUrl,
+        method: req.method(),
+        resourceType: req.resourceType(),
+        timestamp: Date.now(),
+      };
+      if (decision === "blocked") {
+        blockedCount += 1;
+        rec.failure = reason ?? "blocked";
       }
-    }
-
-    // 4) Honor any custom blocks passed via --block (these are resource types)
-    if (blockSetLocal.has(rTypeLower)) return "blocked-by-inspector";
-
-    // 5) Block sentry.io and subdomains
-    if (parsedHost === "sentry.io" || parsedHost.endsWith(".sentry.io")) {
-      return "blocked-sentry";
-    }
-
-    return null;
-  }
-
-  page.on("request", (req: HTTPRequest) => {
-    const id = ++counter;
-    const reqUrl = req.url();
-
-    // Build record early
-    const rec: ReqRecord = {
-      id,
-      url: reqUrl,
-      method: req.method(),
-      resourceType: req.resourceType(),
-      timestamp: Date.now(),
-    };
-    records.push(rec);
-
-    const rType = req.resourceType();
-    const reason = getBlockReason(reqUrl, rType, allowSet, blockSet);
-    if (reason) {
-      blockedCount += 1;
-      rec.failure = reason;
-      req.abort().catch(() => {});
-      return;
-    }
-
-    req.continue().catch(() => {});
+      records.push(rec);
+    },
   });
 
   page.on("requestfailed", (req: HTTPRequest) => {
