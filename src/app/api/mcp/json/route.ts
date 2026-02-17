@@ -1,12 +1,11 @@
 import { NextRequest } from "next/server";
 import { authenticateRequest } from "@/utils/auth";
 import { mcpHandler } from "../../[transport]/route";
+import { MCP_CORS_ORIGIN } from "@/utils/config";
 
 const DEFAULT_CORS = {
-  // Recommend a sane default for local development instead of allowing all origins.
-  // Producers should set MCP_CORS_ORIGIN to their production host (e.g. https://app.example.com).
-  "Access-Control-Allow-Origin":
-    process.env.MCP_CORS_ORIGIN || "http://localhost:3000",
+  // Use the centralized config value for CORS origin (no direct process.env access).
+  "Access-Control-Allow-Origin": MCP_CORS_ORIGIN,
   "Access-Control-Allow-Headers":
     "Authorization, X-API-Key, Content-Type, Accept",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
