@@ -1,6 +1,6 @@
 {
   "servers": {
-    "zeroheight-scraper": {
+    "zeroheight-mcp": {
       "command": "npx",
       "args": [
         "mcp-remote",
