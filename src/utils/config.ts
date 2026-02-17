@@ -72,6 +72,10 @@ export const IMAGE_JPEG_QUALITY = parseInt(
   process.env.IMAGE_JPEG_QUALITY || "80",
   10,
 );
+export const IMAGE_WEBP_QUALITY = parseInt(
+  process.env.IMAGE_WEBP_QUALITY || "80",
+  10,
+);
 
 export const SERVER_RATE_LIMIT_TOKENS = Number(
   process.env.SERVER_RATE_LIMIT_TOKENS || 60,

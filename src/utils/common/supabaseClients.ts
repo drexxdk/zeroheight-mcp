@@ -14,7 +14,7 @@ export function getClient() {
       return await svc.storage.from(IMAGE_BUCKET).upload(filename, file, {
         cacheControl: "3600",
         upsert: true,
-        contentType: "image/jpeg",
+        contentType: "image/webp",
       });
     },
     // list/create buckets are only available with admin privileges

@@ -51,7 +51,7 @@ export async function processAndUploadImage(options: {
     shouldCancel,
   } = options;
   const filename =
-    options.filename ?? hashFilenameFromUrl({ url: downloadUrl, ext: "jpg" });
+    options.filename ?? hashFilenameFromUrl({ url: downloadUrl, ext: "webp" });
   const sanitizedUrl = normalizeImageUrl({ src: downloadUrl });
 
   try {

@@ -4,7 +4,7 @@ import type { Database } from "../database.schema";
 import {
   EXCLUDE_IMAGE_FORMATS,
   IMAGE_MAX_DIM,
-  IMAGE_JPEG_QUALITY,
+  IMAGE_WEBP_QUALITY,
   IMAGE_BUCKET,
   IMAGE_UTILS_SAMPLE_LIMIT,
 } from "./config";
@@ -55,14 +55,15 @@ export async function downloadImage({
       return null;
     }
 
-    // Process image with sharp: resize to max 600x600, convert to JPEG, optimize
+    // Process image with sharp: resize to max, flatten transparent areas to white,
+    // and convert to WebP at configured quality.
     const processedBuffer = await sharp(Buffer.from(buffer))
       .resize(IMAGE_MAX_DIM, IMAGE_MAX_DIM, {
         fit: "inside",
         withoutEnlargement: true,
       })
       .flatten({ background: { r: 255, g: 255, b: 255 } }) // Fill transparent areas with white
-      .jpeg({ quality: IMAGE_JPEG_QUALITY })
+      .webp({ quality: IMAGE_WEBP_QUALITY })
       .toBuffer();
 
     return processedBuffer.toString("base64");

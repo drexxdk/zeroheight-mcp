@@ -27,7 +27,7 @@ export async function uploadBufferToStorage({
         storage,
         filename,
         file: fileBuffer,
-        contentType: "image/jpeg",
+        contentType: "image/webp",
       });
       if (r.error) throw r.error;
       return r;

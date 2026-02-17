@@ -322,6 +322,29 @@ export async function scrape({
                 }
 
                 const hostname = new URL(rootUrl).hostname;
+
+                // If the final (resolved) URL is on a different hostname than the
+                // project root, skip it. This prevents the scraper from creating
+                // page rows for external domains (e.g. terms.zeroheight.com).
+                try {
+                  const procHost = new URL(processingLink).hostname;
+                  if (procHost !== hostname) {
+                    if (logger)
+                      logger(
+                        `Skipping external host ${processingLink} (allowed: ${hostname})`,
+                      );
+                    // mark as processed so we don't retry it
+                    processed.add(processingLink);
+                    if (processingLink !== link) processed.add(link);
+                    // update activity counters and continue to next link
+                    progress.pagesProcessed++;
+                    inProgressCount = Math.max(0, inProgressCount - 1);
+                    lastActivity = Date.now();
+                    continue;
+                  }
+                } catch {
+                  // if URL parsing fails, fall through and let later logic handle it
+                }
                 const preExtractedLocal = preExtractedMap;
                 let title: string;
                 let content: string;
