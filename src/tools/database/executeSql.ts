@@ -3,7 +3,7 @@ import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
 
 export const executeSqlTool = {
-  title: "execute-sql",
+  title: "DATABASE_execute-sql",
   description:
     "Execute raw SQL queries directly on the Supabase database for advanced data operations and analysis.",
   inputSchema: z.object({

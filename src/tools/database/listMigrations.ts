@@ -4,10 +4,13 @@ import {
   createSuccessResponse,
 } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
-import { DATABASE_URL, ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS } from "@/utils/config";
+import {
+  DATABASE_URL,
+  ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS,
+} from "@/utils/config";
 
 export const listMigrationsTool = {
-  title: "list-migrations",
+  title: "DATABASE_list-migrations",
   description: "List all database migrations in chronological order.",
   inputSchema: z.object({}),
   handler: async () => {
@@ -33,7 +36,10 @@ export const listMigrationsTool = {
         // idempotent creation when allowed, otherwise fall back to
         // listing the repository's local migration files (useful in dev).
         const msg = String(error.message || error);
-        if (msg.includes("Could not find the table") || msg.includes("schema_migrations")) {
+        if (
+          msg.includes("Could not find the table") ||
+          msg.includes("schema_migrations")
+        ) {
           // If env allows auto-creation and a DATABASE_URL is present,
           // try to create the table using a direct Postgres connection.
           const allowCreate = ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS;
@@ -42,7 +48,7 @@ export const listMigrationsTool = {
             try {
               // Dynamically import pg to avoid adding runtime cost unless used
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const { Client } = await import("pg") as any;
+              const { Client } = (await import("pg")) as any;
               const client = new Client({ connectionString: dbUrl });
               await client.connect();
               const createSql = `CREATE TABLE IF NOT EXISTS public.schema_migrations (
@@ -54,10 +60,11 @@ export const listMigrationsTool = {
               await client.end();
 
               // After creating, try the original query again
-              const { data: migrationsAfter, error: errAfter } = await untypedClient
-                .from(migrationsTable)
-                .select("*")
-                .order("version", { ascending: false });
+              const { data: migrationsAfter, error: errAfter } =
+                await untypedClient
+                  .from(migrationsTable)
+                  .select("*")
+                  .order("version", { ascending: false });
               if (errAfter) {
                 // Fall back to filesystem listing if anything still fails
                 throw errAfter;
@@ -70,7 +77,9 @@ export const listMigrationsTool = {
                 const fs = await import("fs/promises");
                 const path = await import("path");
                 const migrationsDir = path.join(process.cwd(), "migrations");
-                const entries = await fs.readdir(migrationsDir, { withFileTypes: true });
+                const entries = await fs.readdir(migrationsDir, {
+                  withFileTypes: true,
+                });
                 const files = entries
                   .filter((e) => e.isFile())
                   .map((e) => e.name)
@@ -90,7 +99,9 @@ export const listMigrationsTool = {
             const fs = await import("fs/promises");
             const path = await import("path");
             const migrationsDir = path.join(process.cwd(), "migrations");
-            const entries = await fs.readdir(migrationsDir, { withFileTypes: true });
+            const entries = await fs.readdir(migrationsDir, {
+              withFileTypes: true,
+            });
             const files = entries
               .filter((e) => e.isFile())
               .map((e) => e.name)

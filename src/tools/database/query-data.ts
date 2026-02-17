@@ -22,9 +22,9 @@ const getSupabaseProjectUrl = () => {
 };
 
 export const queryDataTool = {
-  title: "query-data",
+  title: "DATABASE_query-data",
   description:
-    "Query the cached Zeroheight design system data from the database. Supports searching by title, content, or URL, and can include image data with full Supabase storage URLs.",
+    "Query the cached Zeroheight data from the database. Supports searching by title, content, or URL, and can include image data with full Supabase storage URLs.",
   inputSchema: z.object({
     search: z
       .string()

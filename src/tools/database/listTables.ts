@@ -6,7 +6,7 @@ import {
 import { getClient } from "@/utils/common/supabaseClients";
 
 export const listTablesTool = {
-  title: "list-tables",
+  title: "DATABASE_list-tables",
   description:
     "List all tables in the database schemas to understand the data structure.",
   inputSchema: z.object({}),

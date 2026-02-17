@@ -7,7 +7,7 @@ import {
 } from "@/utils/toolResponses";
 
 export const generateTypescriptTypesTool = {
-  title: "get-database-schema",
+  title: "DEVELOPMENT_get-database-schema",
   description:
     "Retrieve TypeScript type definitions for the complete database schema.",
   inputSchema: z.object({}),

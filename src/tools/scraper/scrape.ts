@@ -614,8 +614,9 @@ export async function scrape({
 }
 
 export const scrapeTool = {
-  title: "scrape",
-  description: "A faster, coordinator-based scraper (was v2).",
+  title: "SCRAPER_scrape",
+  description:
+    "Start an asynchronous scraping job for the configured Zeroheight project. Seeds from the project root or provided page URLs; extracts pages and records page content and remote image URLs to the database as a background job.",
   inputSchema: z.object({
     pageUrls: z.array(z.string()).optional(),
     password: z.string().optional(),

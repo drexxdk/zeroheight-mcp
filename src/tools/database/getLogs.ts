@@ -3,7 +3,7 @@ import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
 
 export const getLogsTool = {
-  title: "get-logs",
+  title: "DATABASE_get-logs",
   description: "Retrieve recent logs from the Supabase project database.",
   inputSchema: z.object({}),
   handler: async () => {
