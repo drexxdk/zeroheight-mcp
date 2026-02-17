@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+// no request object needed for well-known responses
 
 async function respondOK() {
   return new Response(JSON.stringify({}), {
@@ -7,18 +7,18 @@ async function respondOK() {
   });
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   return respondOK();
 }
 
-export async function POST(_req: NextRequest) {
+export async function POST() {
   return respondOK();
 }
 
-export async function OPTIONS(_req: NextRequest) {
+export async function OPTIONS() {
   return respondOK();
 }
 
-export async function HEAD(_req: NextRequest) {
+export async function HEAD() {
   return respondOK();
 }

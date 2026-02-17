@@ -1,7 +1,10 @@
 import { scrape } from "@/tools/scraper/scrape";
-import { SCRAPE_TEST_PAGE_URLS } from "@/utils/config";
+
+// load env and config dynamically inside `run` so path aliases resolve
 
 async function run() {
+  await import("dotenv/config");
+  const { SCRAPE_TEST_PAGE_URLS } = await import("@/utils/config");
   const raw = SCRAPE_TEST_PAGE_URLS || "";
   if (!raw) {
     console.log(

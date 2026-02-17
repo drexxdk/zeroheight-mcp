@@ -1,11 +1,7 @@
 import { config as dotenvConfig } from "dotenv";
 import { getSupabaseClient } from "@/utils/common";
-import { IMAGE_BUCKET } from "@/utils/config";
 
 dotenvConfig({ path: ".env.local" });
-
-const BUCKET = IMAGE_BUCKET;
-const TEST_BUCKET = `${BUCKET}_test`;
 
 function extFromContentType(ct: string | null) {
   if (!ct) return "png";
@@ -16,7 +12,11 @@ function extFromContentType(ct: string | null) {
   return "bin";
 }
 
-async function downloadAndUpload(url: string) {
+async function downloadAndUpload(
+  url: string,
+  BUCKET: string,
+  TEST_BUCKET: string,
+) {
   const client = getSupabaseClient();
   if (!client) throw new Error("Supabase client not configured");
 
@@ -66,6 +66,9 @@ async function downloadAndUpload(url: string) {
 }
 
 async function run() {
+  const { IMAGE_BUCKET } = await import("@/utils/config");
+  const BUCKET = IMAGE_BUCKET;
+  const TEST_BUCKET = `${BUCKET}_test`;
   try {
     const testUrls = [
       "https://httpbin.org/image/png",
@@ -74,7 +77,7 @@ async function run() {
     for (const url of testUrls) {
       console.log("Trying:", url);
       try {
-        const res = await downloadAndUpload(url);
+        const res = await downloadAndUpload(url, BUCKET, TEST_BUCKET);
         console.log("Uploaded:", res.path);
         console.log("Public URL:", res.publicUrl);
         return;

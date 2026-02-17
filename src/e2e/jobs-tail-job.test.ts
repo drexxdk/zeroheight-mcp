@@ -3,11 +3,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
-import {
-  NEXT_PUBLIC_SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_ACCESS_TOKEN,
-} from "@/utils/config";
+// Supabase config will be imported dynamically below so env is loaded first
 
 const jobId = process.argv[2];
 const intervalArgIndex = process.argv.findIndex((s) => s === "--interval");
@@ -21,8 +17,9 @@ if (!jobId) {
   process.exit(2);
 }
 
-const SUPABASE_URL = NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ACCESS_TOKEN;
+const cfg = await import("@/utils/config");
+const SUPABASE_URL = cfg.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = cfg.SUPABASE_SERVICE_ROLE_KEY || cfg.SUPABASE_ACCESS_TOKEN;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("Missing Supabase config in .env.local");

@@ -6,9 +6,11 @@
  * Run with: npx tsx src/e2e/api-mcp.test.ts
  */
 
-import { MCP_API_KEY, MCP_URL } from "@/utils/config";
-
 async function testApi() {
+  // load env and config dynamically so TS path aliases resolve at runtime
+  await import("dotenv/config");
+  const { MCP_API_KEY, MCP_URL } = await import("@/utils/config");
+
   if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
     console.log("");
@@ -20,7 +22,7 @@ async function testApi() {
   }
 
   console.log("🧪 Testing Zeroheight MCP API...");
-  console.log(`📍 API URL: ${API_URL}`);
+  console.log(`📍 API URL: ${MCP_URL}`);
   console.log(
     `🔑 API Key: ${MCP_API_KEY ? MCP_API_KEY.substring(0, 8) + "..." : "NOT SET"}`,
   );

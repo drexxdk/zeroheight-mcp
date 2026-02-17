@@ -1,3 +1,5 @@
+export {};
+
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {

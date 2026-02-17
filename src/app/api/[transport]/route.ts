@@ -13,7 +13,7 @@ import {
   getPublishableKeysTool,
   getDatabaseTypesTool,
 } from "@/tools/development";
-import { clearDatabaseTool } from "@/tools/scraper";
+// scraper tools are imported where needed; no direct clearDatabaseTool usage here
 import {
   tasksGetTool,
   tasksResultTool,
