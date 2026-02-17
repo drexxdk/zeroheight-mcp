@@ -10,20 +10,25 @@ import {
   getJobFromDb,
   claimJobById,
 } from "./utils/jobStore";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const testTaskTool = {
+const testTaskInputSchema = z.object({
+  durationMinutes: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Duration in minutes; defaults to 10"),
+});
+
+export const testTaskTool: ToolDefinition<typeof testTaskInputSchema> = {
   title: "test-task",
   description:
     "Start a safe test task that ticks once per second for a duration (minutes).",
-  inputSchema: z.object({
-    durationMinutes: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe("Duration in minutes; defaults to 10"),
-  }),
-  handler: async ({ durationMinutes }: { durationMinutes?: number } = {}) => {
+  inputSchema: testTaskInputSchema,
+  handler: async ({
+    durationMinutes,
+  }: z.infer<typeof testTaskInputSchema> = {}) => {
     const minutes = durationMinutes ?? 15;
     try {
       const jobId = await createTestJobInDb({

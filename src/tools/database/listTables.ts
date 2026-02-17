@@ -4,12 +4,15 @@ import {
   createSuccessResponse,
 } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const listTablesTool = {
+const listTablesInput = z.object({});
+
+export const listTablesTool: ToolDefinition<typeof listTablesInput> = {
   title: "DATABASE_list-tables",
   description:
     "List all tables in the database schemas to understand the data structure.",
-  inputSchema: z.object({}),
+  inputSchema: listTablesInput,
   handler: async () => {
     const { client: supabase } = getClient();
     if (!supabase) {

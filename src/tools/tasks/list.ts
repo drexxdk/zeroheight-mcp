@@ -1,23 +1,28 @@
 import { getSupabaseAdminClient } from "@/utils/common";
 import { z } from "zod";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "@/utils/toolResponses";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const tasksListTool = {
+const tasksListInput = z
+  .object({
+    limit: z.number().int().positive().optional(),
+    offset: z.number().int().nonnegative().optional(),
+  })
+  .optional();
+
+export const tasksListTool: ToolDefinition<typeof tasksListInput> = {
   title: "tasks-list",
   description: "List tasks (simple pagination: limit, offset).",
-  inputSchema: z
-    .object({
-      limit: z.number().int().positive().optional(),
-      offset: z.number().int().nonnegative().optional(),
-    })
-    .optional(),
-  handler: async (args?: { limit?: number; offset?: number }) => {
+  inputSchema: tasksListInput,
+  handler: async (args?: z.infer<typeof tasksListInput>) => {
     const { limit, offset } = args ?? {};
     try {
       const admin = getSupabaseAdminClient();
       if (!admin)
-        return {
-          error: { code: -32000, message: "Admin client not configured" },
-        };
+        return createErrorResponse({ message: "Admin client not configured" });
       const l = limit ?? 50;
       const o = offset ?? 0;
       const { data, error } = await admin
@@ -26,17 +31,14 @@ export const tasksListTool = {
         .order("created_at", { ascending: false })
         .range(o, o + l - 1);
       if (error)
-        return {
-          error: { code: -32003, message: error.message || String(error) },
-        };
-      return { items: data ?? [], limit: l, offset: o };
+        return createErrorResponse({ message: error.message || String(error) });
+      return createSuccessResponse({
+        data: { items: data ?? [], limit: l, offset: o },
+      });
     } catch (e: unknown) {
-      return {
-        error: {
-          code: -32099,
-          message: String(e instanceof Error ? e.message : e),
-        },
-      };
+      return createErrorResponse({
+        message: String(e instanceof Error ? e.message : e),
+      });
     }
   },
 };

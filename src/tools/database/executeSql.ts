@@ -1,14 +1,17 @@
 import { z } from "zod";
 import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const executeSqlTool = {
+const executeSqlInput = z.object({
+  query: z.string().describe("The SQL query to execute"),
+});
+
+export const executeSqlTool: ToolDefinition<typeof executeSqlInput> = {
   title: "DATABASE_execute-sql",
   description:
     "Execute raw SQL queries directly on the Supabase database for advanced data operations and analysis.",
-  inputSchema: z.object({
-    query: z.string().describe("The SQL query to execute"),
-  }),
+  inputSchema: executeSqlInput,
   handler: async () => {
     const { client: supabase } = getClient();
     if (!supabase) {

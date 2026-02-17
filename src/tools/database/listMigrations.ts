@@ -8,11 +8,14 @@ import {
   DATABASE_URL,
   ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS,
 } from "@/utils/config";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const listMigrationsTool = {
+const listMigrationsInput = z.object({});
+
+export const listMigrationsTool: ToolDefinition<typeof listMigrationsInput> = {
   title: "DATABASE_list-migrations",
   description: "List all database migrations in chronological order.",
-  inputSchema: z.object({}),
+  inputSchema: listMigrationsInput,
   handler: async () => {
     const { client: supabase } = getClient();
     if (!supabase) {

@@ -6,35 +6,37 @@ import {
   SERVER_MAX_TTL_MS,
 } from "./utils";
 import { z } from "zod";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "@/utils/toolResponses";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const tasksGetTool = {
+const tasksGetInput = z
+  .object({
+    taskId: z.string(),
+    requestedTtlMs: z.number().int().nonnegative().optional(),
+  })
+  .required();
+
+export const tasksGetTool: ToolDefinition<typeof tasksGetInput> = {
   title: "tasks-get",
   description: "Get task status and metadata by taskId (SEP-1686).",
-  inputSchema: z
-    .object({
-      taskId: z.string(),
-      requestedTtlMs: z.number().int().nonnegative().optional(),
-    })
-    .required(),
+  inputSchema: tasksGetInput,
   handler: async ({
     taskId,
     requestedTtlMs,
-  }: {
-    taskId: string;
-    requestedTtlMs?: number;
-  }) => {
+  }: z.infer<typeof tasksGetInput>) => {
     try {
       console.log("tasks/get handler called with", { taskId, requestedTtlMs });
       const admin = getSupabaseAdminClient();
       if (!admin)
-        return {
-          error: { code: -32000, message: "Admin client not configured" },
-        };
+        return createErrorResponse({ message: "Admin client not configured" });
       const j = await getJobFromDb({ jobId: taskId });
       if (!j)
-        return {
-          error: { code: -32001, message: `No task found with id=${taskId}` },
-        };
+        return createErrorResponse({
+          message: `No task found with id=${taskId}`,
+        });
 
       const ttl =
         typeof requestedTtlMs === "number"
@@ -51,14 +53,11 @@ export const tasksGetTool = {
           pollInterval: 5000,
         },
       };
-      return res;
+      return createSuccessResponse({ data: res });
     } catch (e: unknown) {
-      return {
-        error: {
-          code: -32099,
-          message: String(e instanceof Error ? e.message : e),
-        },
-      };
+      return createErrorResponse({
+        message: String(e instanceof Error ? e.message : e),
+      });
     }
   },
 };

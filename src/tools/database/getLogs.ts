@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const getLogsTool = {
+const getLogsInput = z.object({});
+
+export const getLogsTool: ToolDefinition<typeof getLogsInput> = {
   title: "DATABASE_get-logs",
   description: "Retrieve recent logs from the Supabase project database.",
-  inputSchema: z.object({}),
+  inputSchema: getLogsInput,
   handler: async () => {
     const { client: supabase } = getClient();
     if (!supabase) {

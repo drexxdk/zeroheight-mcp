@@ -1,27 +1,29 @@
 import { getSupabaseAdminClient } from "@/utils/common";
 import { markJobCancelledInDb } from "./utils/jobStore";
 import { z } from "zod";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "@/utils/toolResponses";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const tasksCancelTool = {
+const tasksCancelInput = z.object({ taskId: z.string() });
+
+export const tasksCancelTool: ToolDefinition<typeof tasksCancelInput> = {
   title: "tasks-cancel",
   description: "Cancel a task by id (marks as cancelled).",
-  inputSchema: z.object({ taskId: z.string() }),
-  handler: async ({ taskId }: { taskId: string }) => {
+  inputSchema: tasksCancelInput,
+  handler: async ({ taskId }: z.infer<typeof tasksCancelInput>) => {
     try {
       const admin = getSupabaseAdminClient();
       if (!admin)
-        return {
-          error: { code: -32000, message: "Admin client not configured" },
-        };
+        return createErrorResponse({ message: "Admin client not configured" });
       await markJobCancelledInDb({ jobId: taskId });
-      return { taskId, action: "cancelled" };
+      return createSuccessResponse({ data: { taskId, action: "cancelled" } });
     } catch (e: unknown) {
-      return {
-        error: {
-          code: -32099,
-          message: String(e instanceof Error ? e.message : e),
-        },
-      };
+      return createErrorResponse({
+        message: String(e instanceof Error ? e.message : e),
+      });
     }
   },
 };

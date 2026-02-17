@@ -613,21 +613,19 @@ export async function scrape({
   }
 }
 
-export const scrapeTool = {
+import type { ToolDefinition } from "@/tools/toolTypes";
+
+const scrapeInput = z.object({
+  pageUrls: z.array(z.string()).optional(),
+  password: z.string().optional(),
+});
+
+export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
   title: "SCRAPER_scrape",
   description:
     "Start an asynchronous scraping job for the configured Zeroheight project. Seeds from the project root or provided page URLs; extracts pages and records page content and remote image URLs to the database as a background job.",
-  inputSchema: z.object({
-    pageUrls: z.array(z.string()).optional(),
-    password: z.string().optional(),
-  }),
-  handler: async ({
-    pageUrls,
-    password,
-  }: {
-    pageUrls?: string[];
-    password?: string;
-  }) => {
+  inputSchema: scrapeInput,
+  handler: async ({ pageUrls, password }: z.infer<typeof scrapeInput>) => {
     const projectUrl = ZEROHEIGHT_PROJECT_URL;
     if (!projectUrl)
       return createErrorResponse({ message: "ZEROHEIGHT_PROJECT_URL not set" });

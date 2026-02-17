@@ -10,6 +10,25 @@ import {
   SCRAPER_QUERY_DEFAULT_LIMIT,
 } from "@/utils/config";
 import { PageData } from "@/tools/scraper/utils/shared";
+import type { ToolDefinition } from "@/tools/toolTypes";
+
+const queryDataInput = z.object({
+  search: z
+    .string()
+    .optional()
+    .describe("Search term to find in page titles or content"),
+  url: z.string().optional().describe("Specific page URL to retrieve"),
+  includeImages: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe("Whether to include image data in the response"),
+  limit: z
+    .number()
+    .optional()
+    .default(SCRAPER_QUERY_DEFAULT_LIMIT)
+    .describe("Maximum number of results to return"),
+});
 
 // Get the Supabase project URL for constructing storage URLs
 const getSupabaseProjectUrl = () => {
@@ -21,38 +40,17 @@ const getSupabaseProjectUrl = () => {
   return supabaseUrl;
 };
 
-export const queryDataTool = {
+export const queryDataTool: ToolDefinition<typeof queryDataInput> = {
   title: "DATABASE_query-data",
   description:
     "Query the cached Zeroheight data from the database. Supports searching by title, content, or URL, and can include image data with full Supabase storage URLs.",
-  inputSchema: z.object({
-    search: z
-      .string()
-      .optional()
-      .describe("Search term to find in page titles or content"),
-    url: z.string().optional().describe("Specific page URL to retrieve"),
-    includeImages: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Whether to include image data in the response"),
-    limit: z
-      .number()
-      .optional()
-      .default(SCRAPER_QUERY_DEFAULT_LIMIT)
-      .describe("Maximum number of results to return"),
-  }),
+  inputSchema: queryDataInput,
   handler: async ({
     search,
     url,
     includeImages,
     limit,
-  }: {
-    search?: string;
-    url?: string;
-    includeImages?: boolean;
-    limit?: number;
-  }) => {
+  }: z.infer<typeof queryDataInput>) => {
     const { client: supabase } = getClient();
     if (!supabase) {
       return createErrorResponse({

@@ -115,19 +115,22 @@ async function clearDatabase() {
 }
 
 import { z } from "zod";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const clearAllDataTool = {
+const clearAllDataInput = z.object({
+  apiKey: z
+    .string()
+    .describe(
+      "MCP API key for authentication - required to confirm destructive action",
+    ),
+});
+
+export const clearAllDataTool: ToolDefinition<typeof clearAllDataInput> = {
   title: "DATABASE_clear-all-data",
   description:
     "Clear all Zeroheight data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
-  inputSchema: z.object({
-    apiKey: z
-      .string()
-      .describe(
-        "MCP API key for authentication - required to confirm destructive action",
-      ),
-  }),
-  handler: async ({ apiKey }: { apiKey: string }) => {
+  inputSchema: clearAllDataInput,
+  handler: async ({ apiKey }: z.infer<typeof clearAllDataInput>) => {
     const expectedApiKey = MCP_API_KEY;
     if (!expectedApiKey) {
       return createErrorResponse({

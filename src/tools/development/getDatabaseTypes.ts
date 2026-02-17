@@ -5,11 +5,14 @@ import {
   createErrorResponse,
   createSuccessResponse,
 } from "@/utils/toolResponses";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-export const databaseTypesTool = {
+const dbTypesInput = z.object({});
+
+export const databaseTypesTool: ToolDefinition<typeof dbTypesInput> = {
   title: "DEVELOPMENT_get-database-types",
   description: "Retrieve TypeScript type definitions for the database schema.",
-  inputSchema: z.object({}),
+  inputSchema: dbTypesInput,
   handler: async () => {
     try {
       // Read the database schema file

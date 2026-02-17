@@ -21,6 +21,7 @@ import {
   testTaskTool,
 } from "@/tools/tasks";
 import type { ToolResponse } from "@/utils/toolResponses";
+import { normalizeToToolResponse } from "@/utils/toolResponses";
 
 const handler = createMcpHandler(
   async (server) => {
@@ -326,22 +327,7 @@ async function authenticatedHandler(request: NextRequest) {
         const handlerFn = toolMap[toolName];
         const result = await handlerFn(args);
 
-        let rpcResult: unknown;
-        if (
-          result &&
-          typeof result === "object" &&
-          Object.prototype.hasOwnProperty.call(
-            result as Record<string, unknown>,
-            "content",
-          ) &&
-          Array.isArray((result as Record<string, unknown>).content)
-        ) {
-          rpcResult = result;
-        } else {
-          rpcResult = {
-            content: [{ type: "text", text: JSON.stringify(result) }],
-          };
-        }
+        const rpcResult = normalizeToToolResponse(result);
 
         const rpc = {
           jsonrpc: "2.0",
