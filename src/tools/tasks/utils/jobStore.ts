@@ -108,18 +108,20 @@ export async function claimNextJob(): Promise<JobRecord | null> {
       .limit(1);
     if (error || !rows || rows.length === 0) return null;
     const job = rows[0] as JobRecord;
+    // Atomically mark the task as started and running so other claimers won't
+    // pick the same job. Use `running` status to indicate active processing.
     const { error: updErr } = await supabase
       .from("tasks")
-      .update({ started_at: new Date().toISOString() })
-      .eq("id", job.id);
+      .update({ started_at: new Date().toISOString(), status: "running" })
+      .eq("id", job.id)
+      .eq("status", "working");
     if (updErr) {
       console.error("claimNextJob update error:", updErr);
       return null;
     }
     return {
       ...(job as JobRecord),
-      // maintain SEP `working` status; mark started_at locally
-      status: "working",
+      status: "running",
       started_at: new Date().toISOString(),
     } as JobRecord;
   } catch (e) {

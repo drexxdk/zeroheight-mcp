@@ -1,30 +1,10 @@
-import { downloadImage } from "@/utils/image-utils";
 import type { StorageHelper } from "@/utils/common/scraperHelpers";
 import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
-import { uploadBufferToStorage } from "./uploadHelpers";
 import { addPendingImageRecord } from "./pendingRecords";
 import { SCRAPER_DEBUG } from "@/utils/config";
-import { retryWithBackoff } from "./retryHelpers";
-import {
-  IMAGE_UPLOAD_RETRIES,
-  IMAGE_UPLOAD_BACKOFF_FACTOR,
-  IMAGE_UPLOAD_MIN_DELAY_MS,
-} from "@/utils/config";
 import { JobCancelled } from "@/utils/common/errors";
 
 export type LogProgressFn = (icon: string, message: string) => void;
-
-export async function downloadImageToBuffer({
-  downloadUrl,
-  filename,
-}: {
-  downloadUrl: string;
-  filename: string;
-}): Promise<Buffer | null> {
-  const base64 = await downloadImage({ url: downloadUrl, filename });
-  if (!base64) return null;
-  return Buffer.from(base64, "base64");
-}
 
 export async function processAndUploadImage(options: {
   storage: StorageHelper;
@@ -40,9 +20,13 @@ export async function processAndUploadImage(options: {
   // Optional cooperative cancellation callback
   shouldCancel?: () => boolean;
   filename?: string;
-}): Promise<{ uploaded: boolean; path?: string; error?: string }> {
+}): Promise<{
+  uploaded: boolean;
+  recorded?: boolean;
+  path?: string;
+  error?: string;
+}> {
   const {
-    storage,
     downloadUrl,
     link,
     logProgress,
@@ -50,48 +34,24 @@ export async function processAndUploadImage(options: {
     allExistingImageUrls,
     shouldCancel,
   } = options;
+
   const filename =
     options.filename ?? hashFilenameFromUrl({ url: downloadUrl, ext: "jpg" });
   const sanitizedUrl = normalizeImageUrl({ src: downloadUrl });
 
   try {
     if (shouldCancel && shouldCancel()) {
-      logProgress("⏹️", "Cancellation requested - aborting image download");
+      logProgress("⏹️", "Cancellation requested - skipping image record");
       throw new JobCancelled();
     }
 
-    const file = await retryWithBackoff(
-      () => downloadImageToBuffer({ downloadUrl, filename }),
-      {
-        retries: IMAGE_UPLOAD_RETRIES,
-        factor: IMAGE_UPLOAD_BACKOFF_FACTOR,
-        minDelayMs: IMAGE_UPLOAD_MIN_DELAY_MS,
-      },
-    );
-    if (!file) return { uploaded: false, error: "download_failed" };
+    // URL-only mode: do not download or upload images during scraping.
+    // Record the normalized remote URL as the image `storagePath` so
+    // downstream code (and Next.js) can fetch/resize on demand.
+    const path = sanitizedUrl;
+    if (SCRAPER_DEBUG)
+      console.log(`[debug] recorded remote image URL: ${sanitizedUrl}`);
 
-    if (shouldCancel && shouldCancel()) {
-      logProgress("⏹️", "Cancellation requested - aborting before upload");
-      throw new JobCancelled();
-    }
-
-    const uploadRes = await uploadBufferToStorage({
-      storage,
-      filename,
-      fileBuffer: file,
-    });
-    if (uploadRes.error) {
-      const e = uploadRes.error;
-      const msg = e instanceof Error ? e.message : String(e);
-      return { uploaded: false, error: msg || "upload_failed" };
-    }
-    const path = uploadRes.path;
-    if (!path) return { uploaded: false, error: "no_path_returned" };
-    if (SCRAPER_DEBUG) {
-      console.log(
-        `[debug] uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
-      );
-    }
     addPendingImageRecord({
       pendingImageRecords,
       pageUrl: link,
@@ -99,10 +59,16 @@ export async function processAndUploadImage(options: {
       storagePath: path,
       allExistingImageUrls,
     });
+
     const visibleName =
       sanitizedUrl.split("/").filter(Boolean).pop() ?? filename;
-    logProgress("✅", `Successfully uploaded image: ${visibleName}`);
-    return { uploaded: true, path };
+    logProgress("✅", `Recorded remote image URL: ${visibleName}`);
+    // Indicate this was recorded (URL-only) rather than uploaded to storage.
+    return { uploaded: false, recorded: true, path } as unknown as {
+      uploaded: boolean;
+      path?: string;
+      error?: string;
+    };
   } catch (e) {
     return {
       uploaded: false,

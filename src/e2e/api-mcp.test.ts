@@ -8,6 +8,10 @@
 
 import { MCP_API_KEY, MCP_URL } from "@/utils/config";
 
+// `API_URL` used in legacy scripts — prefer `MCP_URL`. Provide a safe alias
+// so this file can be run directly and satisfy the TypeScript checker.
+const API_URL: string = (typeof MCP_URL === "string" && MCP_URL) || "";
+
 async function testApi() {
   if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");

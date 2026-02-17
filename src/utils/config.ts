@@ -192,3 +192,25 @@ export const SCRAPER_LOG_LINK_SAMPLE = Number(
 export const IMAGE_UTILS_SAMPLE_LIMIT = Number(
   process.env.IMAGE_UTILS_SAMPLE_LIMIT || 50,
 );
+
+// When true, the scraper will enqueue thumbnail generation tasks for newly
+// inserted images (requires Supabase admin credentials available).
+export const SCRAPER_ENQUEUE_THUMBNAILS =
+  (process.env.SCRAPER_ENQUEUE_THUMBNAILS || "").toLowerCase().trim() ===
+  "true";
+
+// (MCP_API_KEY is defined earlier in this file)
+
+// Optional URL for the process-tasks endpoint. If set, the scraper will POST
+// to this URL (fire-and-forget) after enqueueing thumbnail jobs to kick off
+// immediate processing. Example: https://your-deploy.vercel.app/api/process-tasks
+export const PROCESS_TASKS_URL =
+  process.env.PROCESS_TASKS_URL ||
+  (() => {
+    try {
+      const u = new URL(MCP_URL);
+      return `${u.origin}/api/process-tasks`;
+    } catch {
+      return "http://localhost:3000/api/process-tasks";
+    }
+  })();

@@ -117,10 +117,11 @@ export async function processImagesForPage(options: {
         // considered (they will now see the URL in `allExistingImageUrls`).
         inProgress.delete(normalizedSrc);
       }
-      if (result && result.uploaded)
+      // Treat either an actual upload or a URL-only record as success.
+      if (result && (result.uploaded || result.recorded))
         return { processed: 1, uploaded: 1, skipped: 0, failed: 0 };
       console.error(
-        `❌ Failed to process image ${img.src.split("/").pop()}: ${result.error}`,
+        `❌ Failed to process image ${img.src.split("/").pop()}: ${result?.error}`,
       );
       return { processed: 1, uploaded: 0, skipped: 0, failed: 1 };
     },

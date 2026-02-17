@@ -5,6 +5,7 @@ import {
   SCRAPER_DEBUG,
   SCRAPER_MAX_ATTEMPTS,
   SCRAPER_RETRY_BASE_MS,
+  SCRAPER_RETRY_FACTOR,
   SCRAPER_BULK_UPSERT_BACKOFF_MS,
   SCRAPER_DB_QUERY_LIMIT,
   SCRAPER_LOG_SAMPLE_SIZE,
@@ -13,6 +14,12 @@ import {
 } from "@/utils/config";
 import type { PagesType, ImagesType } from "@/database.types";
 import { getClient } from "@/utils/common/supabaseClients";
+import { createJobInDb } from "../../tasks/utils/jobStore";
+import {
+  SCRAPER_ENQUEUE_THUMBNAILS,
+  MCP_API_KEY,
+  PROCESS_TASKS_URL,
+} from "@/utils/config";
 import boxen from "boxen";
 
 type DbClient = ReturnType<typeof getClient>["client"];
@@ -351,6 +358,84 @@ export async function bulkUpsertPagesAndImages(options: {
                   ?.id;
                 console.log(`[debug] sample inserted id=${String(first)}`);
               } catch {}
+            }
+            // Optionally enqueue thumbnail generation tasks for newly-inserted
+            // images if the environment flag is enabled. We iterate over the
+            // dedup list for this chunk and enqueue jobs for originals that
+            // were just inserted (tracked in `insertedOriginalUrls`).
+            if (SCRAPER_ENQUEUE_THUMBNAILS) {
+              try {
+                let jobsCreatedForChunk = 0;
+                for (const img of chunk) {
+                  if (insertedOriginalUrls.has(img.original_url)) {
+                    try {
+                      const jobId = await createJobInDb({
+                        name: "generate-thumbnail",
+                        args: { url: img.original_url, key: img.storage_path },
+                      });
+                      if (!jobId && debug)
+                        console.warn(
+                          `[debug] failed to enqueue thumbnail job for ${img.original_url}`,
+                        );
+                      if (jobId) jobsCreatedForChunk += 1;
+                    } catch (je) {
+                      if (debug) console.warn("enqueue job error:", je);
+                    }
+                  }
+                }
+
+                // If we created any jobs for this chunk and a processing
+                // endpoint is configured, trigger it once for the chunk.
+                const endpoint = PROCESS_TASKS_URL;
+                if (jobsCreatedForChunk > 0 && endpoint) {
+                  // Fire-and-forget async trigger with retry/backoff so the
+                  // upsert flow doesn't block but we attempt retries if the
+                  // endpoint is temporarily unavailable.
+                  (async () => {
+                    for (
+                      let attempt = 1;
+                      attempt <= SCRAPER_MAX_ATTEMPTS;
+                      attempt++
+                    ) {
+                      try {
+                        const res = await fetch(endpoint, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "x-worker-key": MCP_API_KEY || "",
+                          },
+                          body: JSON.stringify({ limit: 3 }),
+                        });
+                        if (res && res.ok) {
+                          if (debug)
+                            console.log(
+                              "[debug] triggered process-tasks endpoint",
+                            );
+                          break;
+                        }
+                        // non-2xx responses should retry
+                        if (debug)
+                          console.warn(
+                            `[debug] trigger attempt=${attempt} status=${res.status}`,
+                          );
+                      } catch (triggerErr) {
+                        if (debug)
+                          console.warn(
+                            `[debug] trigger attempt=${attempt} error=${String(triggerErr)}`,
+                          );
+                      }
+                      if (attempt < SCRAPER_MAX_ATTEMPTS) {
+                        const waitMs =
+                          SCRAPER_RETRY_BASE_MS *
+                          Math.pow(SCRAPER_RETRY_FACTOR || 2, attempt - 1);
+                        await new Promise((r) => setTimeout(r, waitMs));
+                      }
+                    }
+                  })();
+                }
+              } catch (e) {
+                if (debug) console.warn("enqueue thumbnails error:", e);
+              }
             }
           }
           break;
