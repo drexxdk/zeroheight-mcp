@@ -7,11 +7,13 @@
 
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
-import { MCP_API_KEY, MCP_URL } from "@/utils/config";
+
+// Load MCP config at runtime
 
 const jobId = process.argv[2];
 
 async function runCancel() {
+  const { MCP_API_KEY, MCP_URL } = await import("@/utils/config");
   if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
     process.exit(1);

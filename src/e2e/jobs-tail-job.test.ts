@@ -3,11 +3,6 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
-import {
-  NEXT_PUBLIC_SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_ACCESS_TOKEN,
-} from "@/utils/config";
 
 const jobId = process.argv[2];
 const intervalArgIndex = process.argv.findIndex((s) => s === "--interval");
@@ -21,15 +16,7 @@ if (!jobId) {
   process.exit(2);
 }
 
-const SUPABASE_URL = NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ACCESS_TOKEN;
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("Missing Supabase config in .env.local");
-  process.exit(2);
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabase: ReturnType<typeof createClient> | null = null;
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -93,6 +80,18 @@ async function fetchOnce() {
 }
 
 async function runTail() {
+  const cfg = await import("@/utils/config");
+  const SUPABASE_URL = cfg.NEXT_PUBLIC_SUPABASE_URL;
+  const SUPABASE_KEY =
+    cfg.SUPABASE_SERVICE_ROLE_KEY || cfg.SUPABASE_ACCESS_TOKEN;
+
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error("Missing Supabase config in .env.local");
+    process.exit(2);
+  }
+
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
   console.log(`Tailing job ${jobId} every ${interval}s...`);
   while (true) {
     try {

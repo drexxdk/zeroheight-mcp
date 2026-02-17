@@ -210,6 +210,31 @@ Copy the MCP configuration for your preferred setup:
     "zeroheight-scraper": {
       "command": "npx",
 
+
+
+
+
+
+
+
+## JSON wrapper & CORS
+
+If you'd like to call the MCP server from browser clients or simple HTTP clients that don't support streaming Server-Sent Events (SSE), use the JSON wrapper endpoint:
+
+- Streaming SSE endpoint (default): `/api/mcp` — supports `text/event-stream` and incremental events when the client sends `Accept: application/json, text/event-stream`.
+- JSON-only wrapper: `/api/mcp/json` — forces a single `application/json` response (no SSE). This endpoint is suitable for `fetch`/XHR and tools that expect a single JSON payload.
+
+The JSON wrapper supports CORS and its allowed origin is controlled with the environment variable `MCP_CORS_ORIGIN` (defaults to `*`). Set `MCP_CORS_ORIGIN` in your `.env.local` to restrict allowed origins.
+
+Example: call the JSON wrapper from a browser-compatible client or curl:
+
+```bash
+curl -X POST https://your-server.example.com/api/mcp/json \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MCP_API_KEY" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
 Note: for PowerShell users, quoting JSON args can be tricky. Example usages:
 
 PowerShell (prompting for key):

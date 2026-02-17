@@ -1,11 +1,9 @@
 import { config as dotenvConfig } from "dotenv";
 import { getSupabaseClient } from "@/utils/common";
-import { IMAGE_BUCKET } from "@/utils/config";
 
 dotenvConfig({ path: ".env.local" });
 
-const BUCKET = IMAGE_BUCKET;
-const TEST_BUCKET = `${BUCKET}_test`;
+let BUCKET: string;
 
 function extFromContentType(ct: string | null) {
   if (!ct) return "png";
@@ -30,13 +28,14 @@ async function downloadAndUpload(url: string) {
   // Prefer a test bucket to avoid touching production images.
   const listResult = await client.storage.listBuckets();
   const buckets = listResult.data;
-  const targetBucket = buckets?.some((b) => b.name === TEST_BUCKET)
-    ? TEST_BUCKET
+  const testBucketName = `${BUCKET}_test`;
+  const targetBucket = buckets?.some((b) => b.name === testBucketName)
+    ? testBucketName
     : null;
 
   if (!targetBucket) {
     console.log(
-      `Test bucket ${TEST_BUCKET} not found; skipping upload to avoid touching production bucket ${BUCKET}`,
+      `Test bucket ${testBucketName} not found; skipping upload to avoid touching production bucket ${BUCKET}`,
     );
     return null as unknown as { path: string; publicUrl: string };
   }
@@ -66,6 +65,13 @@ async function downloadAndUpload(url: string) {
 }
 
 async function run() {
+  const cfg = await import("@/utils/config");
+  BUCKET = cfg.IMAGE_BUCKET;
+  const TEST_BUCKET = `${BUCKET}_test`;
+
+  // Override the const TEST_BUCKET usage below by shadowing variable
+  const localTestBucket = TEST_BUCKET;
+  void localTestBucket;
   try {
     const testUrls = [
       "https://httpbin.org/image/png",

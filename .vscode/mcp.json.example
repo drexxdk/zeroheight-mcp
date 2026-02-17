@@ -4,10 +4,15 @@
       "command": "npx",
       "args": [
         "mcp-remote",
-        //"https://zeroheight-mcp.vercel.app/api/mcp",
+        // Remote server (uncomment to use):
+        // "https://zeroheight-mcp.vercel.app/api/mcp",
         "http://localhost:3000/api/mcp",
         "--header",
-        "Authorization: Bearer ${MCP_API_KEY}"
+        "Authorization: Bearer ${MCP_API_KEY}",
+        "--header",
+        "X-API-Key: ${MCP_API_KEY}",
+        "--header",
+        "Accept: application/json, text/event-stream"
       ],
       "env": {
         "MCP_API_KEY": "your-local-api-key-here"

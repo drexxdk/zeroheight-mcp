@@ -275,8 +275,11 @@ const handler = createMcpHandler(
   },
 );
 
+// Export the underlying MCP handler so other routes (JSON wrapper) can reuse it.
+export { handler as mcpHandler };
+
 // Authentication wrapper for Next.js API routes
-async function authenticatedHandler(request: NextRequest) {
+export async function authenticatedHandler(request: NextRequest) {
   const auth = authenticateRequest({ request });
 
   if (!auth.isValid) {
@@ -300,6 +303,19 @@ async function authenticatedHandler(request: NextRequest) {
 
   // Call the MCP handler with the authenticated request
   try {
+    // Prepare headers to forward to the MCP handler. Some clients omit the
+    // required `Accept: application/json, text/event-stream` header — add a
+    // permissive Accept header so simpler clients (curl, PowerShell, other
+    // apps) work without special negotiation.
+    const forwardedHeaders = new Headers(request.headers as HeadersInit);
+    const acceptHdr = forwardedHeaders.get("accept") || "";
+    if (
+      !acceptHdr.includes("application/json") ||
+      !acceptHdr.includes("text/event-stream")
+    ) {
+      forwardedHeaders.set("accept", "application/json, text/event-stream");
+    }
+
     // Read body and, if it's a tools/call with params.task.ttl, merge it into params.arguments.requestedTtlMs
     const contentType = request.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
@@ -427,7 +443,7 @@ async function authenticatedHandler(request: NextRequest) {
 
         const newReq = new Request(request.url, {
           method: request.method,
-          headers: request.headers,
+          headers: forwardedHeaders,
           body: JSON.stringify(body),
         });
         return handler(newReq as unknown as NextRequest);
@@ -437,7 +453,21 @@ async function authenticatedHandler(request: NextRequest) {
     // If anything goes wrong while parsing/injecting, fall back to original request
   }
 
-  return handler(request);
+  // Fall back to forwarding the original request but ensure the Accept header
+  // is present so clients that don't include text/event-stream still work.
+  const fallbackReq = new Request(request.url, {
+    method: request.method,
+    headers: new Headers(request.headers as HeadersInit),
+    body: request.body,
+  });
+  // Ensure Accept header on fallback as well
+  if (
+    !fallbackReq.headers.get("accept") ||
+    !fallbackReq.headers.get("accept")!.includes("text/event-stream")
+  ) {
+    fallbackReq.headers.set("accept", "application/json, text/event-stream");
+  }
+  return handler(fallbackReq as unknown as NextRequest);
 }
 
 export { authenticatedHandler as GET, authenticatedHandler as POST };

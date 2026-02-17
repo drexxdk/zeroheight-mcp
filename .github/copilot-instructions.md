@@ -190,3 +190,47 @@
   - Prefer the generated `Database` generic on Supabase clients to avoid `any` casts and manual `as any` workarounds.
   - Avoid using dynamic `string` table names; use `as const` literals to satisfy typed table names.
   - If a new table is added and TypeScript errors appear, regenerate types then run `npm run build` and `npm run lint`.
+
+### Config Loading in Scripts and E2E Tests
+
+- **Problem**: Top-level imports from `@/utils/config` can read environment variables before `dotenv` (or other env loaders) runs, causing missing or stale config during test/script execution.
+- **Rule**: Always initialize environment loading (for example `config({ path: '.env.local' })`) at the top of the script, then `await import("@/utils/config")` inside the main runtime function (not at module scope). This guarantees that `process.env` is fully populated before the config module is evaluated.
+- **No implicit fallbacks for critical secrets**: For sensitive or deployment-specific values (e.g. `MCP_CORS_ORIGIN`), avoid providing implicit defaults in `src/utils/config.ts`. Tests and scripts should require explicit environment values and fail fast if a required env var is missing.
+
+Example pattern for a test or script:
+
+```ts
+#!/usr/bin/env node
+import { config } from "dotenv";
+config({ path: ".env.local" });
+
+async function main() {
+  // Import runtime config after dotenv runs
+  const { MCP_API_KEY, MCP_URL, MCP_CORS_ORIGIN } =
+    await import("@/utils/config");
+
+  if (!MCP_API_KEY) {
+    console.error("MCP_API_KEY not set");
+    process.exit(1);
+  }
+
+  if (!MCP_CORS_ORIGIN) {
+    console.error(
+      "MCP_CORS_ORIGIN must be explicitly set for CORS-sensitive tests",
+    );
+    process.exit(1);
+  }
+
+  // ... rest of the test/script
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+```
+
+Notes:
+
+- Use this pattern in `src/e2e/*` and `scripts/*` files that rely on runtime env vars.
+- Prefer explicit environment variables for security-sensitive settings; do not silently fall back to permissive defaults (e.g. `*`) in production-facing configuration.

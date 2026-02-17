@@ -40,6 +40,8 @@ export const ZEROHEIGHT_PROJECT_PASSWORD =
 
 export const MCP_API_KEY = process.env.MCP_API_KEY || "";
 export const MCP_URL = process.env.MCP_URL || "http://localhost:3000/api/mcp";
+export const MCP_CORS_ORIGIN =
+  process.env.MCP_CORS_ORIGIN || "http://localhost:3000";
 
 export const NEXT_PUBLIC_SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || "";

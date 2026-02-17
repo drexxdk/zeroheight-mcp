@@ -3,11 +3,6 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
-import {
-  NEXT_PUBLIC_SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_ACCESS_TOKEN,
-} from "@/utils/config";
 
 const jobId = process.argv[2];
 if (!jobId) {
@@ -15,18 +10,25 @@ if (!jobId) {
   process.exit(2);
 }
 
-const SUPABASE_URL = NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ACCESS_TOKEN;
+let supabase: ReturnType<typeof createClient> | null = null;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("Missing Supabase config in .env.local");
-  process.exit(2);
+async function ensureClient() {
+  if (supabase) return supabase;
+  const cfg = await import("@/utils/config");
+  const SUPABASE_URL = cfg.NEXT_PUBLIC_SUPABASE_URL;
+  const SUPABASE_KEY =
+    cfg.SUPABASE_SERVICE_ROLE_KEY || cfg.SUPABASE_ACCESS_TOKEN;
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error("Missing Supabase config in .env.local");
+    process.exit(2);
+  }
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  return supabase;
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
 async function inspect() {
-  const { data, error } = await supabase
+  const sb = await ensureClient();
+  const { data, error } = await sb
     .from("tasks")
     .select("*")
     .eq("id", jobId)

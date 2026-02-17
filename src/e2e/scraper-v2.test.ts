@@ -1,6 +1,6 @@
 import { scrape } from "@/tools/scraper/scrape";
-import { SCRAPE_TEST_PAGE_URLS } from "@/utils/config";
 async function run() {
+  const { SCRAPE_TEST_PAGE_URLS } = await import("@/utils/config");
   const raw = SCRAPE_TEST_PAGE_URLS || "";
   if (!raw) {
     console.log(

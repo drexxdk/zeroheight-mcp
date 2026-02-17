@@ -6,9 +6,9 @@
  * Run with: npx tsx src/e2e/api-mcp.test.ts
  */
 
-import { MCP_API_KEY, MCP_URL } from "@/utils/config";
-
+// Load MCP config at runtime so dotenv runs first
 async function testApi() {
+  const { MCP_API_KEY, MCP_URL } = await import("@/utils/config");
   if (!MCP_API_KEY) {
     console.error("❌ Error: MCP_API_KEY environment variable not set");
     console.log("");
