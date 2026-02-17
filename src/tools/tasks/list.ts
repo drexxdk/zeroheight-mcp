@@ -2,7 +2,7 @@ import { getSupabaseAdminClient } from "@/utils/common";
 import { z } from "zod";
 
 export const tasksListTool = {
-  title: "tasks/list",
+  title: "tasks-list",
   description: "List tasks (simple pagination: limit, offset).",
   inputSchema: z
     .object({

@@ -12,7 +12,7 @@ import {
 } from "./utils/jobStore";
 
 export const testTaskTool = {
-  title: "testtask",
+  title: "test-task",
   description:
     "Start a safe test task that ticks once per second for a duration (minutes).",
   inputSchema: z.object({

@@ -8,7 +8,7 @@ import {
 import { z } from "zod";
 
 export const tasksGetTool = {
-  title: "tasks/get",
+  title: "tasks-get",
   description: "Get task status and metadata by taskId (SEP-1686).",
   inputSchema: z
     .object({

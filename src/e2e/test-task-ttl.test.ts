@@ -25,7 +25,7 @@ async function main() {
       jsonrpc: "2.0",
       id: 1,
       method: "tools/call",
-      params: { name: "testtask", arguments: {} },
+      params: { name: "test-task", arguments: {} },
     }),
   });
   if (!startRes.ok) throw new Error(`Start task HTTP ${startRes.status}`);
@@ -106,7 +106,7 @@ async function main() {
       id: 2,
       method: "tools/call",
       params: {
-        name: "tasks/get",
+        name: "tasks-get",
         arguments: { taskId: jobId },
         task: { ttl: requestedTtl },
       },

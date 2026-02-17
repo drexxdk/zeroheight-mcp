@@ -4,7 +4,7 @@ import { TERMINAL, SERVER_SUGGESTED_TTL_MS, SERVER_MAX_TTL_MS } from "./utils";
 import { z } from "zod";
 
 export const tasksResultTool = {
-  title: "tasks/result",
+  title: "tasks-result",
   description:
     "Retrieve task result (blocks until terminal) — returns task metadata and logs.",
   inputSchema: z.object({

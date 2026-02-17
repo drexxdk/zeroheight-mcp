@@ -3,7 +3,7 @@ import { markJobCancelledInDb } from "./utils/jobStore";
 import { z } from "zod";
 
 export const tasksCancelTool = {
-  title: "tasks/cancel",
+  title: "tasks-cancel",
   description: "Cancel a task by id (marks as cancelled).",
   inputSchema: z.object({ taskId: z.string() }),
   handler: async ({ taskId }: { taskId: string }) => {
