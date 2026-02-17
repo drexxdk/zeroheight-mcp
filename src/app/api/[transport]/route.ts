@@ -9,11 +9,10 @@ import {
 } from "@/tools/database";
 import {
   getDatabaseSchemaTool,
-  getProjectUrlTool,
-  getPublishableKeysTool,
   getDatabaseTypesTool,
 } from "@/tools/development";
-// scraper tools are imported where needed; no direct clearDatabaseTool usage here
+import { scrapeTool } from "@/tools/scraper";
+import { clearDatabaseTool, queryDatatabaseTool } from "@/tools/database";
 import {
   tasksGetTool,
   tasksResultTool,
@@ -194,27 +193,7 @@ const handler = createMcpHandler(
       getDatabaseSchemaTool.handler,
     );
 
-    // Example: { "method": "tools/call", "params": { "name": "Get Project URL", "arguments": {} } }
-    server.registerTool(
-      getProjectUrlTool.title,
-      {
-        title: getProjectUrlTool.title,
-        description: getProjectUrlTool.description,
-        inputSchema: getProjectUrlTool.inputSchema,
-      },
-      getProjectUrlTool.handler,
-    );
-
-    // Example: { "method": "tools/call", "params": { "name": "Get Publishable API Keys", "arguments": {} } }
-    server.registerTool(
-      getPublishableKeysTool.title,
-      {
-        title: getPublishableKeysTool.title,
-        description: getPublishableKeysTool.description,
-        inputSchema: getPublishableKeysTool.inputSchema,
-      },
-      getPublishableKeysTool.handler,
-    );
+    // (Removed) get-project-url and get-publishable-api-keys tools — not needed
 
     // Example: { "method": "tools/call", "params": { "name": "Get Database Types", "arguments": {} } }
     server.registerTool(
@@ -225,6 +204,36 @@ const handler = createMcpHandler(
         inputSchema: getDatabaseTypesTool.inputSchema,
       },
       getDatabaseTypesTool.handler,
+    );
+    // Scraper-related tools
+    server.registerTool(
+      clearDatabaseTool.title,
+      {
+        title: clearDatabaseTool.title,
+        description: clearDatabaseTool.description,
+        inputSchema: clearDatabaseTool.inputSchema,
+      },
+      clearDatabaseTool.handler,
+    );
+
+    server.registerTool(
+      scrapeTool.title,
+      {
+        title: scrapeTool.title,
+        description: scrapeTool.description,
+        inputSchema: scrapeTool.inputSchema,
+      },
+      scrapeTool.handler,
+    );
+
+    server.registerTool(
+      queryDatatabaseTool.title,
+      {
+        title: queryDatatabaseTool.title,
+        description: queryDatatabaseTool.description,
+        inputSchema: queryDatatabaseTool.inputSchema,
+      },
+      queryDatatabaseTool.handler,
     );
   },
   {},

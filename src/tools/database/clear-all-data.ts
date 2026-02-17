@@ -116,8 +116,8 @@ async function clearDatabase() {
 
 import { z } from "zod";
 
-export const clearDatabaseTool = {
-  title: "clear-database",
+export const clearAllDataTool = {
+  title: "clear-all-data",
   description:
     "Clear all Zeroheight design system data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
   inputSchema: z.object({

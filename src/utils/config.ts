@@ -196,3 +196,10 @@ export const SCRAPER_LOG_LINK_SAMPLE = Number(
 export const IMAGE_UTILS_SAMPLE_LIMIT = Number(
   process.env.IMAGE_UTILS_SAMPLE_LIMIT || 50,
 );
+
+// Database / migration helper flags
+export const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "";
+export const ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS = (
+  (process.env.ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS || "").toLowerCase() === "true" ||
+  (process.env.ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS || "") === "1"
+);

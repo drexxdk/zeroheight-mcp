@@ -267,6 +267,8 @@ PowerShell (inline JSON argument):
 
 ### Tools
 
+Note: implementations for the `clear-database` and `query-database` MCP tools were moved to `src/tools/database/clear.ts` and `src/tools/database/query.ts` to better separate database inspection tools from the scraper implementation.
+
 #### 1. Scrape Zeroheight Project
 
 Automatically discovers and scrapes all pages from your configured Zeroheight design system, including content and images with deduplication.
