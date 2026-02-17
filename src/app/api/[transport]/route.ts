@@ -13,12 +13,7 @@ import {
   getPublishableKeysTool,
   getDatabaseTypesTool,
 } from "@/tools/development";
-import {
-  scrapeTool,
-  queryDatatabaseTool,
-  clearDatabaseTool,
-} from "@/tools/scraper";
-import type { ToolResponse } from "@/utils/toolResponses";
+import { clearDatabaseTool } from "@/tools/scraper";
 import {
   tasksGetTool,
   tasksResultTool,
@@ -26,45 +21,10 @@ import {
   tasksCancelTool,
   testTaskTool,
 } from "@/tools/tasks";
-// `testTaskTool` now lives in `src/tools/tasks`
-// removed unused imports (kept tooling lightweight)
+import type { ToolResponse } from "@/utils/toolResponses";
 
 const handler = createMcpHandler(
-  (server) => {
-    // Scraper tools
-    // Example: { "method": "tools/call", "params": { "name": "Scrape Zeroheight Project", "arguments": {} } }
-    server.registerTool(
-      scrapeTool.title,
-      {
-        title: scrapeTool.title,
-        description: scrapeTool.description,
-        inputSchema: scrapeTool.inputSchema,
-      },
-      scrapeTool.handler,
-    );
-
-    // Example: { "method": "tools/call", "params": { "name": "Query Zeroheight Data", "arguments": { "search": "button", "includeImages": true, "limit": 10 } } }
-    server.registerTool(
-      queryDatatabaseTool.title,
-      {
-        title: queryDatatabaseTool.title,
-        description: queryDatatabaseTool.description,
-        inputSchema: queryDatatabaseTool.inputSchema,
-      },
-      queryDatatabaseTool.handler,
-    );
-
-    // Example: { "method": "tools/call", "params": { "name": "Clear Zeroheight Data", "arguments": { "apiKey": "your-mcp-api-key" } } }
-    server.registerTool(
-      clearDatabaseTool.title,
-      {
-        title: clearDatabaseTool.title,
-        description: clearDatabaseTool.description,
-        inputSchema: clearDatabaseTool.inputSchema,
-      },
-      clearDatabaseTool.handler,
-    );
-
+  async (server) => {
     // Job status/logs are persisted in DB via jobStore; tools for inspecting
     // jobs use `inspectJobTool` and `tailJobTool` registered below.
 
@@ -272,10 +232,15 @@ const handler = createMcpHandler(
     basePath: "/api",
     maxDuration: 300, // 5 minutes for scraping
     verboseLogs: true,
+    sseEndpoint: "/mcp",
   },
 );
 
-// Authentication wrapper for Next.js API routes
+// Export the underlying MCP handler for the JSON wrapper route to reuse.
+export const mcpHandler = handler;
+
+// Authentication wrapper: authenticate, then either handle task-tool calls directly
+// (minimal wrapper) or forward the request to the MCP handler unchanged.
 async function authenticatedHandler(request: NextRequest) {
   const auth = authenticateRequest({ request });
 
@@ -283,161 +248,222 @@ async function authenticatedHandler(request: NextRequest) {
     return new Response(
       JSON.stringify({
         jsonrpc: "2.0",
-        error: {
-          code: -32600,
-          message: auth.error,
-        },
+        error: { code: -32600, message: auth.error },
         id: null,
       }),
-      {
-        status: 401,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
+      { status: 401, headers: { "Content-Type": "application/json" } },
     );
   }
 
-  // Call the MCP handler with the authenticated request
+  // Read the request body once (as text) to avoid "Body has already been read".
+  let bodyText: string | null = null;
   try {
-    // Read body and, if it's a tools/call with params.task.ttl, merge it into params.arguments.requestedTtlMs
-    const contentType = request.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const body = await request.json().catch(() => null);
-      if (body && typeof body === "object") {
-        // Support single JSON-RPC object or batch array
-        const normalizeAndInject = (obj: unknown) => {
-          if (typeof obj !== "object" || obj === null) return;
-          const o = obj as Record<string, unknown>;
-          const method = o["method"];
-          if (method !== "tools/call") return;
-          const params = o["params"];
-          if (typeof params !== "object" || params === null) return;
-          const p = params as Record<string, unknown>;
-          const task = p["task"];
-          if (typeof task !== "object" || task === null) return;
-          const t = task as Record<string, unknown>;
-          const ttl = t["ttl"];
-          if (typeof ttl === "number") {
-            if (typeof p["arguments"] !== "object" || p["arguments"] === null)
-              p["arguments"] = {};
-            const args = p["arguments"] as Record<string, unknown>;
-            if (typeof args["requestedTtlMs"] === "undefined")
-              args["requestedTtlMs"] = ttl;
-          }
-        };
-
-        if (Array.isArray(body)) {
-          body.forEach(normalizeAndInject);
-        } else {
-          normalizeAndInject(body);
-        }
-
-        // If this is a tools/call with task metadata, attempt to handle it locally
-        // by invoking the matching tool handler and returning a JSON-RPC response.
-        const isSingle = !Array.isArray(body);
-        const normalized = isSingle ? (body as Record<string, unknown>) : null;
-        if (normalized && normalized["method"] === "tools/call") {
-          const params = normalized["params"] as
-            | Record<string, unknown>
-            | undefined;
-          const toolName = params?.["name"] as string | undefined;
-          const args =
-            (params?.["arguments"] as Record<string, unknown> | undefined) ??
-            {};
-          // Ensure TTL from params.task.ttl is applied to arguments for task-aware calls
-          const taskNode = params?.["task"] as
-            | Record<string, unknown>
-            | undefined;
-          if (taskNode && typeof taskNode["ttl"] === "number") {
-            args["requestedTtlMs"] = taskNode["ttl"] as number;
-          }
-
-          // Local tool mapping
-          const localTools: Record<string, unknown> = {
-            [scrapeTool.title]: scrapeTool.handler,
-            [queryDatatabaseTool.title]: queryDatatabaseTool.handler,
-            [clearDatabaseTool.title]: clearDatabaseTool.handler,
-
-            [tasksGetTool.title]: tasksGetTool.handler,
-            [tasksResultTool.title]: tasksResultTool.handler,
-            [tasksListTool.title]: tasksListTool.handler,
-            [tasksCancelTool.title]: tasksCancelTool.handler,
-            [testTaskTool.title]: testTaskTool.handler,
-            [listTablesTool.title]: listTablesTool.handler,
-            [executeSqlTool.title]: executeSqlTool.handler,
-            [listMigrationsTool.title]: listMigrationsTool.handler,
-            [getLogsTool.title]: getLogsTool.handler,
-            [getDatabaseSchemaTool.title]: getDatabaseSchemaTool.handler,
-            [getProjectUrlTool.title]: getProjectUrlTool.handler,
-            [getPublishableKeysTool.title]: getPublishableKeysTool.handler,
-            [getDatabaseTypesTool.title]: getDatabaseTypesTool.handler,
-          };
-
-          if (
-            toolName &&
-            Object.prototype.hasOwnProperty.call(localTools, toolName)
-          ) {
-            try {
-              const toolHandler = localTools[toolName] as unknown as (
-                a: unknown,
-              ) => Promise<unknown>;
-              if (
-                toolName === tasksGetTool.title ||
-                toolName === tasksResultTool.title
-              ) {
-                // log arguments for debugging TTL propagation
-                console.log("Invoking tool", toolName, "with args:", args);
-              }
-              const result = await toolHandler(args);
-              let rpcResult: unknown;
-              if (result && typeof result === "object") {
-                const rObj = result as Record<string, unknown>;
-                if (Array.isArray(rObj.content)) rpcResult = rObj;
-                else
-                  rpcResult = { content: [{ text: JSON.stringify(result) }] };
-              } else {
-                rpcResult = { content: [{ text: JSON.stringify(result) }] };
-              }
-              const rpc = {
-                jsonrpc: "2.0",
-                id: normalized["id"] ?? null,
-                result: rpcResult,
-              };
-              return new Response(JSON.stringify(rpc), {
-                status: 200,
-                headers: { "Content-Type": "application/json" },
-              });
-            } catch (e) {
-              const rpcErr = {
-                jsonrpc: "2.0",
-                id: normalized["id"] ?? null,
-                error: {
-                  code: -32603,
-                  message: String(e instanceof Error ? e.message : e),
-                },
-              };
-              return new Response(JSON.stringify(rpcErr), {
-                status: 500,
-                headers: { "Content-Type": "application/json" },
-              });
-            }
-          }
-        }
-
-        const newReq = new Request(request.url, {
-          method: request.method,
-          headers: request.headers,
-          body: JSON.stringify(body),
-        });
-        return handler(newReq as unknown as NextRequest);
-      }
-    }
+    bodyText = await request.text();
   } catch {
-    // If anything goes wrong while parsing/injecting, fall back to original request
+    bodyText = null;
   }
 
-  return handler(request);
+  const contentType = request.headers.get("content-type") || "";
+  let parsed: Record<string, unknown> | null = null;
+  if (contentType.includes("application/json") && bodyText) {
+    try {
+      const p = JSON.parse(bodyText);
+      if (p && typeof p === "object" && !Array.isArray(p))
+        parsed = p as Record<string, unknown>;
+    } catch {
+      parsed = null;
+    }
+  }
+
+  // If this is a single JSON-RPC tools/call for a tasks tool, handle it directly
+  if (parsed && parsed["method"] === "tools/call") {
+    const params = parsed["params"] as Record<string, unknown> | undefined;
+    const toolName = params?.["name"] as string | undefined;
+    const args =
+      (params?.["arguments"] as Record<string, unknown> | undefined) ?? {};
+
+    const taskTools = new Set([
+      tasksGetTool.title,
+      tasksResultTool.title,
+      tasksListTool.title,
+      tasksCancelTool.title,
+      testTaskTool.title,
+    ]);
+
+    if (toolName && taskTools.has(toolName)) {
+      try {
+        const wrapHandler = <T, R>(h: (a: T) => Promise<R>) => {
+          return async (a?: unknown) => h(a as T) as Promise<unknown>;
+        };
+
+        const toolMap: Record<string, (a?: unknown) => Promise<unknown>> = {
+          [tasksGetTool.title]: wrapHandler(
+            tasksGetTool.handler as (a: unknown) => Promise<unknown>,
+          ),
+          [tasksResultTool.title]: wrapHandler(
+            tasksResultTool.handler as (a: unknown) => Promise<unknown>,
+          ),
+          [tasksListTool.title]: wrapHandler(
+            tasksListTool.handler as (a: unknown) => Promise<unknown>,
+          ),
+          [tasksCancelTool.title]: wrapHandler(
+            tasksCancelTool.handler as (a: unknown) => Promise<unknown>,
+          ),
+          [testTaskTool.title]: wrapHandler(
+            testTaskTool.handler as (a: unknown) => Promise<unknown>,
+          ),
+        };
+
+        const handlerFn = toolMap[toolName];
+        const result = await handlerFn(args);
+
+        let rpcResult: unknown;
+        if (
+          result &&
+          typeof result === "object" &&
+          Object.prototype.hasOwnProperty.call(
+            result as Record<string, unknown>,
+            "content",
+          ) &&
+          Array.isArray((result as Record<string, unknown>).content)
+        ) {
+          rpcResult = result;
+        } else {
+          rpcResult = {
+            content: [{ type: "text", text: JSON.stringify(result) }],
+          };
+        }
+
+        const rpc = {
+          jsonrpc: "2.0",
+          id: parsed["id"] ?? null,
+          result: rpcResult,
+        };
+        return new Response(JSON.stringify(rpc), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const rpc = {
+          jsonrpc: "2.0",
+          id: parsed["id"] ?? null,
+          error: { code: -32000, message: msg },
+        };
+        return new Response(JSON.stringify(rpc), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+  }
+
+  // Reconstruct a Request with the same body so the MCP handler can read it.
+  const forwardedHeaders = new Headers(request.headers as HeadersInit);
+  // Ensure the handler sees both JSON and SSE acceptable so it will
+  // produce a JSON response for tools/list while remaining compatible
+  // with streaming transports.
+  forwardedHeaders.set("accept", "application/json, text/event-stream");
+
+  const method = (request.method || "GET").toUpperCase();
+  const hasBodyMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+
+  // For streaming transports (GET/HEAD) try forwarding the original NextRequest
+  // so that the MCP handler can use streaming features. If the handler
+  // returns 405 (some transports reject GET), fall back to synthesizing a
+  // POST `tools/list` JSON-RPC call and return its result as an SSE event.
+  if (method === "GET" || method === "HEAD") {
+    // Diagnostic logging to understand 405 responses in this environment
+    console.debug("[mcp] forwarding GET/HEAD to handler", {
+      method: request.method,
+      url: request.url,
+      accept: forwardedHeaders.get("accept"),
+    });
+
+    try {
+      const res = await handler(request as NextRequest);
+
+      if (res && res.status === 405) {
+        console.debug(
+          "[mcp] handler returned 405 for GET/HEAD — attempting POST fallback",
+        );
+
+        const rpc = JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        });
+        const forwardedPostHeaders = new Headers(forwardedHeaders);
+        forwardedPostHeaders.set("content-type", "application/json");
+        forwardedPostHeaders.set(
+          "accept",
+          "application/json, text/event-stream",
+        );
+
+        const postResp = await handler(
+          new Request(request.url, {
+            method: "POST",
+            headers: forwardedPostHeaders,
+            body: rpc,
+          }) as unknown as NextRequest,
+        );
+
+        const postCt = postResp.headers.get("content-type") || "";
+        if (postCt.includes("text/event-stream")) {
+          return postResp;
+        }
+
+        const json = await postResp.text();
+        const stream = new ReadableStream({
+          start(controller) {
+            const sse = `event: message\ndata: ${json}\n\n`;
+            controller.enqueue(new TextEncoder().encode(sse));
+            controller.close();
+          },
+        });
+
+        return new Response(stream, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+          },
+        });
+      }
+
+      return res;
+    } catch (err: unknown) {
+      console.error("[mcp] handler threw while handling GET/HEAD:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      const rpc = {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32000, message: `Handler error: ${msg}` },
+      };
+      return new Response(JSON.stringify(rpc), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  // For non-GET methods, reconstruct a Request with the same body so the MCP handler can read it.
+  const forwardedReq = new Request(request.url, {
+    method,
+    headers: forwardedHeaders,
+    body: hasBodyMethod ? (bodyText ?? undefined) : undefined,
+  });
+
+  return handler(forwardedReq as unknown as NextRequest);
 }
 
-export { authenticatedHandler as GET, authenticatedHandler as POST };
+export {
+  authenticatedHandler as GET,
+  authenticatedHandler as POST,
+  authenticatedHandler as PUT,
+  authenticatedHandler as PATCH,
+  authenticatedHandler as DELETE,
+  authenticatedHandler as HEAD,
+  authenticatedHandler as OPTIONS,
+};

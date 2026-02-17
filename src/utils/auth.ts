@@ -5,14 +5,7 @@ export function authenticateRequest({ request }: { request: NextRequest }): {
   isValid: boolean;
   error?: string;
 } {
-  const apiKey = MCP_API_KEY;
-
-  if (!apiKey) {
-    return {
-      isValid: false,
-      error: "Server configuration error: MCP_API_KEY not set",
-    };
-  }
+  const serverKey = MCP_API_KEY;
 
   // Check for API key in headers or query parameters
   const authHeader = request.headers.get("authorization");
@@ -29,12 +22,14 @@ export function authenticateRequest({ request }: { request: NextRequest }): {
         "API key required. Provide via:\n" +
         "- Authorization header: 'Authorization: Bearer <your-key>'\n" +
         "- X-API-Key header: 'X-API-Key: <your-key>'\n" +
-        "- Query parameter: '?api_key=<your-key>'\n" +
-        "For PowerShell: Set $env:MCP_API_KEY first, then use -Headers @{'X-API-Key'=$env:MCP_API_KEY}",
+        "- Query parameter: '?api_key=<your-key>'\n",
     };
   }
 
-  if (providedKey !== apiKey) {
+  // If a server-side MCP_API_KEY is configured, require it to match.
+  // Otherwise (local/dev), accept any provided key so tools like `mcp-remote`
+  // can signal possession of a key without requiring server config.
+  if (serverKey && providedKey !== serverKey) {
     return { isValid: false, error: "Invalid API key" };
   }
 
