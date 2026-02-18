@@ -12,7 +12,7 @@ A powerful Model Context Protocol (MCP) server that scrapes, indexes, and provid
 - **Powerful Search**: Full-text search across titles, content, and URLs with flexible query options and complete Supabase storage URLs for images
 - **MCP Integration**: Built on the Model Context Protocol for seamless integration with AI assistants and design tools
 - **Image Management**: Automatically downloads, processes, and stores design system images with MD5-based deduplication
-- **Database Tools**: Complete database inspection and management with SQL execution, schema inspection, and migration tracking
+- **Database Tools**: Query and manage cached Zeroheight data (safe, non-destructive operations).
 - **Secure Access**: Enterprise-grade authentication with API key validation
 - **High Performance**: Optimized for speed with bulk database operations and efficient caching
 
@@ -371,15 +371,7 @@ curl -X POST http://localhost:3000/api/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-database","arguments":{"search":"color"}}}'
 ```
 
-**Execute SQL:**
-
-```bash
-curl -X POST http://localhost:3000/api/mcp \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your-api-key" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute-sql","arguments":{"query":"SELECT COUNT(*) FROM pages;"}}}'
-```
+<!-- Direct SQL execution via MCP has been removed for safety. Use Supabase Dashboard or custom RPCs when needed. -->
 
 ### PowerShell Testing
 
@@ -397,10 +389,7 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
   -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
   -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-database","arguments":{"search":"color"}}}' | Format-List
 
-# Execute SQL
-Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
-  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
-  -Body '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute-sql","arguments":{"query":"SELECT COUNT(*) FROM pages;"}}}' | Format-List
+<!-- Execute SQL PowerShell example removed -->
 ```
 
 ## 🛠️ Local Task Scripts

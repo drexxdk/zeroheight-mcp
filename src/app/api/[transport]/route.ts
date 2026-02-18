@@ -1,12 +1,7 @@
 import { createMcpHandler } from "mcp-handler";
 import { NextRequest } from "next/server";
 import { authenticateRequest } from "@/utils/auth";
-import {
-  listTablesTool,
-  executeSqlTool,
-  listMigrationsTool,
-  getLogsTool,
-} from "@/tools/database";
+// database tool exports trimmed; only specific tools imported below
 import {
   getDatabaseSchemaTool,
   getDatabaseTypesTool,
@@ -138,49 +133,7 @@ const handler = createMcpHandler(
     );
 
     // Database Inspection & Management Tools
-    // Example: { "method": "tools/call", "params": { "name": "List Tables", "arguments": {} } }
-    server.registerTool(
-      listTablesTool.title,
-      {
-        title: listTablesTool.title,
-        description: listTablesTool.description,
-        inputSchema: listTablesTool.inputSchema,
-      },
-      listTablesTool.handler,
-    );
-
-    // Example: { "method": "tools/call", "params": { "name": "Execute SQL", "arguments": { "query": "SELECT * FROM pages LIMIT 5;" } } }
-    server.registerTool(
-      executeSqlTool.title,
-      {
-        title: executeSqlTool.title,
-        description: executeSqlTool.description,
-        inputSchema: executeSqlTool.inputSchema,
-      },
-      executeSqlTool.handler,
-    );
-
-    // Example: { "method": "tools/call", "params": { "name": "List Migrations", "arguments": {} } }
-    server.registerTool(
-      listMigrationsTool.title,
-      {
-        title: listMigrationsTool.title,
-        description: listMigrationsTool.description,
-        inputSchema: listMigrationsTool.inputSchema,
-      },
-      listMigrationsTool.handler,
-    );
-
-    // Example: { "method": "tools/call", "params": { "name": "Get Logs", "arguments": {} } }
-    server.registerTool(
-      getLogsTool.title,
-      {
-        title: getLogsTool.title,
-        description: getLogsTool.description,
-        inputSchema: getLogsTool.inputSchema,
-      },
-      getLogsTool.handler,
-    );
+    // Database inspection/management tools removed: execute-sql, get-logs, list-migrations, list-tables
 
     // Development & Deployment Tools
     // Example: { "method": "tools/call", "params": { "name": "Get Database Schema", "arguments": {} } }
