@@ -20,12 +20,24 @@ import { normalizeToToolResponse } from "@/utils/toolResponses";
 
 const handler = createMcpHandler(
   async (server) => {
-    // Job status/logs are persisted in DB via jobStore; tools for inspecting
-    // jobs use `inspectJobTool` and `tailJobTool` registered below.
+    // Register MCP tools. Task/job tools persist status/logs to the DB via
+    // the jobStore; inspector/tailer tools are registered where needed.
 
-    // Job-related scraper tools
-
-    // SEP-1686 Task tools
+    // SEP-1686: Task tools
+    // Wrap a tool handler and coerce its result into a `ToolResponse` so the
+    // MCP server receives a consistent shape regardless of the handler's raw
+    // return value.
+    const wrapTool = <T>(tool: { handler: (a: T) => Promise<unknown> }) => {
+      return async (args: unknown): Promise<ToolResponse> => {
+        const res = await tool.handler(args as T);
+        if (res && typeof res === "object") {
+          const rObj = res as Record<string, unknown>;
+          if (Array.isArray(rObj.content))
+            return rObj as unknown as ToolResponse;
+        }
+        return { content: [{ type: "text", text: JSON.stringify(res) }] };
+      };
+    };
     server.registerTool(
       tasksGetTool.title,
       {
@@ -33,18 +45,7 @@ const handler = createMcpHandler(
         description: tasksGetTool.description,
         inputSchema: tasksGetTool.inputSchema,
       },
-      async (args: unknown): Promise<ToolResponse> => {
-        const h = tasksGetTool.handler as unknown as (
-          a: unknown,
-        ) => Promise<unknown>;
-        const res = await h(args);
-        if (res && typeof res === "object") {
-          const rObj = res as Record<string, unknown>;
-          if (Array.isArray(rObj.content))
-            return rObj as unknown as ToolResponse;
-        }
-        return { content: [{ type: "text", text: JSON.stringify(res) }] };
-      },
+      wrapTool(tasksGetTool),
     );
 
     server.registerTool(
@@ -54,18 +55,7 @@ const handler = createMcpHandler(
         description: tasksResultTool.description,
         inputSchema: tasksResultTool.inputSchema,
       },
-      async (args: unknown): Promise<ToolResponse> => {
-        const h = tasksResultTool.handler as unknown as (
-          a: unknown,
-        ) => Promise<unknown>;
-        const res = await h(args);
-        if (res && typeof res === "object") {
-          const rObj = res as Record<string, unknown>;
-          if (Array.isArray(rObj.content))
-            return rObj as unknown as ToolResponse;
-        }
-        return { content: [{ type: "text", text: JSON.stringify(res) }] };
-      },
+      wrapTool(tasksResultTool),
     );
 
     server.registerTool(
@@ -75,18 +65,7 @@ const handler = createMcpHandler(
         description: tasksListTool.description,
         inputSchema: tasksListTool.inputSchema,
       },
-      async (args: unknown): Promise<ToolResponse> => {
-        const h = tasksListTool.handler as unknown as (
-          a: unknown,
-        ) => Promise<unknown>;
-        const res = await h(args);
-        if (res && typeof res === "object") {
-          const rObj = res as Record<string, unknown>;
-          if (Array.isArray(rObj.content))
-            return rObj as unknown as ToolResponse;
-        }
-        return { content: [{ type: "text", text: JSON.stringify(res) }] };
-      },
+      wrapTool(tasksListTool),
     );
 
     server.registerTool(
@@ -96,18 +75,7 @@ const handler = createMcpHandler(
         description: tasksCancelTool.description,
         inputSchema: tasksCancelTool.inputSchema,
       },
-      async (args: unknown): Promise<ToolResponse> => {
-        const h = tasksCancelTool.handler as unknown as (
-          a: unknown,
-        ) => Promise<unknown>;
-        const res = await h(args);
-        if (res && typeof res === "object") {
-          const rObj = res as Record<string, unknown>;
-          if (Array.isArray(rObj.content))
-            return rObj as unknown as ToolResponse;
-        }
-        return { content: [{ type: "text", text: JSON.stringify(res) }] };
-      },
+      wrapTool(tasksCancelTool),
     );
 
     // Test tool to create short-lived demo tasks
@@ -118,18 +86,7 @@ const handler = createMcpHandler(
         description: testTaskTool.description,
         inputSchema: testTaskTool.inputSchema,
       },
-      async (args: unknown): Promise<ToolResponse> => {
-        const h = testTaskTool.handler as unknown as (
-          a: unknown,
-        ) => Promise<unknown>;
-        const res = await h(args);
-        if (res && typeof res === "object") {
-          const rObj = res as Record<string, unknown>;
-          if (Array.isArray(rObj.content))
-            return rObj as unknown as ToolResponse;
-        }
-        return { content: [{ type: "text", text: JSON.stringify(res) }] };
-      },
+      wrapTool(testTaskTool),
     );
 
     // Database Inspection & Management Tools
@@ -199,11 +156,13 @@ const handler = createMcpHandler(
   },
 );
 
-// Export the underlying MCP handler for the JSON wrapper route to reuse.
+// Export the underlying MCP handler for reuse by the JSON wrapper route.
 export const mcpHandler = handler;
 
-// Authentication wrapper: authenticate, then either handle task-tool calls directly
-// (minimal wrapper) or forward the request to the MCP handler unchanged.
+// Authenticate the incoming request. For simple JSON-RPC `tools/call` calls
+// that target lightweight task tools we shortcut and call the tool handler
+// directly (avoids a full MCP roundtrip). Otherwise the request is forwarded
+// to the MCP handler.
 async function authenticatedHandler(request: NextRequest) {
   const auth = authenticateRequest({ request });
 
@@ -218,7 +177,7 @@ async function authenticatedHandler(request: NextRequest) {
     );
   }
 
-  // Read the request body once (as text) to avoid "Body has already been read".
+  // Read the request body once (text) so it can be reused when forwarding.
   let bodyText: string | null = null;
   try {
     bodyText = await request.text();
@@ -238,7 +197,9 @@ async function authenticatedHandler(request: NextRequest) {
     }
   }
 
-  // If this is a single JSON-RPC tools/call for a tasks tool, handle it directly
+  // If this is a single JSON-RPC `tools/call` targeting a task tool, handle it
+  // directly here and return a JSON-RPC response. This keeps the fast-path
+  // small and predictable.
   if (parsed && parsed["method"] === "tools/call") {
     const params = parsed["params"] as Record<string, unknown> | undefined;
     const toolName = params?.["name"] as string | undefined;
@@ -306,7 +267,8 @@ async function authenticatedHandler(request: NextRequest) {
     }
   }
 
-  // Reconstruct a Request with the same body so the MCP handler can read it.
+  // When forwarding to the MCP handler, recreate a Request with the same
+  // body and headers so the handler can consume it normally.
   const forwardedHeaders = new Headers(request.headers as HeadersInit);
   // Ensure the handler sees both JSON and SSE acceptable so it will
   // produce a JSON response for tools/list while remaining compatible
@@ -316,10 +278,9 @@ async function authenticatedHandler(request: NextRequest) {
   const method = (request.method || "GET").toUpperCase();
   const hasBodyMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
 
-  // For streaming transports (GET/HEAD) try forwarding the original NextRequest
-  // so that the MCP handler can use streaming features. If the handler
-  // returns 405 (some transports reject GET), fall back to synthesizing a
-  // POST `tools/list` JSON-RPC call and return its result as an SSE event.
+  // For streaming transports (GET/HEAD) forward the original `NextRequest`
+  // to allow streaming. If the MCP handler rejects GET (405), fall back to a
+  // POST `tools/list` JSON-RPC call and return the result as an SSE event.
   if (method === "GET" || method === "HEAD") {
     // Diagnostic logging to understand 405 responses in this environment
     console.debug("[mcp] forwarding GET/HEAD to handler", {
