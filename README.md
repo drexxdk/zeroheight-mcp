@@ -398,6 +398,12 @@ This repository includes convenience scripts that now start scraper work as DB-b
 
 - Start a short test task (default 5 minutes):
 
+## Developer docs
+
+For extended developer workflow, environment, and MCP usage details see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+
+
 ```bash
 npx tsx scripts/tasks/start-test-task.ts            # default 5 minutes
 npx tsx scripts/tasks/start-test-task.ts 10         # run for 10 minutes
