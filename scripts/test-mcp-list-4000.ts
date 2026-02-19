@@ -1,13 +1,14 @@
-export {};
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig({ path: ".env.local" });
 
 async function main() {
   // dynamically import config to ensure environment is loaded and aliases work
   const cfg = await import("@/utils/config");
   const url: string = cfg.MCP_URL;
-  const key: string = cfg.MCP_API_KEY;
+  const key: string = cfg.ZEROHEIGHT_MCP_ACCESS_TOKEN;
 
   if (!url) throw new Error("MCP_URL is not configured");
-  if (!key) throw new Error("MCP_API_KEY is not configured");
+  if (!key) throw new Error("ZEROHEIGHT_MCP_ACCESS_TOKEN is not configured");
 
   const res = await fetch(url, {
     method: "POST",

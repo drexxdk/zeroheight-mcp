@@ -2,7 +2,7 @@
 
 - Admin/service-role key (`SUPABASE_SERVICE_ROLE_KEY`) is used only server-side.
 - New narrow server endpoints under `/api/jobs` perform job lifecycle actions (create, claim, append log, finish, fetch).
-- These endpoints require an `x-server-api-key` header that must match `MCP_API_KEY` or `SERVER_API_KEY` in server env.
+- These endpoints require an `x-server-api-key` header that must match `ZEROHEIGHT_MCP_ACCESS_TOKEN` or `SERVER_API_KEY` in server env.
 - Row-Level Security (RLS) is enabled and hardened via migrations in `migrations/003_harden_rls_policies.sql`.
 
 Recommended practices:
@@ -19,7 +19,7 @@ Example (Node / fetch):
 ```js
 const res = await fetch(`${process.env.SERVER_BASE_URL}/api/jobs`, {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json', 'x-server-api-key': process.env.MCP_API_KEY },
+  headers: { 'Content-Type': 'application/json', 'x-server-api-key': process.env.ZEROHEIGHT_MCP_ACCESS_TOKEN },
   body: JSON.stringify({ name: 'scrape', args: { pageUrls: [...] } }),
 });
 ```

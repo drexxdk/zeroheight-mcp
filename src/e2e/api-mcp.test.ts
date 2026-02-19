@@ -9,22 +9,25 @@
 async function testApi() {
   // load env and config dynamically so TS path aliases resolve at runtime
   await import("dotenv/config");
-  const { MCP_API_KEY, MCP_URL } = await import("@/utils/config");
+  const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
+    await import("@/utils/config");
 
-  if (!MCP_API_KEY) {
-    console.error("❌ Error: MCP_API_KEY environment variable not set");
+  if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
+    console.error(
+      "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
+    );
     console.log("");
     console.log("Set it with:");
-    console.log('  export MCP_API_KEY="your-api-key-here"');
+    console.log('  export ZEROHEIGHT_MCP_ACCESS_TOKEN="your-api-key-here"');
     console.log("  # or in PowerShell:");
-    console.log('  $env:MCP_API_KEY = "your-api-key-here"');
+    console.log('  $env:ZEROHEIGHT_MCP_ACCESS_TOKEN = "your-api-key-here"');
     process.exit(1);
   }
 
   console.log("🧪 Testing Zeroheight MCP API...");
   console.log(`📍 API URL: ${MCP_URL}`);
   console.log(
-    `🔑 API Key: ${MCP_API_KEY ? MCP_API_KEY.substring(0, 8) + "..." : "NOT SET"}`,
+    `🔑 API Key: ${ZEROHEIGHT_MCP_ACCESS_TOKEN ? ZEROHEIGHT_MCP_ACCESS_TOKEN.substring(0, 8) + "..." : "NOT SET"}`,
   );
   console.log("");
 
@@ -35,7 +38,7 @@ async function testApi() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": MCP_API_KEY,
+        "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
         Accept: "application/json, text/event-stream",
       },
       body: JSON.stringify({
@@ -77,7 +80,7 @@ async function testApi() {
     console.log("");
     console.log("💡 Troubleshooting:");
     console.log("- Make sure the server is running: npm run dev");
-    console.log("- Check that MCP_API_KEY is set correctly");
+    console.log("- Check that ZEROHEIGHT_MCP_ACCESS_TOKEN is set correctly");
     console.log("- Verify the API URL is accessible");
     console.log(
       "- Ensure data has been scraped previously (this test only queries)",

@@ -7,10 +7,10 @@
         //"https://zeroheight-mcp.vercel.app/api/mcp",
         "http://localhost:3000/api/mcp",
         "--header",
-        "Authorization: Bearer ${MCP_API_KEY}"
+        "Authorization: Bearer ${ZEROHEIGHT_MCP_ACCESS_TOKEN}"
       ],
       "env": {
-        "MCP_API_KEY": "your-local-api-key-here"
+        "ZEROHEIGHT_MCP_ACCESS_TOKEN": "your-local-api-key-here"
       }
     }
   }

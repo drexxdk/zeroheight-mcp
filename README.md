@@ -158,7 +158,7 @@ Scraping completed successfully
    ```env
    ZEROHEIGHT_PROJECT_URL=https://your-project.zeroheight.com/p/project-id
    ZEROHEIGHT_PROJECT_PASSWORD=your-password-if-required
-   MCP_API_KEY=your-secure-api-key
+   ZEROHEIGHT_MCP_ACCESS_TOKEN=your-secure-api-key
    ```
 
 4. **Start the development server:**
@@ -180,7 +180,7 @@ Scraping completed successfully
 | ----------------------------- | --------------------------------------- | ---------------- |
 | `ZEROHEIGHT_PROJECT_URL`      | URL of the Zeroheight project to scrape | Yes              |
 | `ZEROHEIGHT_PROJECT_PASSWORD` | Password if project is protected        | No               |
-| `MCP_API_KEY`                 | API key for server authentication       | Yes (production) |
+| `ZEROHEIGHT_MCP_ACCESS_TOKEN` | API key for server authentication       | Yes (production) |
 
 ### MCP Client Configuration
 
@@ -195,7 +195,7 @@ Copy the MCP configuration for your preferred setup:
       "command": "npx",
       "args": ["mcp-remote", "http://localhost:3000/api/mcp"],
       "env": {
-        "MCP_API_KEY": "your-api-key-here"
+        "ZEROHEIGHT_MCP_ACCESS_TOKEN": "your-api-key-here"
       }
     }
   }
@@ -217,7 +217,7 @@ PowerShell (prompting for key):
 ```powershell
 $k = Read-Host -AsSecureString "Enter MCP API key" | ConvertFrom-SecureString
       "args": [
-$env:MCP_API_KEY = (ConvertTo-SecureString $k -AsPlainText -Force)
+$env:ZEROHEIGHT_MCP_ACCESS_TOKEN = (ConvertTo-SecureString $k -AsPlainText -Force)
 npm run mcp:clear
 ````
 
@@ -232,18 +232,18 @@ PowerShell (inline JSON argument):
         "--header",
         Direct calls (server-first)
 
-        You can call MCP tools directly without the wrapper. Use an Authorization header or `X-API-Key` header matching the server's `MCP_API_KEY`.
+        You can call MCP tools directly without the wrapper. Use an Authorization header or `X-API-Key` header matching the server's `ZEROHEIGHT_MCP_ACCESS_TOKEN`.
 
         List tools (Node):
 
         ```bash
-        node -e "const k=process.env.MCP_API_KEY; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})});console.log(await res.text());}catch(e){console.error(e);} })()"
+        node -e "const k=process.env.ZEROHEIGHT_MCP_ACCESS_TOKEN; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})});console.log(await res.text());}catch(e){console.error(e);} })()"
         ```
 
         Call a tool (Node) — `clear-database` example (destructive):
 
         ```bash
-        node -e "const k=process.env.MCP_API_KEY; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'clear-database',arguments:{apiKey:k}}})});console.log(await res.text());}catch(e){console.error(e);} })()"
+        node -e "const k=process.env.ZEROHEIGHT_MCP_ACCESS_TOKEN; (async()=>{try{const res=await fetch('http://localhost:3000/api/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream','Authorization':'Bearer '+k},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'clear-database',arguments:{apiKey:k}}})});console.log(await res.text());}catch(e){console.error(e);} })()"
         ```
 
         PowerShell example (prompt before destructive action):
@@ -256,11 +256,11 @@ PowerShell (inline JSON argument):
         Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/mcp -Headers @{ Authorization = "Bearer $plain" } -Body (@{ jsonrpc = '2.0'; id = 1; method = 'tools/call'; params = @{ name = 'clear-database'; arguments = @{ apiKey = $plain } } } | ConvertTo-Json -Depth 10)
         ```
 
-        Using `mcp-remote` (if available) is also supported by many editors and tools — just configure it to call the same MCP endpoint and supply the `MCP_API_KEY` via your environment or secure editor secrets.
+        Using `mcp-remote` (if available) is also supported by many editors and tools — just configure it to call the same MCP endpoint and supply the `ZEROHEIGHT_MCP_ACCESS_TOKEN` via your environment or secure editor secrets.
 
         Security note
 
-        - **Do not store** your `MCP_API_KEY` in repository-tracked files such as `.vscode/mcp.json`. If the key is committed or shared, it can be used to run destructive MCP tools.
+        - **Do not store** your `ZEROHEIGHT_MCP_ACCESS_TOKEN` in repository-tracked files such as `.vscode/mcp.json`. If the key is committed or shared, it can be used to run destructive MCP tools.
         - Store the key in an environment file (e.g., `.env.local` added to `.gitignore`), your OS keychain, or the editor/CI secret store.
 
 ## 📚 API Reference
@@ -345,7 +345,7 @@ Queries the cached Zeroheight data with flexible search options. Returns complet
 
 ## 🖥️ CLI Tool
 
-This project exposes MCP tools via the server API; you can call them directly with standard HTTP requests (include `Authorization: Bearer <MCP_API_KEY>` and `Accept: application/json, text/event-stream`) or use your editor's MCP integration. Examples for HTTP calls are provided in the "Testing" section below.
+This project exposes MCP tools via the server API; you can call them directly with standard HTTP requests (include `Authorization: Bearer <ZEROHEIGHT_MCP_ACCESS_TOKEN>` and `Accept: application/json, text/event-stream`) or use your editor's MCP integration. Examples for HTTP calls are provided in the "Testing" section below.
 
 ## 🧪 Testing
 
@@ -377,16 +377,16 @@ curl -X POST http://localhost:3000/api/mcp \
 
 ```powershell
 # Set API key
-$env:MCP_API_KEY = "your-api-key-here"
+$env:ZEROHEIGHT_MCP_ACCESS_TOKEN = "your-api-key-here"
 
 # Scrape project
 Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
-  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
+  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:ZEROHEIGHT_MCP_ACCESS_TOKEN; "Accept"="application/json, text/event-stream"} `
   -Body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scrape","arguments":{}}}' | Format-List
 
 # Query data
 Invoke-RestMethod -Uri "http://localhost:3000/api/mcp" -Method POST `
-  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:MCP_API_KEY; "Accept"="application/json, text/event-stream"} `
+  -Headers @{"Content-Type"="application/json"; "X-API-Key"=$env:ZEROHEIGHT_MCP_ACCESS_TOKEN; "Accept"="application/json, text/event-stream"} `
   -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query-database","arguments":{"search":"color"}}}' | Format-List
 
 <!-- Execute SQL PowerShell example removed -->
@@ -442,13 +442,13 @@ npm run test-api
 
 This MCP server uses API key authentication. The API key should be:
 
-- Set as `MCP_API_KEY` environment variable
+- Set as `ZEROHEIGHT_MCP_ACCESS_TOKEN` environment variable
 - Passed in requests via:
   - `Authorization: Bearer <your-api-key>` header (recommended)
   - `X-API-Key: <your-api-key>` header
   - `?api_key=<your-api-key>` query parameter (fallback)
 
-**Important:** Never commit API keys to version control. For production deployments, set the `MCP_API_KEY` environment variable in your hosting platform (Vercel, etc.).
+**Important:** Never commit API keys to version control. For production deployments, set the `ZEROHEIGHT_MCP_ACCESS_TOKEN` environment variable in your hosting platform (Vercel, etc.).
 
 ## 🗄️ Database Schema
 
@@ -483,7 +483,7 @@ The server uses Supabase with the following tables:
 
 2. **Set environment variables in Vercel:**
    - Go to your project settings
-   - Add `MCP_API_KEY` with a secure random value
+   - Add `ZEROHEIGHT_MCP_ACCESS_TOKEN` with a secure random value
    - Add `ZEROHEIGHT_PROJECT_URL` and `ZEROHEIGHT_PROJECT_PASSWORD` if needed
 
 3. **Configure your MCP client** with the production URL and API key.
@@ -503,7 +503,7 @@ npm start
 
 **401 Unauthorized**
 
-- Check that `MCP_API_KEY` is set correctly
+- Check that `ZEROHEIGHT_MCP_ACCESS_TOKEN` is set correctly
 - Verify the API key is included in request headers
 
 **406 Not Acceptable**
@@ -593,7 +593,7 @@ Built with ❤️ using Next.js, TypeScript, and the Model Context Protocol
 ### Common Issues
 
 **401 Unauthorized**
-- Check that `MCP_API_KEY` is set correctly
+- Check that `ZEROHEIGHT_MCP_ACCESS_TOKEN` is set correctly
 - Verify the API key is included in request headers
 
 **406 Not Acceptable**

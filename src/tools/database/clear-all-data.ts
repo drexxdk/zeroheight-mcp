@@ -5,7 +5,7 @@ import {
 import { getClient } from "@/utils/common/supabaseClients";
 import { getSupabaseAdminClient } from "@/utils/common";
 import { performBucketClear } from "@/utils/image-utils";
-import { MCP_API_KEY } from "@/utils/config";
+import { ZEROHEIGHT_MCP_ACCESS_TOKEN } from "@/utils/config";
 
 async function clearDatabase() {
   try {
@@ -131,10 +131,11 @@ export const clearAllDataTool: ToolDefinition<typeof clearAllDataInput> = {
     "Clear all Zeroheight data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
   inputSchema: clearAllDataInput,
   handler: async ({ apiKey }: z.infer<typeof clearAllDataInput>) => {
-    const expectedApiKey = MCP_API_KEY;
+    const expectedApiKey = ZEROHEIGHT_MCP_ACCESS_TOKEN;
     if (!expectedApiKey) {
       return createErrorResponse({
-        message: "MCP_API_KEY environment variable not configured",
+        message:
+          "ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not configured",
       });
     }
 

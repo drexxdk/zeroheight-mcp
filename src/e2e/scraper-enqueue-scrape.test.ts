@@ -12,9 +12,12 @@ const args = process.argv.slice(2);
 const pageUrls = args.length > 0 ? args : undefined;
 
 async function runEnqueue() {
-  const { MCP_API_KEY, MCP_URL } = await import("@/utils/config");
-  if (!MCP_API_KEY) {
-    console.error("❌ Error: MCP_API_KEY environment variable not set");
+  const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
+    await import("@/utils/config");
+  if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
+    console.error(
+      "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
+    );
     process.exit(1);
   }
 
@@ -35,7 +38,7 @@ async function runEnqueue() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": MCP_API_KEY,
+        "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
         Accept: "application/json, text/event-stream",
       },
       body,

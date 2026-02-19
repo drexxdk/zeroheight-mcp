@@ -61,7 +61,7 @@
 - **Priority**: Highest
 - **Action**: Under no circumstance should the assistant start or execute any local scraper script or call `scrape` directly from the project while interacting in chat. Always invoke scraping via the MCP-exposed tool (`scrape`) through the MCP server API. Do not run `npx tsx scripts/test-scrape-specific-pages.ts`, `scripts/worker.ts`, or any other script that executes the scraper from the repository unless the user explicitly and unambiguously instructs you to "run locally" and grants permission.
 - **Rationale**: This prevents inadvertent long-running browser/scraping processes started by the assistant, centralizes control via the MCP API endpoint, and preserves auditability and permissions for destructive or heavy operations.
-- **When to run**: Use the MCP `scrape-zeroheight-project` tool by calling the server API (`tools/call`) with the appropriate `MCP_API_KEY`. Only run local scraper scripts when the user explicitly requests a local run.
+- **When to run**: Use the MCP `scrape-zeroheight-project` tool by calling the server API (`tools/call`) with the appropriate `ZEROHEIGHT_MCP_ACCESS_TOKEN`. Only run local scraper scripts when the user explicitly requests a local run.
 - **Enforcement**: The assistant must refuse to run or start any scraper script from the repository in chat and should instead inform the user how to run it locally or call the MCP tool on their behalf.
 
 ### Stop after completing MCP actions
@@ -75,7 +75,7 @@
 ### Invoke MCP tools via the server API
 
 - **Priority**: High
-- **Action**: When the user asks you to run or test an MCP tool, call the MCP tool via the server API endpoint. Include the `Authorization: Bearer <MCP_API_KEY>` header and `Accept: application/json, text/event-stream` when making requests.
+- **Action**: When the user asks you to run or test an MCP tool, call the MCP tool via the server API endpoint. Include the `Authorization: Bearer <ZEROHEIGHT_MCP_ACCESS_TOKEN>` header and `Accept: application/json, text/event-stream` when making requests.
 - **Rationale**: Direct API calls are explicit and portable across environments; many editors also provide MCP integrations that can be configured to call the same endpoint.
 - **When to apply**: When user requests involve running, testing, or calling any MCP tools (scrape-zeroheight-project, query-zeroheight-data, list-tables, etc.)
   **Examples**: Use the `tools/list` RPC to discover tool names and call `tools/call` with the tool name and arguments.
@@ -94,9 +94,9 @@
 - **Action**: When asked to perform actions that interact with the MCP (clear data, run scrapers, query stored data, or other project-level tasks), use the MCP tools exposed by the project API rather than calling services or endpoints directly.
 - **Where the tools are defined**: The available MCP tools and their server-side implementations are declared in `app/api/[transport]/route.ts` — consult this file to discover which tools exist and how they are named.
 - **Discovery-first approach**: Use the `tools/list` tool (the MCP tool that lists available tools) as the starting point to discover tool names and accepted arguments before invoking a tool.
-- **How to call**: Call the MCP server API directly (e.g., `tools/list` and `tools/call`) or use your editor's MCP integration. Ensure requests include `Authorization: Bearer <MCP_API_KEY>` and `Accept: application/json, text/event-stream`.
+- **How to call**: Call the MCP server API directly (e.g., `tools/list` and `tools/call`) or use your editor's MCP integration. Ensure requests include `Authorization: Bearer <ZEROHEIGHT_MCP_ACCESS_TOKEN>` and `Accept: application/json, text/event-stream`.
 - **Rationale**: This centralizes access control, logging, and validation on the server side and prevents accidental direct modifications to the database or storage from local scripts.
-- **Safety**: For destructive actions (clear, delete), require the explicit `MCP_API_KEY` confirmation parameter and never attempt destructive operations without it.
+- **Safety**: For destructive actions (clear, delete), require the explicit `ZEROHEIGHT_MCP_ACCESS_TOKEN` confirmation parameter and never attempt destructive operations without it.
 
 ### Network request policy (Node-only)
 
@@ -108,13 +108,13 @@
 
   ```bash
   # Good: use Node/tsx script
-  npx tsx scripts/clear-zeroheight-mcp.ts "$MCP_API_KEY"
+  npx tsx scripts/clear-zeroheight-mcp.ts "$ZEROHEIGHT_MCP_ACCESS_TOKEN"
   ```
 
   ```bash
   # Avoid: curl in PowerShell, use Node instead
   curl -X POST "http://localhost:3000/api/mcp" \
-    -H "Authorization: Bearer $MCP_API_KEY" \
+    -H "Authorization: Bearer $ZEROHEIGHT_MCP_ACCESS_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"jsonrpc":"2.0",...}'
   ```

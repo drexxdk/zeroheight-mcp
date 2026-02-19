@@ -38,7 +38,8 @@ export const ZEROHEIGHT_PROJECT_URL = process.env.ZEROHEIGHT_PROJECT_URL || "";
 export const ZEROHEIGHT_PROJECT_PASSWORD =
   process.env.ZEROHEIGHT_PROJECT_PASSWORD || undefined;
 
-export const MCP_API_KEY = process.env.MCP_API_KEY || "";
+export const ZEROHEIGHT_MCP_ACCESS_TOKEN =
+  process.env.ZEROHEIGHT_MCP_ACCESS_TOKEN || "";
 export const MCP_URL = process.env.MCP_URL || "http://localhost:3000/api/mcp";
 
 export const NEXT_PUBLIC_SUPABASE_URL =
@@ -198,8 +199,8 @@ export const IMAGE_UTILS_SAMPLE_LIMIT = Number(
 );
 
 // Database / migration helper flags
-export const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "";
-export const ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS = (
-  (process.env.ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS || "").toLowerCase() === "true" ||
-  (process.env.ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS || "") === "1"
-);
+export const DATABASE_URL =
+  process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "";
+export const ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS =
+  (process.env.ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS || "").toLowerCase() ===
+    "true" || (process.env.ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS || "") === "1";

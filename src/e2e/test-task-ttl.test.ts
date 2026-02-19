@@ -5,9 +5,10 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 async function main() {
-  const { MCP_API_KEY, MCP_URL } = await import("@/utils/config");
-  if (!MCP_API_KEY) {
-    console.error("MCP_API_KEY not set");
+  const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
+    await import("@/utils/config");
+  if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
+    console.error("ZEROHEIGHT_MCP_ACCESS_TOKEN not set");
     process.exit(1);
   }
 
@@ -18,7 +19,7 @@ async function main() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": MCP_API_KEY,
+      "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
       Accept: "application/json, text/event-stream",
     },
     body: JSON.stringify({
@@ -98,7 +99,7 @@ async function main() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": MCP_API_KEY,
+      "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
       Accept: "application/json, text/event-stream",
     },
     body: JSON.stringify({

@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { MCP_API_KEY } from "./config";
+import { ZEROHEIGHT_MCP_ACCESS_TOKEN } from "./config";
 
 export function authenticateRequest({ request }: { request: NextRequest }): {
   isValid: boolean;
   error?: string;
 } {
-  const serverKey = MCP_API_KEY;
+  const serverKey = ZEROHEIGHT_MCP_ACCESS_TOKEN;
 
   // Check for API key in headers or query parameters
   const authHeader = request.headers.get("authorization");
@@ -26,7 +26,7 @@ export function authenticateRequest({ request }: { request: NextRequest }): {
     };
   }
 
-  // If a server-side MCP_API_KEY is configured, require it to match.
+  // If a server-side ZEROHEIGHT_MCP_ACCESS_TOKEN is configured, require it to match.
   // Otherwise (local/dev), accept any provided key so tools like `mcp-remote`
   // can signal possession of a key without requiring server config.
   if (serverKey && providedKey !== serverKey) {
