@@ -1,3 +1,5 @@
+#!/usr/bin/env tsx
+// This script uses dynamic imports and expects to be run with `tsx` (npx tsx)
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
 

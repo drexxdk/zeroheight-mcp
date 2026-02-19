@@ -1,3 +1,5 @@
+// `isRecord` is imported below from the local path; avoid duplicate imports
+
 export type ToolTextContent = { type: "text"; text: string };
 
 export type ToolResponse = {

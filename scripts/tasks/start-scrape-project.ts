@@ -1,3 +1,5 @@
+#!/usr/bin/env tsx
+
 import { runTool } from "./start-task";
 import { ZEROHEIGHT_PROJECT_PASSWORD } from "../../src/utils/config";
 

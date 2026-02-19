@@ -1,12 +1,12 @@
 import type { TasksType } from "@/database.types";
 import type { Json } from "@/database.schema";
 import { getSupabaseAdminClient } from "@/utils/common";
-import { isRecord } from "@/utils/common/typeGuards";
 import {
   JOBID_RANDOM_START,
   JOBID_RANDOM_LEN,
   TESTRUNID_RANDOM_LEN,
 } from "@/utils/config";
+import { isRecord } from "../../../utils/common/typeGuards";
 
 export type JobRecord = TasksType;
 
@@ -82,10 +82,10 @@ export async function createTestJobInDb({
   args?: Record<string, unknown> | null;
   testRunId?: string;
 }) {
-  const merged = { ...(args || {}), __testRunId: testRunId } as Record<
-    string,
-    unknown
-  >;
+  const merged: Record<string, unknown> = {
+    ...(args || {}),
+    __testRunId: testRunId,
+  };
   const id = await createJobInDb({ name, args: merged });
   if (!id) {
     console.error(

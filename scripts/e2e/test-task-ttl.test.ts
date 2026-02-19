@@ -3,7 +3,7 @@
 import { config } from "dotenv";
 // Ensure dotenv runs before importing any app modules that read env at module-evaluation time.
 config({ path: ".env.local" });
-import { isRecord } from "../utils/common/typeGuards";
+import { isRecord } from "../../src/utils/common/typeGuards";
 
 async function main() {
   const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
@@ -46,16 +46,14 @@ async function main() {
     }
   }
   if (!isRecord(startJson)) throw new Error("No JSON returned from testtask");
-  const sj = startJson as Record<string, unknown>;
+  const sj = startJson;
   if (sj.error) throw new Error(JSON.stringify(sj.error));
 
   // helper to extract string content safely
   const extractContent = (obj: Record<string, unknown>): string | undefined => {
-    const res = obj["result"] as Record<string, unknown> | undefined;
-    if (res) {
-      const content = res["content"] as
-        | Array<Record<string, unknown>>
-        | undefined;
+    const res = obj["result"];
+    if (isRecord(res)) {
+      const content = res["content"];
       if (Array.isArray(content) && content.length > 0) {
         const first = content[0];
         const t = first["text"];
@@ -85,7 +83,8 @@ async function main() {
       );
     }
   } else {
-    parsed = content as Record<string, unknown>;
+    if (isRecord(content)) parsed = content;
+    else throw new Error("Parsed content is not an object");
   }
   const jobId =
     (typeof parsed["jobId"] === "string" && parsed["jobId"]) ||
@@ -117,7 +116,7 @@ async function main() {
   const getText = await getRes.text();
   let getJson: unknown = null;
   try {
-    getJson = JSON.parse(getText) as Record<string, unknown>;
+    getJson = JSON.parse(getText);
   } catch {
     // try SSE data: lines
     const parts = getText.split(/\r?\n/).filter(Boolean);
@@ -125,7 +124,7 @@ async function main() {
     if (dataLines.length > 0) {
       const last = dataLines[dataLines.length - 1].slice("data:".length).trim();
       try {
-        getJson = JSON.parse(last) as Record<string, unknown>;
+        getJson = JSON.parse(last);
       } catch {
         // fallthrough
       }
@@ -133,10 +132,10 @@ async function main() {
   }
   if (!isRecord(getJson))
     throw new Error(`tasks/get did not return JSON. Raw response: ${getText}`);
-  const gj = getJson as Record<string, unknown>;
-  if (gj.error) {
+  const gj = getJson;
+  if (isRecord(gj) && gj.error) {
     // If the server refuses tools/call with task metadata, fall back to calling the tool handler directly for verification.
-    const errObj = gj.error as Record<string, unknown> | undefined;
+    const errObj = isRecord(gj.error) ? gj.error : undefined;
     let msg = "";
     if (errObj && typeof errObj["message"] === "string")
       msg = String(errObj["message"]);
@@ -149,15 +148,12 @@ async function main() {
         taskId: jobId,
         requestedTtlMs: requestedTtl,
       });
-      const directRec = isRecord(direct)
-        ? (direct as Record<string, unknown>)
-        : undefined;
+      const directAny = direct as unknown;
+      const directRec = isRecord(directAny) ? directAny : undefined;
       if (directRec && isRecord(directRec.error))
         throw new Error(JSON.stringify(directRec.error));
       const taskNode =
-        directRec && isRecord(directRec.task)
-          ? (directRec.task as Record<string, unknown>)
-          : undefined;
+        directRec && isRecord(directRec.task) ? directRec.task : undefined;
       const dirTtl = taskNode ? taskNode["ttl"] : undefined;
       console.log("tasks/get (direct) response ttl:", dirTtl);
       if (typeof dirTtl !== "number")
@@ -175,13 +171,13 @@ async function main() {
   }
   // Unwrap ToolResponse wrapper if present: result.content[0].text may contain the real JSON
   let actualResult: unknown = gj["result"];
-  if (
-    isRecord(actualResult) &&
-    Array.isArray((actualResult as Record<string, unknown>).content)
-  ) {
-    const content = (actualResult as Record<string, unknown>).content as Array<
-      Record<string, unknown>
-    >;
+  if (isRecord(actualResult) && Array.isArray(actualResult.content)) {
+    const content = (() => {
+      const __tmp = actualResult.content;
+      return isRecord(__tmp)
+        ? (__tmp as Array<Record<string, unknown>>)
+        : __tmp;
+    })();
     const first = content[0];
     const inner = first?.text;
     if (typeof inner === "string") {
@@ -192,14 +188,9 @@ async function main() {
       }
     }
   }
-
-  const resultObj = isRecord(actualResult)
-    ? (actualResult as Record<string, unknown>)
-    : undefined;
+  const resultObj = isRecord(actualResult) ? actualResult : undefined;
   const taskNode =
-    resultObj && isRecord(resultObj["task"])
-      ? (resultObj["task"] as Record<string, unknown>)
-      : undefined;
+    resultObj && isRecord(resultObj["task"]) ? resultObj["task"] : undefined;
   const ttl = taskNode ? taskNode["ttl"] : undefined;
   console.log("tasks/get response ttl:", ttl);
   if (typeof ttl !== "number")

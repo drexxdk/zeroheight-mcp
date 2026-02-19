@@ -17,7 +17,7 @@ import {
 } from "@/tools/tasks";
 import type { ToolResponse } from "@/utils/toolResponses";
 import { normalizeToToolResponse } from "@/utils/toolResponses";
-import { isRecord } from "@/utils/common/typeGuards";
+import { isRecord } from "../../../utils/common/typeGuards";
 
 const handler = createMcpHandler(
   async (server) => {
@@ -198,16 +198,10 @@ async function authenticatedHandler(request: NextRequest) {
   // directly here and return a JSON-RPC response. This keeps the fast-path
   // small and predictable.
   if (parsed && parsed["method"] === "tools/call") {
-    const params = isRecord(parsed?.["params"])
-      ? (parsed!["params"] as Record<string, unknown>)
-      : undefined;
+    const params = isRecord(parsed?.["params"]) ? parsed!["params"] : undefined;
     const toolName =
-      typeof params?.["name"] === "string"
-        ? (params!["name"] as string)
-        : undefined;
-    const args = isRecord(params?.["arguments"])
-      ? (params!["arguments"] as Record<string, unknown>)
-      : {};
+      typeof params?.["name"] === "string" ? params!["name"] : undefined;
+    const args = isRecord(params?.["arguments"]) ? params!["arguments"] : {};
 
     const taskTools = new Set([
       tasksGetTool.title,

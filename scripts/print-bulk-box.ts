@@ -1,3 +1,6 @@
+#!/usr/bin/env tsx
+// Run with: npx tsx scripts/print-bulk-box.ts
+
 // Lightweight script to render the same boxed summary used by bulkUpsert
 import "dotenv/config";
 import {

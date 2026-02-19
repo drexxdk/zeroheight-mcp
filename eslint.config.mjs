@@ -33,6 +33,20 @@ const eslintConfig = defineConfig([
       "no-restricted-properties": "off",
     },
   },
+  // Project rule: discourage casts to `Record<string, unknown>` which bypass
+  // TypeScript's intent. Prefer runtime guards (`isRecord`) or explicit types.
+  {
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "TSAsExpression[typeAnnotation.typeName.name='Record']",
+          message:
+            "Avoid casting to Record<string, unknown> (e.g. `as Record<string, unknown>`). Use runtime guards or explicit types instead.",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

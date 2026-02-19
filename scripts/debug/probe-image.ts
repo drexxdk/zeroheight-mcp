@@ -1,3 +1,5 @@
+#!/usr/bin/env tsx
+
 export {};
 
 async function main() {

@@ -6,8 +6,8 @@ import {
   createErrorResponse,
   createSuccessResponse,
 } from "@/utils/toolResponses";
-import { isRecord } from "@/utils/common/typeGuards";
 import type { ToolDefinition } from "@/tools/toolTypes";
+import { isRecord } from "../../utils/common/typeGuards";
 
 const tasksResultInput = z.object({
   taskId: z.string(),

@@ -1,3 +1,5 @@
+#!/usr/bin/env tsx
+
 import { runTool } from "./start-task";
 
 async function main() {

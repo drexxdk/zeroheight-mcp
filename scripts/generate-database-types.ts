@@ -1,3 +1,5 @@
+#!/usr/bin/env tsx
+// Run with: npx tsx scripts/generate-database-types.ts
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 

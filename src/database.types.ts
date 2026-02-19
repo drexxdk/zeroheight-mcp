@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import type { Database } from './database.schema';
+import { z } from "zod";
+import type { Database } from "./database.schema";
 
 // Auto-generated Zod schemas based on database.schema.ts
 

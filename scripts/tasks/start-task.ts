@@ -1,3 +1,5 @@
+#!/usr/bin/env tsx
+
 import { config } from "dotenv";
 import { isRecord } from "@/utils/common/typeGuards";
 config({ path: ".env.local" });

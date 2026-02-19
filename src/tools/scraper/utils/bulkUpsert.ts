@@ -14,7 +14,7 @@ import {
 import type { PagesType, ImagesType } from "@/database.types";
 import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
-import { isRecord } from "@/utils/common/typeGuards";
+import { isRecord } from "../../../utils/common/typeGuards";
 
 type DbClient = ReturnType<typeof getClient>["client"];
 
