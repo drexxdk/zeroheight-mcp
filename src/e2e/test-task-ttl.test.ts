@@ -3,6 +3,7 @@
 import { config } from "dotenv";
 // Ensure dotenv runs before importing any app modules that read env at module-evaluation time.
 config({ path: ".env.local" });
+import { isRecord } from "../utils/common/typeGuards";
 
 async function main() {
   const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
@@ -34,18 +35,17 @@ async function main() {
   console.log("startText:", startText);
   let startJson: unknown = null;
   try {
-    startJson = JSON.parse(startText) as Record<string, unknown>;
+    startJson = JSON.parse(startText);
   } catch {
     // maybe SSE event-stream; try to extract last 'data: ' JSON
     const parts = startText.split(/\r?\n/).filter(Boolean);
     const dataLines = parts.filter((l) => l.startsWith("data:"));
     if (dataLines.length > 0) {
       const last = dataLines[dataLines.length - 1].slice("data:".length).trim();
-      startJson = JSON.parse(last) as Record<string, unknown>;
+      startJson = JSON.parse(last);
     }
   }
-  if (!startJson || typeof startJson !== "object")
-    throw new Error("No JSON returned from testtask");
+  if (!isRecord(startJson)) throw new Error("No JSON returned from testtask");
   const sj = startJson as Record<string, unknown>;
   if (sj.error) throw new Error(JSON.stringify(sj.error));
 
@@ -78,7 +78,7 @@ async function main() {
   let parsed: Record<string, unknown>;
   if (typeof content === "string") {
     try {
-      parsed = JSON.parse(content) as Record<string, unknown>;
+      parsed = JSON.parse(content);
     } catch {
       throw new Error(
         `Failed to parse JSON from testtask content. Raw content: ${content}`,
@@ -131,16 +131,15 @@ async function main() {
       }
     }
   }
-  if (!getJson || typeof getJson !== "object")
+  if (!isRecord(getJson))
     throw new Error(`tasks/get did not return JSON. Raw response: ${getText}`);
   const gj = getJson as Record<string, unknown>;
   if (gj.error) {
     // If the server refuses tools/call with task metadata, fall back to calling the tool handler directly for verification.
-    const errObj = gj.error as Record<string, unknown>;
-    const msg =
-      typeof errObj["message"] === "string"
-        ? (errObj["message"] as string)
-        : "";
+    const errObj = gj.error as Record<string, unknown> | undefined;
+    let msg = "";
+    if (errObj && typeof errObj["message"] === "string")
+      msg = String(errObj["message"]);
     if (msg.includes("Server does not support task creation")) {
       console.warn(
         "Server rejected task-aware tools/call. Falling back to direct tool call for verification.",
@@ -150,14 +149,16 @@ async function main() {
         taskId: jobId,
         requestedTtlMs: requestedTtl,
       });
-      if ((direct as Record<string, unknown>).error)
-        throw new Error(
-          JSON.stringify((direct as Record<string, unknown>).error),
-        );
-      const taskNode = (direct as Record<string, unknown>).task as
-        | Record<string, unknown>
-        | undefined;
-      const dirTtl = taskNode?.ttl;
+      const directRec = isRecord(direct)
+        ? (direct as Record<string, unknown>)
+        : undefined;
+      if (directRec && isRecord(directRec.error))
+        throw new Error(JSON.stringify(directRec.error));
+      const taskNode =
+        directRec && isRecord(directRec.task)
+          ? (directRec.task as Record<string, unknown>)
+          : undefined;
+      const dirTtl = taskNode ? taskNode["ttl"] : undefined;
       console.log("tasks/get (direct) response ttl:", dirTtl);
       if (typeof dirTtl !== "number")
         throw new Error("TTL not present in direct tasks/get result");
@@ -175,8 +176,7 @@ async function main() {
   // Unwrap ToolResponse wrapper if present: result.content[0].text may contain the real JSON
   let actualResult: unknown = gj["result"];
   if (
-    actualResult &&
-    typeof actualResult === "object" &&
+    isRecord(actualResult) &&
     Array.isArray((actualResult as Record<string, unknown>).content)
   ) {
     const content = (actualResult as Record<string, unknown>).content as Array<
@@ -193,12 +193,14 @@ async function main() {
     }
   }
 
-  const resultObj =
-    typeof actualResult === "object" && actualResult !== null
-      ? (actualResult as Record<string, unknown>)
+  const resultObj = isRecord(actualResult)
+    ? (actualResult as Record<string, unknown>)
+    : undefined;
+  const taskNode =
+    resultObj && isRecord(resultObj["task"])
+      ? (resultObj["task"] as Record<string, unknown>)
       : undefined;
-  const taskNode = resultObj?.["task"] as Record<string, unknown> | undefined;
-  const ttl = taskNode?.["ttl"];
+  const ttl = taskNode ? taskNode["ttl"] : undefined;
   console.log("tasks/get response ttl:", ttl);
   if (typeof ttl !== "number")
     throw new Error("TTL not present in tasks/get result");

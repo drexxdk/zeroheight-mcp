@@ -14,6 +14,7 @@ import {
 import type { PagesType, ImagesType } from "@/database.types";
 import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
+import { isRecord } from "@/utils/common/typeGuards";
 
 type DbClient = ReturnType<typeof getClient>["client"];
 
@@ -335,9 +336,8 @@ export async function bulkUpsertPagesAndImages(options: {
           if (Array.isArray(insertRes.data)) {
             // Collect original_url values returned by the insert so we can
             // exclude newly-inserted originals from the "skipped before" count.
-            for (const row of insertRes.data as Array<
-              Record<string, unknown>
-            >) {
+            for (const row of insertRes.data as Array<unknown>) {
+              if (!isRecord(row)) continue;
               const orig = row["original_url"];
               if (typeof orig === "string") insertedOriginalUrls.add(orig);
             }
@@ -347,9 +347,12 @@ export async function bulkUpsertPagesAndImages(options: {
                 `[debug] inserted chunk: count=${insertRes.data.length} totalInserted=${insertedCountTotal}`,
               );
               try {
-                const first = (insertRes.data[0] as Record<string, unknown>)
-                  ?.id;
-                console.log(`[debug] sample inserted id=${String(first)}`);
+                const maybeFirst = insertRes.data[0];
+                if (isRecord(maybeFirst)) {
+                  console.log(
+                    `[debug] sample inserted id=${String(maybeFirst.id)}`,
+                  );
+                }
               } catch {}
             }
           }

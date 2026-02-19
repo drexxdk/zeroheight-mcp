@@ -17,6 +17,7 @@ import {
 } from "@/tools/tasks";
 import type { ToolResponse } from "@/utils/toolResponses";
 import { normalizeToToolResponse } from "@/utils/toolResponses";
+import { isRecord } from "@/utils/common/typeGuards";
 
 const handler = createMcpHandler(
   async (server) => {
@@ -30,11 +31,8 @@ const handler = createMcpHandler(
     const wrapTool = <T>(tool: { handler: (a: T) => Promise<unknown> }) => {
       return async (args: unknown): Promise<ToolResponse> => {
         const res = await tool.handler(args as T);
-        if (res && typeof res === "object") {
-          const rObj = res as Record<string, unknown>;
-          if (Array.isArray(rObj.content))
-            return rObj as unknown as ToolResponse;
-        }
+        if (isRecord(res) && Array.isArray(res.content))
+          return res as unknown as ToolResponse;
         return { content: [{ type: "text", text: JSON.stringify(res) }] };
       };
     };
@@ -190,8 +188,7 @@ async function authenticatedHandler(request: NextRequest) {
   if (contentType.includes("application/json") && bodyText) {
     try {
       const p = JSON.parse(bodyText);
-      if (p && typeof p === "object" && !Array.isArray(p))
-        parsed = p as Record<string, unknown>;
+      if (isRecord(p)) parsed = p;
     } catch {
       parsed = null;
     }
@@ -201,10 +198,16 @@ async function authenticatedHandler(request: NextRequest) {
   // directly here and return a JSON-RPC response. This keeps the fast-path
   // small and predictable.
   if (parsed && parsed["method"] === "tools/call") {
-    const params = parsed["params"] as Record<string, unknown> | undefined;
-    const toolName = params?.["name"] as string | undefined;
-    const args =
-      (params?.["arguments"] as Record<string, unknown> | undefined) ?? {};
+    const params = isRecord(parsed?.["params"])
+      ? (parsed!["params"] as Record<string, unknown>)
+      : undefined;
+    const toolName =
+      typeof params?.["name"] === "string"
+        ? (params!["name"] as string)
+        : undefined;
+    const args = isRecord(params?.["arguments"])
+      ? (params!["arguments"] as Record<string, unknown>)
+      : {};
 
     const taskTools = new Set([
       tasksGetTool.title,

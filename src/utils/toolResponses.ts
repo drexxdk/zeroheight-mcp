@@ -25,32 +25,24 @@ export function createSuccessResponse({
   }
 }
 
+import { isRecord } from "./common/typeGuards";
+
 export function normalizeToToolResponse(result: unknown): ToolResponse {
   if (!result) return createSuccessResponse({ data: result });
 
   // If it's already a ToolResponse, return as-is
-  if (
-    typeof result === "object" &&
-    result !== null &&
-    Array.isArray((result as Record<string, unknown>).content)
-  ) {
+  if (isRecord(result) && Array.isArray(result.content)) {
     return result as ToolResponse;
   }
 
   // If it looks like an error object, convert to an error response
-  if (
-    typeof result === "object" &&
-    result !== null &&
-    "error" in (result as Record<string, unknown>)
-  ) {
-    const err = (result as Record<string, unknown>).error as unknown;
+  if (isRecord(result) && "error" in result) {
+    const err = result.error as unknown;
     const msg =
       typeof err === "string"
         ? err
-        : err &&
-            typeof err === "object" &&
-            "message" in (err as Record<string, unknown>)
-          ? String((err as Record<string, unknown>).message)
+        : isRecord(err) && "message" in err
+          ? String(err.message)
           : JSON.stringify(err);
     return createErrorResponse({ message: msg });
   }

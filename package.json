@@ -17,7 +17,8 @@
     "restart-ts-server": "node -e \"const cp=require('child_process');try{cp.execSync('npx tsc --noEmit',{stdio:'inherit'})}catch(e){};console.log('If using VS Code, run \\\"TypeScript: Restart TS Server\\\" from Command Palette (Ctrl+Shift+P)')\"",
     "supabase-login": "npx -y supabase@2.72.8 login",
     "generate-database-schema": "npx -y supabase@2.72.8 gen types typescript --project-id qyoexslrsblaphbcvjdk --schema public > src/database.schema.ts",
-    "generate-database-types": "npx tsx scripts/generate-database-types.ts"
+    "generate-database-types": "npx tsx scripts/generate-database-types.ts",
+    "generate-database-schemas-and-types": "npm run generate-database-schema && npm run generate-database-types"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

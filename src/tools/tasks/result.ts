@@ -6,6 +6,7 @@ import {
   createErrorResponse,
   createSuccessResponse,
 } from "@/utils/toolResponses";
+import { isRecord } from "@/utils/common/typeGuards";
 import type { ToolDefinition } from "@/tools/toolTypes";
 
 const tasksResultInput = z.object({
@@ -39,10 +40,10 @@ export const tasksResultTool: ToolDefinition<typeof tasksResultInput> = {
             message: `No task found with id=${taskId}`,
           });
         if (TERMINAL.has(j.status)) {
-          const maybe = j as unknown as Record<string, unknown>;
           if (
-            Object.prototype.hasOwnProperty.call(maybe, "result") &&
-            maybe.result != null
+            isRecord(j) &&
+            Object.prototype.hasOwnProperty.call(j, "result") &&
+            j.result != null
           ) {
             const ttl =
               typeof requestedTtlMs === "number"
@@ -52,7 +53,7 @@ export const tasksResultTool: ToolDefinition<typeof tasksResultInput> = {
               data: {
                 taskId: j.id,
                 status: j.status,
-                result: maybe.result,
+                result: j.result,
                 ttl,
               },
             });

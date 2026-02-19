@@ -1,6 +1,7 @@
 import type { TasksType } from "@/database.types";
 import type { Json } from "@/database.schema";
 import { getSupabaseAdminClient } from "@/utils/common";
+import { isRecord } from "@/utils/common/typeGuards";
 import {
   JOBID_RANDOM_START,
   JOBID_RANDOM_LEN,
@@ -42,16 +43,16 @@ export async function createJobInDb({
     if (error) {
       const errObj = error as unknown;
       const details =
-        errObj && typeof errObj === "object" && "details" in errObj
-          ? String((errObj as Record<string, unknown>)["details"])
+        isRecord(errObj) && "details" in errObj
+          ? String(errObj["details"])
           : undefined;
       const hint =
-        errObj && typeof errObj === "object" && "hint" in errObj
-          ? String((errObj as Record<string, unknown>)["hint"])
+        isRecord(errObj) && "hint" in errObj
+          ? String(errObj["hint"])
           : undefined;
       const code =
-        errObj && typeof errObj === "object" && "code" in errObj
-          ? String((errObj as Record<string, unknown>)["code"])
+        isRecord(errObj) && "code" in errObj
+          ? String(errObj["code"])
           : undefined;
       console.error("createJobInDb supabase error:", {
         message: (error as { message?: string })?.message ?? String(error),

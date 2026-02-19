@@ -28,15 +28,20 @@ export function getClient() {
     createBucket: admin
       ? async (
           name: string,
-          opts: {
+          opts?: {
             public?: boolean;
             allowedMimeTypes?: string[] | null;
-            fileSizeLimit?: string | number | null;
-            type?: unknown;
+            fileSizeLimit?: number | null;
           },
         ) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return await admin.storage.createBucket(name as string, opts as any);
+          const createFn = admin.storage.createBucket as unknown as (
+            n: string,
+            o?: unknown,
+          ) => Promise<unknown>;
+          return (await createFn(name as string, opts)) as {
+            data?: unknown;
+            error?: unknown;
+          };
         }
       : undefined,
   };

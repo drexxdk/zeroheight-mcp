@@ -44,6 +44,7 @@ import {
   getJobFromDb,
 } from "../tasks/utils/jobStore";
 import { tryLogin } from "@/utils/common/scraperHelpers";
+import { isRecord } from "@/utils/common/typeGuards";
 
 // Primary scraper (previously V2) - coordinator-based queue, deterministic totals, parallel workers
 export async function scrape({
@@ -676,12 +677,10 @@ export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
         });
         let structuredResult: unknown = res;
         if (
-          res &&
-          typeof res === "object" &&
+          isRecord(res) &&
           Object.prototype.hasOwnProperty.call(res, "progress")
         ) {
-          const r = res as Record<string, unknown>;
-          structuredResult = r.progress ?? res;
+          structuredResult = (res as Record<string, unknown>).progress ?? res;
         }
         await finishJob({
           jobId: jobId as string,

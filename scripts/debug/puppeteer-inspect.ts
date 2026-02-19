@@ -133,20 +133,20 @@ async function main() {
   } | null = null;
   try {
     const HarModuleUnknown = (await import("puppeteer-har")) as unknown;
+    const { isRecord } = await import("../../src/utils/common/typeGuards");
     type PuppeteerHar = {
       start?: (opts?: { path?: string }) => Promise<void>;
       stop?: () => Promise<void>;
     };
     type PuppeteerHarCtor = new (p: Page) => PuppeteerHar;
+    // Use runtime checks instead of unsafe Record casts
     if (typeof HarModuleUnknown === "function") {
       harRecorder = new (HarModuleUnknown as unknown as PuppeteerHarCtor)(page);
     } else if (
-      HarModuleUnknown &&
-      typeof (HarModuleUnknown as Record<string, unknown>).PuppeteerHar ===
-        "function"
+      isRecord(HarModuleUnknown) &&
+      typeof HarModuleUnknown.PuppeteerHar === "function"
     ) {
-      const ctor = (HarModuleUnknown as Record<string, unknown>)
-        .PuppeteerHar as unknown as PuppeteerHarCtor;
+      const ctor = HarModuleUnknown.PuppeteerHar as unknown as PuppeteerHarCtor;
       harRecorder = new ctor(page);
     }
   } catch {
