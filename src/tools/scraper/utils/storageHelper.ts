@@ -3,17 +3,12 @@ import type {
   StorageUploadResult,
 } from "@/utils/common/scraperHelpers";
 import { uploadWithRetry } from "@/utils/common/scraperHelpers";
-import {
-  IMAGE_BUCKET,
-  ALLOWED_MIME_TYPES,
-  STORAGE_CACHE_CONTROL_SEC,
-  STORAGE_FILE_SIZE_LIMIT_BYTES,
-} from "@/utils/config";
+import { config } from "@/utils/config";
 import { getSupabaseAdminClient } from "@/utils/common";
 
 export async function ensureBucket({
   storage,
-  bucket = IMAGE_BUCKET,
+  bucket = config.storage.imageBucket,
 }: {
   storage: StorageHelper;
   bucket?: string;
@@ -31,8 +26,8 @@ export async function ensureBucket({
     if (!bucketExists && storage.createBucket) {
       const { error: createError } = await storage.createBucket(bucket, {
         public: true,
-        allowedMimeTypes: ALLOWED_MIME_TYPES,
-        fileSizeLimit: STORAGE_FILE_SIZE_LIMIT_BYTES,
+        allowedMimeTypes: config.image.allowedMimeTypes,
+        fileSizeLimit: config.storage.fileSizeLimitBytes,
       });
       if (createError) console.error("Error creating bucket:", createError);
     }
@@ -67,9 +62,9 @@ export async function uploadWithFallback({
       const base64 = file.toString("base64");
       const buffer = Buffer.from(base64, "base64");
       const { error: upErr } = await admin.storage
-        .from(IMAGE_BUCKET)
+        .from(config.storage.imageBucket)
         .upload(filename, buffer, {
-          cacheControl: `${STORAGE_CACHE_CONTROL_SEC}`,
+          cacheControl: `${config.storage.storageCacheControlSec}`,
           upsert: true,
           contentType,
         });

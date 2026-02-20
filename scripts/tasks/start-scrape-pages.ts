@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { runTool } from "./start-task";
-import { ZEROHEIGHT_PROJECT_PASSWORD } from "../../src/utils/config";
+import { config } from "../../src/utils/config";
 
 async function main(): Promise<void> {
   const urls = [
@@ -9,7 +9,7 @@ async function main(): Promise<void> {
     "https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system",
   ];
 
-  const password = ZEROHEIGHT_PROJECT_PASSWORD || undefined;
+  const password = config.env.zeroheightProjectPassword || undefined;
   await runTool("../../src/tools/scraper/scrape", "scrapeTool", {
     pageUrls: urls,
     password,

@@ -161,6 +161,8 @@ Scraping completed successfully
    ZEROHEIGHT_MCP_ACCESS_TOKEN=your-secure-api-key
    ```
 
+Note: these environment variables are loaded into the runtime `config` object at startup and are available to server-side code as `config.env.ZEROHEIGHT_*` equivalents (e.g. `config.env.zeroheightMcpAccessToken`). Call sites in the codebase should prefer importing the central `config` and reading values from `config.env`.
+
 4. **Start the development server:**
 
    ```bash

@@ -12,9 +12,8 @@ const args = process.argv.slice(2);
 const pageUrls = args.length > 0 ? args : undefined;
 
 async function runEnqueue(): Promise<void> {
-  const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
-    await import("@/utils/config");
-  if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
+  const cfg = await import("@/utils/config");
+  if (!cfg.config.env.zeroheightMcpAccessToken) {
     console.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
     );
@@ -34,11 +33,11 @@ async function runEnqueue(): Promise<void> {
   });
 
   try {
-    const res = await fetch(MCP_URL, {
+    const res = await fetch(cfg.config.server.mcpUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
+        "X-API-Key": cfg.config.env.zeroheightMcpAccessToken,
         Accept: "application/json, text/event-stream",
       },
       body,

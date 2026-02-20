@@ -1,16 +1,5 @@
 ﻿import "dotenv/config";
-import {
-  SCRAPER_PAGE_UPSERT_CHUNK,
-  SCRAPER_IMAGE_INSERT_CHUNK,
-  SCRAPER_DEBUG,
-  SCRAPER_MAX_ATTEMPTS,
-  SCRAPER_RETRY_BASE_MS,
-  SCRAPER_BULK_UPSERT_BACKOFF_MS,
-  SCRAPER_DB_QUERY_LIMIT,
-  SCRAPER_LOG_SAMPLE_SIZE,
-  SCRAPER_DB_INSPECT_LIMIT,
-  SCRAPER_DB_INSPECT_SAMPLE_SIZE,
-} from "@/utils/config";
+import { config } from "@/utils/config";
 import type { PagesType, ImagesType } from "@/database.types";
 import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
@@ -92,13 +81,13 @@ export async function bulkUpsertPagesAndImages(options: {
   );
 
   // Upsert pages in chunks with retries
-  const pageChunkSize = SCRAPER_PAGE_UPSERT_CHUNK;
+  const pageChunkSize = config.scraper.pageUpsertChunk;
   const upsertedPagesAll: Array<{ id?: number; url?: string }> = [];
   for (let i = 0; i < uniquePages.length; i += pageChunkSize) {
     const chunk = uniquePages.slice(i, i + pageChunkSize);
     let attempts = 0;
     let chunkResult: UpsertPagesRes | null = null;
-    while (attempts < SCRAPER_MAX_ATTEMPTS) {
+    while (attempts < config.scraper.retry.maxAttempts) {
       try {
         if (!options.dryRun) {
           const res = await db!
@@ -142,9 +131,9 @@ export async function bulkUpsertPagesAndImages(options: {
         chunkResult = { error: err };
       }
       attempts++;
-      if (attempts < SCRAPER_MAX_ATTEMPTS)
+      if (attempts < config.scraper.retry.maxAttempts)
         await new Promise((r) =>
-          setTimeout(r, SCRAPER_BULK_UPSERT_BACKOFF_MS * attempts),
+          setTimeout(r, config.scraper.db.bulkUpsertBackoffMs * attempts),
         );
     }
     if (chunkResult && Array.isArray(chunkResult.data)) {
@@ -217,7 +206,7 @@ export async function bulkUpsertPagesAndImages(options: {
 
   // Insert new images in manageable chunks to avoid very large single inserts.
   // We retry transient failures a few times. Skip writes when doing a dry run.
-  const imageChunkSize = SCRAPER_IMAGE_INSERT_CHUNK;
+  const imageChunkSize = config.scraper.imageInsertChunk;
   // Deduplicate image insert rows by original_url+storage_path to avoid
   // inserting the same image multiple times (can happen when the same
   // image appears on multiple pages).
@@ -231,7 +220,7 @@ export async function bulkUpsertPagesAndImages(options: {
     }
   }
 
-  const debug = SCRAPER_DEBUG;
+  const debug = config.scraper.debug;
   // Start with the preloaded set (from DB at startup). We'll optionally
   // replace it with a fresh DB check when debugging.
   let dbExistingImageUrls = allExistingImageUrls;
@@ -255,7 +244,7 @@ export async function bulkUpsertPagesAndImages(options: {
         .from("images")
         .select("original_url")
         .in("original_url", Array.from(uniqueAllowedImageUrls))
-        .limit(SCRAPER_DB_QUERY_LIMIT);
+        .limit(config.scraper.db.queryLimit);
       const maybeExisting = existingRes;
       if (isRecord(maybeExisting)) {
         const maybeData = getProp(maybeExisting, "data");
@@ -289,29 +278,29 @@ export async function bulkUpsertPagesAndImages(options: {
   if (debug) {
     console.log(
       `[debug] uniqueAllowed=${uniqueAllowedImageUrls.size} uniqueSkipped(before)=${skippedList.length} sampleSkipped=${skippedList
-        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+        .slice(0, config.scraper.log.sampleSize)
         .join(", ")}`,
     );
     console.log(
-      `[debug] sample allExisting (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${Array.from(
+      `[debug] sample allExisting (first ${config.scraper.log.sampleSize}): ${Array.from(
         allExistingImageUrls,
       )
-        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+        .slice(0, config.scraper.log.sampleSize)
         .join(", ")}`,
     );
     console.log(
-      `[debug] sample uniqueAllowed (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${Array.from(
+      `[debug] sample uniqueAllowed (first ${config.scraper.log.sampleSize}): ${Array.from(
         uniqueAllowedImageUrls,
       )
-        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+        .slice(0, config.scraper.log.sampleSize)
         .join(", ")}`,
     );
     const intersection = Array.from(uniqueAllowedImageUrls).filter((u) =>
       dbExistingImageUrls.has(u),
     );
     console.log(
-      `[debug] intersection sample (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${intersection
-        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+      `[debug] intersection sample (first ${config.scraper.log.sampleSize}): ${intersection
+        .slice(0, config.scraper.log.sampleSize)
         .join(", ")}`,
     );
 
@@ -323,14 +312,14 @@ export async function bulkUpsertPagesAndImages(options: {
           .select("id, original_url, created_at")
           .in("original_url", intersection)
           .order("created_at", { ascending: false })
-          .limit(SCRAPER_DB_INSPECT_LIMIT);
+          .limit(config.scraper.db.inspectLimit);
         const maybeDbData = dbRes;
         if (isRecord(maybeDbData)) {
           const maybeData = getProp(maybeDbData, "data");
           console.log(
-            `[debug] DB inspection for intersection (up to ${SCRAPER_DB_INSPECT_LIMIT} rows): ${JSON.stringify(
+            `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
               Array.isArray(maybeData)
-                ? maybeData.slice(0, SCRAPER_DB_INSPECT_SAMPLE_SIZE)
+                ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
                 : [],
               null,
               2,
@@ -338,7 +327,7 @@ export async function bulkUpsertPagesAndImages(options: {
           );
         } else {
           console.log(
-            `[debug] DB inspection for intersection (up to ${SCRAPER_DB_INSPECT_LIMIT} rows): []`,
+            `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
           );
         }
       } catch (err) {
@@ -347,14 +336,14 @@ export async function bulkUpsertPagesAndImages(options: {
     }
 
     console.log(
-      `[debug] pendingImageRecords (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${pendingImageRecords
-        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+      `[debug] pendingImageRecords (first ${config.scraper.log.sampleSize}): ${pendingImageRecords
+        .slice(0, config.scraper.log.sampleSize)
         .map((p) => p.original_url)
         .join(", ")}`,
     );
     console.log(
-      `[debug] imagesToInsert (first ${SCRAPER_LOG_SAMPLE_SIZE}): ${imagesToInsert
-        .slice(0, SCRAPER_LOG_SAMPLE_SIZE)
+      `[debug] imagesToInsert (first ${config.scraper.log.sampleSize}): ${imagesToInsert
+        .slice(0, config.scraper.log.sampleSize)
         .map((i) => i.original_url + " -> " + i.storage_path)
         .join(", ")}`,
     );
@@ -365,7 +354,7 @@ export async function bulkUpsertPagesAndImages(options: {
     for (let i = 0; i < dedupImagesToInsert.length; i += imageChunkSize) {
       const chunk = dedupImagesToInsert.slice(i, i + imageChunkSize);
       let attempts = 0;
-      while (attempts < SCRAPER_MAX_ATTEMPTS) {
+      while (attempts < config.scraper.retry.maxAttempts) {
         attempts += 1;
         try {
           const res = await db!
@@ -407,13 +396,13 @@ export async function bulkUpsertPagesAndImages(options: {
           }
           break;
         } catch (err) {
-          if (attempts >= SCRAPER_MAX_ATTEMPTS) {
+          if (attempts >= config.scraper.retry.maxAttempts) {
             console.error("Failed inserting image chunk after retries:", err);
             throw err;
           }
           // small backoff
           await new Promise((r) =>
-            setTimeout(r, SCRAPER_RETRY_BASE_MS * attempts),
+            setTimeout(r, config.scraper.retry.retryBaseMs * attempts),
           );
         }
       }

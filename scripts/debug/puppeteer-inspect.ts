@@ -136,8 +136,8 @@ async function main(): Promise<void> {
       const { tryLogin } =
         await import("../../src/utils/common/scraperHelpers");
       const password =
-        typeof cfg.ZEROHEIGHT_PROJECT_PASSWORD === "string"
-          ? cfg.ZEROHEIGHT_PROJECT_PASSWORD
+        typeof cfg.config.env.zeroheightProjectPassword === "string"
+          ? cfg.config.env.zeroheightProjectPassword
           : undefined;
       if (password) {
         await tryLogin({ page, password });

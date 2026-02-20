@@ -3,6 +3,7 @@
 - Admin/service-role key (`SUPABASE_SERVICE_ROLE_KEY`) is used only server-side.
 - New narrow server endpoints under `/api/jobs` perform job lifecycle actions (create, claim, append log, finish, fetch).
 - These endpoints require an `x-server-api-key` header that must match `ZEROHEIGHT_MCP_ACCESS_TOKEN` or `SERVER_API_KEY` in server env.
+- These endpoints require an `x-server-api-key` header that must match `ZEROHEIGHT_MCP_ACCESS_TOKEN` or `SERVER_API_KEY` in server env. On server-side code, the configured key is available via `config.env.zeroheightMcpAccessToken`.
 - Row-Level Security (RLS) is enabled and hardened via migrations in `migrations/003_harden_rls_policies.sql`.
 
 Recommended practices:

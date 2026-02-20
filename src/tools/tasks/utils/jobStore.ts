@@ -1,11 +1,7 @@
 import type { TasksType } from "@/database.types";
 import type { Json } from "@/database.schema";
 import { getSupabaseAdminClient } from "@/utils/common";
-import {
-  JOBID_RANDOM_START,
-  JOBID_RANDOM_LEN,
-  TESTRUNID_RANDOM_LEN,
-} from "@/utils/config";
+import { config } from "@/utils/config";
 import { isRecord, isJson, getProp } from "../../../utils/common/typeGuards";
 
 export type JobRecord = TasksType;
@@ -27,7 +23,10 @@ export async function createJobInDb({
     Date.now().toString(36) +
     Math.random()
       .toString(36)
-      .slice(JOBID_RANDOM_START, JOBID_RANDOM_START + JOBID_RANDOM_LEN);
+      .slice(
+        config.hashing.jobIdRandomStart,
+        config.hashing.jobIdRandomStart + config.hashing.jobIdRandomLen,
+      );
   // Ensure `args` is JSON-serializable and compatible with the DB `Json` type.
   let argsPayload: Json | null = null;
   if (args) {
@@ -94,7 +93,10 @@ export async function createTestJobInDb({
   testRunId = Date.now().toString(36) +
     Math.random()
       .toString(36)
-      .slice(JOBID_RANDOM_START, JOBID_RANDOM_START + TESTRUNID_RANDOM_LEN),
+      .slice(
+        config.hashing.jobIdRandomStart,
+        config.hashing.jobIdRandomStart + config.hashing.testRunIdRandomLen,
+      ),
 }: {
   name: string;
   args?: Record<string, unknown> | null;

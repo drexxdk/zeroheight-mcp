@@ -71,8 +71,8 @@ async function downloadAndUpload(
 }
 
 async function run(): Promise<void> {
-  const { IMAGE_BUCKET } = await import("@/utils/config");
-  const BUCKET = IMAGE_BUCKET;
+  const { config } = await import("@/utils/config");
+  const BUCKET = config.storage.imageBucket;
   const TEST_BUCKET = `${BUCKET}_test`;
   try {
     const testUrls = [

@@ -1,10 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../database.schema";
-import {
-  NEXT_PUBLIC_SUPABASE_URL,
-  SUPABASE_ACCESS_TOKEN,
-  SUPABASE_SERVICE_ROLE_KEY,
-} from "./config";
+import { config } from "./config";
 
 // Supabase client will be created when needed
 let supabase: ReturnType<typeof createClient<Database>> | null = null;
@@ -13,8 +9,8 @@ export function getSupabaseClient(): ReturnType<
   typeof createClient<Database>
 > | null {
   if (!supabase) {
-    const supabaseUrl = NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = SUPABASE_ACCESS_TOKEN; // Use anon key for regular operations
+    const supabaseUrl = config.env.nextPublicSupabaseUrl;
+    const supabaseKey = config.env.supabaseAccessToken; // Use anon key for regular operations
     if (supabaseUrl && supabaseKey) {
       supabase = createClient<Database>(supabaseUrl, supabaseKey);
     }
@@ -26,8 +22,8 @@ export function getSupabaseAdminClient(): ReturnType<
   typeof createClient<Database>
 > | null {
   // Use service role key only for admin operations like creating buckets
-  const supabaseUrl = NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = config.env.nextPublicSupabaseUrl;
+  const supabaseKey = config.env.supabaseServiceRoleKey;
   if (supabaseUrl && supabaseKey) {
     return createClient<Database>(supabaseUrl, supabaseKey);
   }

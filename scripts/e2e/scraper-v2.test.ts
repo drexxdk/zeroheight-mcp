@@ -1,8 +1,8 @@
 import { scrape } from "@/tools/scraper/scrape";
 import { isRecord } from "@/utils/common/typeGuards";
 async function run(): Promise<void> {
-  const { SCRAPE_TEST_PAGE_URLS } = await import("@/utils/config");
-  const raw = SCRAPE_TEST_PAGE_URLS || "";
+  const cfg = await import("@/utils/config");
+  const raw = cfg.config.scraper.scrapeTestPageUrls;
   if (!raw) {
     console.log(
       "SKIP: SCRAPE_TEST_PAGE_URLS not set - provide comma-separated URLs to run",
@@ -12,7 +12,7 @@ async function run(): Promise<void> {
 
   const pageUrls = raw
     .split(",")
-    .map((s) => s.trim())
+    .map((s: string) => s.trim())
     .filter(Boolean);
   if (pageUrls.length === 0) {
     console.log("SKIP: no valid URLs provided");

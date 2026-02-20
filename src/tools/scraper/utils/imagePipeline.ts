@@ -3,13 +3,8 @@ import type { StorageHelper } from "@/utils/common/scraperHelpers";
 import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
 import { uploadBufferToStorage } from "./uploadHelpers";
 import { addPendingImageRecord } from "./pendingRecords";
-import { SCRAPER_DEBUG } from "@/utils/config";
+import { config } from "@/utils/config";
 import { retryWithBackoff } from "./retryHelpers";
-import {
-  IMAGE_UPLOAD_RETRIES,
-  IMAGE_UPLOAD_BACKOFF_FACTOR,
-  IMAGE_UPLOAD_MIN_DELAY_MS,
-} from "@/utils/config";
 import { JobCancelled } from "@/utils/common/errors";
 
 export type LogProgressFn = (icon: string, message: string) => void;
@@ -69,9 +64,9 @@ export async function processAndUploadImage(options: {
     const file = await retryWithBackoff(
       () => downloadImageToBuffer({ downloadUrl, filename }),
       {
-        retries: IMAGE_UPLOAD_RETRIES,
-        factor: IMAGE_UPLOAD_BACKOFF_FACTOR,
-        minDelayMs: IMAGE_UPLOAD_MIN_DELAY_MS,
+        retries: config.image.upload.retries,
+        factor: config.image.upload.backoffFactor,
+        minDelayMs: config.image.upload.minDelayMs,
       },
     );
     if (!file) return { uploaded: false, error: "download_failed" };
@@ -93,7 +88,7 @@ export async function processAndUploadImage(options: {
     }
     const path = uploadRes.path;
     if (!path) return { uploaded: false, error: "no_path_returned" };
-    if (SCRAPER_DEBUG) {
+    if (config.scraper.debug) {
       console.log(
         `[debug] uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
       );

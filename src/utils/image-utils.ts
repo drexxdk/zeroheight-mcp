@@ -2,13 +2,7 @@ import sharp from "sharp";
 import { isRecord, getProp } from "@/utils/common/typeGuards";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../database.schema";
-import {
-  EXCLUDE_IMAGE_FORMATS,
-  IMAGE_MAX_DIM,
-  IMAGE_WEBP_QUALITY,
-  IMAGE_BUCKET,
-  IMAGE_UTILS_SAMPLE_LIMIT,
-} from "./config";
+import { config } from "./config";
 
 export async function downloadImage({
   url,
@@ -52,19 +46,19 @@ export async function downloadImage({
 
     // Skip excluded formats from configuration
     const fmt = (metadata.format || "").toLowerCase();
-    if (EXCLUDE_IMAGE_FORMATS.includes(fmt)) {
+    if (config.image.excludeFormats.includes(fmt)) {
       return null;
     }
 
     // Process image with sharp: resize to max, flatten transparent areas to white,
     // and convert to WebP at configured quality.
     const processedBuffer = await sharp(Buffer.from(buffer))
-      .resize(IMAGE_MAX_DIM, IMAGE_MAX_DIM, {
+      .resize(config.image.maxDim, config.image.maxDim, {
         fit: "inside",
         withoutEnlargement: true,
       })
       .flatten({ background: { r: 255, g: 255, b: 255 } }) // Fill transparent areas with white
-      .webp({ quality: IMAGE_WEBP_QUALITY })
+      .webp({ quality: config.image.webpQuality })
       .toBuffer();
 
     return processedBuffer.toString("base64");
@@ -88,7 +82,8 @@ export async function clearStorageBucket({
     let allFiles: string[] = [];
     let continuationToken: string | null = null;
 
-    const targetBucket = bucketName || IMAGE_BUCKET || "zeroheight-images";
+    const targetBucket =
+      bucketName || config.storage.imageBucket || "zeroheight-images";
 
     do {
       const { data, error } = await client.storage.from(targetBucket).list("", {
@@ -155,7 +150,8 @@ export async function getBucketDebugInfo({
   client: ReturnType<typeof createClient<Database>>;
   bucketName?: string;
 }): Promise<{ buckets: string[]; files: Array<{ name: string }> }> {
-  const targetBucket = bucketName || IMAGE_BUCKET || "zeroheight-images";
+  const targetBucket =
+    bucketName || config.storage.imageBucket || "zeroheight-images";
   const buckets: string[] = [];
   let files: Array<{ name: string }> = [];
 
@@ -228,8 +224,8 @@ export async function performBucketClear({
   deleteErrors: unknown[];
 }> {
   const { getSupabaseClient } = await import("./common");
-  const bucketName = IMAGE_BUCKET || undefined;
-  const targetBucket = bucketName || IMAGE_BUCKET;
+  const bucketName = config.storage.imageBucket || undefined;
+  const targetBucket = bucketName || config.storage.imageBucket;
   console.log(
     "Preparing to clear storage bucket...",
     bucketName || "(default)",
@@ -280,7 +276,9 @@ export async function performBucketClear({
   return {
     bucket: targetBucket,
     foundCount: files.length,
-    foundFiles: files.slice(0, IMAGE_UTILS_SAMPLE_LIMIT).map((f) => f.name),
+    foundFiles: files
+      .slice(0, config.tuning.imageUtilsSampleLimit)
+      .map((f) => f.name),
     availableBuckets: buckets,
     deletedCount: deleteSummary.deletedCount,
     deleteErrors: deleteSummary.deleteErrors,

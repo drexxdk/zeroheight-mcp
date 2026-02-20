@@ -11,10 +11,9 @@ dotenvConfig({ path: ".env.local" });
 const jobId = process.argv[2];
 
 async function runCancel(): Promise<void> {
-  const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
-    await import("@/utils/config");
+  const cfg = await import("@/utils/config");
 
-  if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
+  if (!cfg.config.env.zeroheightMcpAccessToken) {
     console.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
     );
@@ -39,11 +38,11 @@ async function runCancel(): Promise<void> {
   });
 
   try {
-    const res = await fetch(MCP_URL, {
+    const res = await fetch(cfg.config.server.mcpUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
+        "X-API-Key": cfg.config.env.zeroheightMcpAccessToken,
         Accept: "application/json, text/event-stream",
       },
       body,

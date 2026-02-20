@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { ZEROHEIGHT_MCP_ACCESS_TOKEN } from "./config";
+import { config } from "./config";
 
 export function authenticateRequest({ request }: { request: NextRequest }): {
   isValid: boolean;
   error?: string;
 } {
-  const serverKey = ZEROHEIGHT_MCP_ACCESS_TOKEN;
+  const serverKey = config.env.zeroheightMcpAccessToken;
 
   // Check for API key in headers or query parameters
   const authHeader = request.headers.get("authorization");

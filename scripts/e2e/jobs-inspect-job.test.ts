@@ -12,15 +12,18 @@ if (!jobId) {
 }
 
 const cfg = await import("@/utils/config");
-const SUPABASE_URL = cfg.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = cfg.SUPABASE_SERVICE_ROLE_KEY || cfg.SUPABASE_ACCESS_TOKEN;
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
+if (
+  !cfg.config.env.nextPublicSupabaseUrl ||
+  !cfg.config.env.supabaseServiceRoleKey
+) {
   console.error("Missing Supabase config in .env.local");
   process.exit(2);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(
+  cfg.config.env.nextPublicSupabaseUrl,
+  cfg.config.env.supabaseServiceRoleKey,
+);
 
 async function inspect(): Promise<void> {
   const { data, error } = await supabase

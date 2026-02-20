@@ -6,8 +6,8 @@ import { isRecord } from "../common/typeGuards";
 type Bucket = { tokens: number; lastRefill: number };
 
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-import { SERVER_RATE_LIMIT_TOKENS } from "@/utils/config";
-const RATE_LIMIT_TOKENS = SERVER_RATE_LIMIT_TOKENS;
+import { config } from "@/utils/config";
+const RATE_LIMIT_TOKENS = config.server.rateLimitTokens;
 
 const buckets = new Map<string, Bucket>();
 

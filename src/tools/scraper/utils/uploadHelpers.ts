@@ -1,10 +1,5 @@
 import type { StorageHelper } from "@/utils/common/scraperHelpers";
-import {
-  IMAGE_BUCKET,
-  IMAGE_UPLOAD_RETRIES,
-  IMAGE_UPLOAD_BACKOFF_FACTOR,
-  IMAGE_UPLOAD_MIN_DELAY_MS,
-} from "@/utils/config";
+import { config } from "@/utils/config";
 import { ensureBucket, uploadWithFallback } from "./storageHelper";
 import { retryWithBackoff } from "./retryHelpers";
 import { isRecord, getProp } from "@/utils/common/typeGuards";
@@ -22,7 +17,7 @@ export async function uploadBufferToStorage({
   filename: string;
   fileBuffer: Buffer;
 }): Promise<UploadBufferResult> {
-  await ensureBucket({ storage, bucket: IMAGE_BUCKET });
+  await ensureBucket({ storage, bucket: config.storage.imageBucket });
 
   const res = await retryWithBackoff(
     async () => {
@@ -36,9 +31,9 @@ export async function uploadBufferToStorage({
       return r;
     },
     {
-      retries: IMAGE_UPLOAD_RETRIES,
-      factor: IMAGE_UPLOAD_BACKOFF_FACTOR,
-      minDelayMs: IMAGE_UPLOAD_MIN_DELAY_MS,
+      retries: config.image.upload.retries,
+      factor: config.image.upload.backoffFactor,
+      minDelayMs: config.image.upload.minDelayMs,
     },
   );
 

@@ -4,15 +4,15 @@ export type RetryOptions = {
   minDelayMs?: number;
 };
 
-import { SCRAPER_RETRY_BASE_MS } from "@/utils/config";
+import { config } from "@/utils/config";
 
 export async function retryWithBackoff<T>(
   fn: () => Promise<T | null>,
   options: RetryOptions = {},
 ): Promise<T | null> {
-  const retries = options.retries ?? 3;
-  const factor = options.factor ?? 2;
-  const minDelay = options.minDelayMs ?? SCRAPER_RETRY_BASE_MS;
+  const retries = options.retries ?? config.scraper.retry.maxAttempts;
+  const factor = options.factor ?? config.scraper.retry.retryFactor;
+  const minDelay = options.minDelayMs ?? config.scraper.retry.retryBaseMs;
 
   let attempt = 0;
   while (attempt < retries) {

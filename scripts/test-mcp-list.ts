@@ -6,19 +6,14 @@ dotenvConfig({ path: ".env.local" });
 async function main(): Promise<void> {
   // dynamically import config so env is loaded and TS path aliases resolve
   const cfg = await import("@/utils/config");
-  const url: string = cfg.MCP_URL;
-  const key: string = cfg.ZEROHEIGHT_MCP_ACCESS_TOKEN;
 
-  if (!url) throw new Error("MCP_URL is not configured");
-  if (!key) throw new Error("ZEROHEIGHT_MCP_ACCESS_TOKEN is not configured");
-
-  const res = await fetch(url, {
+  const res = await fetch(cfg.config.server.mcpUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      Authorization: `Bearer ${key}`,
-      "X-API-Key": key,
+      Authorization: `Bearer ${cfg.config.env.zeroheightMcpAccessToken}`,
+      "X-API-Key": cfg.config.env.zeroheightMcpAccessToken,
     },
     body: JSON.stringify({
       jsonrpc: "2.0",

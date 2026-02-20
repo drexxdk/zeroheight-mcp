@@ -1,12 +1,5 @@
 import type { Page } from "puppeteer";
-import {
-  EXCLUDE_IMAGE_FORMATS,
-  SCRAPER_PREFETCH_WAIT_MS,
-  SCRAPER_PREFETCH_SCROLL_STEP_MS,
-  SCRAPER_PREFETCH_FINAL_WAIT_MS,
-  SCRAPER_PREFETCH_SCROLL_STEP_PX,
-  SCRAPER_CONTENT_MAX_CHARS,
-} from "@/utils/config";
+import { config } from "@/utils/config";
 
 export type ExtractedImage = {
   src: string;
@@ -52,21 +45,22 @@ export async function extractPageData({
           );
           if (mainContent) return mainContent.textContent?.trim() || "";
           return (
-            clone.textContent?.trim().substring(0, SCRAPER_CONTENT_MAX_CHARS) ||
-            ""
+            clone.textContent
+              ?.trim()
+              .substring(0, config.scraper.contentMaxChars) || ""
           );
         })
         .catch(() => "");
     });
 
   // Allow brief time for client-side rendered images/backgrounds to load.
-  await new Promise((r) => setTimeout(r, SCRAPER_PREFETCH_WAIT_MS));
+  await new Promise((r) => setTimeout(r, config.scraper.prefetch.waitMs));
 
   // Perform an automated gentle scroll to trigger lazy-loading of images.
   try {
-    const stepPx = SCRAPER_PREFETCH_SCROLL_STEP_PX;
-    const stepMs = SCRAPER_PREFETCH_SCROLL_STEP_MS;
-    const finalWait = SCRAPER_PREFETCH_FINAL_WAIT_MS;
+    const stepPx = config.scraper.prefetch.scrollStepPx;
+    const stepMs = config.scraper.prefetch.scrollStepMs;
+    const finalWait = config.scraper.prefetch.finalWaitMs;
     await page.evaluate(
       async (
         stepPxArg: number,
@@ -90,7 +84,7 @@ export async function extractPageData({
       stepPx,
       stepMs,
       finalWait,
-      SCRAPER_PREFETCH_SCROLL_STEP_PX,
+      config.scraper.prefetch.scrollStepPx,
     );
   } catch {
     // ignore scrolling failures and proceed with extraction
@@ -160,7 +154,7 @@ export async function extractPageData({
   // Filter out excluded image formats
   const supportedImages = normalizedImages.filter((img) => {
     const lowerSrc = img.src.toLowerCase();
-    for (const ext of EXCLUDE_IMAGE_FORMATS)
+    for (const ext of config.image.excludeFormats)
       if (lowerSrc.includes(`.${ext}`)) return false;
     return true;
   });

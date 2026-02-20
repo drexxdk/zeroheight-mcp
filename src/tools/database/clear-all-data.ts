@@ -2,7 +2,7 @@ import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
 import { getSupabaseAdminClient } from "@/utils/common";
 import { performBucketClear } from "@/utils/image-utils";
-import { ZEROHEIGHT_MCP_ACCESS_TOKEN } from "@/utils/config";
+import { config } from "@/utils/config";
 import { z } from "zod";
 import type { ToolDefinition } from "@/tools/toolTypes";
 
@@ -154,7 +154,7 @@ export const clearAllDataTool: ToolDefinition<
       .optional(),
   }),
   handler: async ({ apiKey }: z.infer<typeof clearAllDataInput>) => {
-    const expectedApiKey = ZEROHEIGHT_MCP_ACCESS_TOKEN;
+    const expectedApiKey = config.env.zeroheightMcpAccessToken;
     if (!expectedApiKey) {
       return createErrorResponse({
         message:

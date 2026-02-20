@@ -14,21 +14,7 @@ import { extractPageData } from "./utils/pageExtraction";
 import type { ExtractedImage } from "./utils/pageExtraction";
 import { processPageAndImages } from "./utils/processPageAndImages";
 import prefetchSeeds, { normalizeUrl } from "./utils/prefetch";
-import { SCRAPER_DEBUG } from "@/utils/config";
-import {
-  SCRAPER_CONCURRENCY,
-  SCRAPER_IDLE_TIMEOUT_MS,
-  SCRAPER_SEED_PREFETCH_CONCURRENCY,
-  ZEROHEIGHT_PROJECT_URL,
-} from "@/utils/config";
-import {
-  SCRAPER_VIEWPORT_WIDTH,
-  SCRAPER_VIEWPORT_HEIGHT,
-  SCRAPER_NAV_WAITUNTIL,
-  SCRAPER_NAV_TIMEOUT_MS,
-  SCRAPER_MONITOR_POLL_MS,
-  SCRAPER_MONITOR_IDLE_POLL_MS,
-} from "@/utils/config";
+import { config } from "@/utils/config";
 import {
   bulkUpsertPagesAndImages,
   formatSummaryBox,
@@ -66,8 +52,8 @@ export async function scrape({
   ScrapeResult | ReturnType<typeof createErrorResponse> | { message: string }
 > {
   try {
-    const concurrency = SCRAPER_CONCURRENCY;
-    const idleTimeout = SCRAPER_IDLE_TIMEOUT_MS;
+    const concurrency = config.scraper.concurrency;
+    const idleTimeout = config.scraper.idleTimeoutMs;
     const browser = await launchBrowser();
     const queue: string[] = [];
     const inQueue = new Set<string>();
@@ -206,7 +192,7 @@ export async function scrape({
         rootUrl,
         seeds: normalized,
         password,
-        concurrency: SCRAPER_SEED_PREFETCH_CONCURRENCY,
+        concurrency: config.scraper.seedPrefetchConcurrency,
         logger,
       });
 
@@ -221,8 +207,8 @@ export async function scrape({
     } else {
       const p = await browser.newPage();
       await p.setViewport({
-        width: SCRAPER_VIEWPORT_WIDTH,
-        height: SCRAPER_VIEWPORT_HEIGHT,
+        width: config.scraper.viewport.width,
+        height: config.scraper.viewport.height,
       });
       // attach default interception rules (blocks fonts/styles/ext images etc.)
       try {
@@ -231,8 +217,8 @@ export async function scrape({
         console.warn("Failed to prefetch seeds:", e);
       }
       await p.goto(rootUrl, {
-        waitUntil: SCRAPER_NAV_WAITUNTIL,
-        timeout: SCRAPER_NAV_TIMEOUT_MS,
+        waitUntil: config.scraper.viewport.navWaitUntil,
+        timeout: config.scraper.viewport.navTimeoutMs,
       });
       if (password) {
         try {
@@ -294,8 +280,8 @@ export async function scrape({
         (async () => {
           const page: Page = await browser.newPage();
           await page.setViewport({
-            width: SCRAPER_VIEWPORT_WIDTH,
-            height: SCRAPER_VIEWPORT_HEIGHT,
+            width: config.scraper.viewport.width,
+            height: config.scraper.viewport.height,
           });
           try {
             await attachDefaultInterception(page).catch(() => {});
@@ -312,8 +298,8 @@ export async function scrape({
 
               try {
                 await page.goto(link, {
-                  waitUntil: SCRAPER_NAV_WAITUNTIL,
-                  timeout: SCRAPER_NAV_TIMEOUT_MS,
+                  waitUntil: config.scraper.viewport.navWaitUntil,
+                  timeout: config.scraper.viewport.navTimeoutMs,
                 });
                 if (password) {
                   const host = new URL(rootUrl).hostname;
@@ -525,7 +511,10 @@ export async function scrape({
 
       if (queue.length === 0 && inProgressCount === 0) {
         await new Promise((r) =>
-          setTimeout(r, Math.min(SCRAPER_MONITOR_IDLE_POLL_MS, idleTimeout)),
+          setTimeout(
+            r,
+            Math.min(config.scraper.monitor.idlePollMs, idleTimeout),
+          ),
         );
         if (
           queue.length === 0 &&
@@ -534,7 +523,7 @@ export async function scrape({
         )
           break;
       }
-      await new Promise((r) => setTimeout(r, SCRAPER_MONITOR_POLL_MS));
+      await new Promise((r) => setTimeout(r, config.scraper.monitor.pollMs));
     }
 
     while (waiters.length) {
@@ -676,7 +665,7 @@ export const scrapeTool: ToolDefinition<
     }),
   }),
   handler: async ({ pageUrls, password }: z.infer<typeof scrapeInput>) => {
-    const projectUrl = ZEROHEIGHT_PROJECT_URL;
+    const projectUrl = config.env.zeroheightProjectUrl;
     if (!projectUrl)
       return createErrorResponse({ message: "ZEROHEIGHT_PROJECT_URL not set" });
 
@@ -705,7 +694,7 @@ export const scrapeTool: ToolDefinition<
         } catch (e) {
           console.debug("Error during some scrape step:", e);
         }
-        if (SCRAPER_DEBUG) console.log(`[debug] ${s}`);
+        if (config.scraper.debug) console.log(`[debug] ${s}`);
         else console.log(s);
       };
 

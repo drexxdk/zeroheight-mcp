@@ -7,9 +7,8 @@ import { isRecord } from "../../src/utils/common/typeGuards";
 import type { ZodTypeAny } from "zod";
 
 async function main(): Promise<void> {
-  const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
-    await import("@/utils/config");
-  if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
+  const cfg = await import("@/utils/config");
+  if (!cfg.config.env.zeroheightMcpAccessToken) {
     console.error("ZEROHEIGHT_MCP_ACCESS_TOKEN not set");
     process.exit(1);
   }
@@ -17,11 +16,11 @@ async function main(): Promise<void> {
   console.log("Starting TTL propagation e2e test...");
 
   // 1) Start a test task via MCP
-  const startRes = await fetch(MCP_URL, {
+  const startRes = await fetch(cfg.config.server.mcpUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
+      "X-API-Key": cfg.config.env.zeroheightMcpAccessToken,
       Accept: "application/json, text/event-stream",
     },
     body: JSON.stringify({
@@ -95,11 +94,11 @@ async function main(): Promise<void> {
 
   // 2) Call tasks/get via MCP with params.task.ttl and verify response includes ttl
   const requestedTtl = 5000;
-  const getRes = await fetch(MCP_URL, {
+  const getRes = await fetch(cfg.config.server.mcpUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
+      "X-API-Key": cfg.config.env.zeroheightMcpAccessToken,
       Accept: "application/json, text/event-stream",
     },
     body: JSON.stringify({

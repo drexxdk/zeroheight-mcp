@@ -9,10 +9,9 @@
 async function testApi(): Promise<void> {
   // load env and config dynamically so TS path aliases resolve at runtime
   await import("dotenv/config");
-  const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
-    await import("@/utils/config");
+  const cfg = await import("@/utils/config");
 
-  if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
+  if (!cfg.config.env.zeroheightMcpAccessToken) {
     console.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
     );
@@ -25,20 +24,20 @@ async function testApi(): Promise<void> {
   }
 
   console.log("🧪 Testing Zeroheight MCP API...");
-  console.log(`📍 API URL: ${MCP_URL}`);
+  console.log(`📍 API URL: ${cfg.config.server.mcpUrl}`);
   console.log(
-    `🔑 API Key: ${ZEROHEIGHT_MCP_ACCESS_TOKEN ? ZEROHEIGHT_MCP_ACCESS_TOKEN.substring(0, 8) + "..." : "NOT SET"}`,
+    `🔑 API Key: ${cfg.config.env.zeroheightMcpAccessToken ? cfg.config.env.zeroheightMcpAccessToken.substring(0, 8) + "..." : "NOT SET"}`,
   );
   console.log("");
 
   try {
     // Test: Query Zeroheight Data (assumes data was already scraped)
     console.log("🔍 Testing Query Zeroheight Data...");
-    const queryResponse = await fetch(MCP_URL, {
+    const queryResponse = await fetch(cfg.config.server.mcpUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
+        "X-API-Key": cfg.config.env.zeroheightMcpAccessToken,
         Accept: "application/json, text/event-stream",
       },
       body: JSON.stringify({

@@ -3,19 +3,7 @@ import { isRecord } from "@/utils/common/typeGuards";
 import { extractPageData } from "./pageExtraction";
 import { tryLogin } from "@/utils/common/scraperHelpers";
 import { mapWithConcurrency } from "./concurrency";
-import {
-  SCRAPER_SEED_PREFETCH_CONCURRENCY,
-  SCRAPER_PREFETCH_WAIT_MS,
-  SCRAPER_PREFETCH_SCROLL_STEP_MS,
-  SCRAPER_PREFETCH_FINAL_WAIT_MS,
-  SCRAPER_PREFETCH_SCROLL_STEP_PX,
-  SCRAPER_VIEWPORT_WIDTH,
-  SCRAPER_VIEWPORT_HEIGHT,
-  SCRAPER_NAV_WAITUNTIL,
-  SCRAPER_NAV_TIMEOUT_MS,
-  SCRAPER_MAX_ATTEMPTS,
-  SCRAPER_RETRY_BASE_MS,
-} from "@/utils/config";
+import { config } from "@/utils/config";
 
 export function normalizeUrl({
   u,
@@ -67,12 +55,12 @@ export async function prefetchSeeds(options: {
     try {
       const p = await browser.newPage();
       await p.setViewport({
-        width: SCRAPER_VIEWPORT_WIDTH,
-        height: SCRAPER_VIEWPORT_HEIGHT,
+        width: config.scraper.viewport.width,
+        height: config.scraper.viewport.height,
       });
       await p.goto(rootUrl, {
-        waitUntil: SCRAPER_NAV_WAITUNTIL,
-        timeout: SCRAPER_NAV_TIMEOUT_MS,
+        waitUntil: config.scraper.viewport.navWaitUntil,
+        timeout: config.scraper.viewport.navTimeoutMs,
       });
       try {
         await tryLogin({ page: p, password });
@@ -111,19 +99,19 @@ export async function prefetchSeeds(options: {
     }
   }
 
-  const workConcurrency = concurrency ?? SCRAPER_SEED_PREFETCH_CONCURRENCY;
+  const workConcurrency = concurrency ?? config.scraper.seedPrefetchConcurrency;
 
   await mapWithConcurrency(
     normSeeds,
     async (u) => {
       let attempts = 0;
-      while (attempts < SCRAPER_MAX_ATTEMPTS) {
+      while (attempts < config.scraper.retry.maxAttempts) {
         attempts++;
         try {
           const p = await browser.newPage();
           await p.setViewport({
-            width: SCRAPER_VIEWPORT_WIDTH,
-            height: SCRAPER_VIEWPORT_HEIGHT,
+            width: config.scraper.viewport.width,
+            height: config.scraper.viewport.height,
           });
           try {
             // If we collected cookies from the root login, set them on the page
@@ -136,8 +124,8 @@ export async function prefetchSeeds(options: {
               }
             }
             await p.goto(u, {
-              waitUntil: SCRAPER_NAV_WAITUNTIL,
-              timeout: SCRAPER_NAV_TIMEOUT_MS,
+              waitUntil: config.scraper.viewport.navWaitUntil,
+              timeout: config.scraper.viewport.navTimeoutMs,
             });
             if (password) {
               try {
@@ -150,11 +138,13 @@ export async function prefetchSeeds(options: {
             }
 
             // Small wait + gentle scroll to surface lazy-loaded content
-            await new Promise((r) => setTimeout(r, SCRAPER_PREFETCH_WAIT_MS));
+            await new Promise((r) =>
+              setTimeout(r, config.scraper.prefetch.waitMs),
+            );
             try {
-              const stepPx = SCRAPER_PREFETCH_SCROLL_STEP_PX;
-              const stepMs = SCRAPER_PREFETCH_SCROLL_STEP_MS;
-              const finalWait = SCRAPER_PREFETCH_FINAL_WAIT_MS;
+              const stepPx = config.scraper.prefetch.scrollStepPx;
+              const stepMs = config.scraper.prefetch.scrollStepMs;
+              const finalWait = config.scraper.prefetch.finalWaitMs;
               await p.evaluate(
                 async (
                   stepPxArg: number,
@@ -178,7 +168,7 @@ export async function prefetchSeeds(options: {
                 stepPx,
                 stepMs,
                 finalWait,
-                SCRAPER_PREFETCH_SCROLL_STEP_PX,
+                config.scraper.prefetch.scrollStepPx,
               );
             } catch (e) {
               console.debug("prefetch inner error:", e);
@@ -207,12 +197,12 @@ export async function prefetchSeeds(options: {
           }
           break; // success
         } catch (err) {
-          if (attempts >= SCRAPER_MAX_ATTEMPTS) {
+          if (attempts >= config.scraper.retry.maxAttempts) {
             if (logger) logger(`Seed prefetch failed for ${u}: ${String(err)}`);
           } else {
             // small backoff
             await new Promise((r) =>
-              setTimeout(r, SCRAPER_RETRY_BASE_MS * attempts),
+              setTimeout(r, config.scraper.retry.retryBaseMs * attempts),
             );
           }
         }

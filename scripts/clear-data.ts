@@ -11,11 +11,10 @@ config({ path: ".env.local" });
 
 // Import config after dotenv has been loaded so `src/lib/config.ts`
 // reads the environment correctly at module initialization.
-const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
-  await import("../src/utils/config");
+const cfg = await import("../src/utils/config");
 
 async function main(): Promise<void> {
-  if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
+  if (!cfg.config.env.zeroheightMcpAccessToken) {
     console.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
     );
@@ -30,16 +29,16 @@ async function main(): Promise<void> {
     method: "tools/call",
     params: {
       name: "clear-database",
-      arguments: { apiKey: ZEROHEIGHT_MCP_ACCESS_TOKEN },
+      arguments: { apiKey: cfg.config.env.zeroheightMcpAccessToken },
     },
   });
 
   try {
-    const res = await fetch(MCP_URL, {
+    const res = await fetch(cfg.config.server.mcpUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": ZEROHEIGHT_MCP_ACCESS_TOKEN,
+        "X-API-Key": cfg.config.env.zeroheightMcpAccessToken,
         Accept: "application/json, text/event-stream",
       },
       body,

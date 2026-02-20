@@ -1,6 +1,6 @@
 import { getSupabaseClient, getSupabaseAdminClient } from "../common";
 import { isRecord, getProp } from "@/utils/common/typeGuards";
-import { IMAGE_BUCKET } from "../config";
+import { config } from "../config";
 import type { StorageUploadResult } from "@/utils/common/scraperHelpers";
 
 type ListBucketsResult = {
@@ -42,11 +42,13 @@ export function getClient(): {
       file: Buffer,
     ): Promise<StorageUploadResult> => {
       const svc = admin ?? client!;
-      const res = await svc.storage.from(IMAGE_BUCKET).upload(filename, file, {
-        cacheControl: "3600",
-        upsert: true,
-        contentType: "image/webp",
-      });
+      const res = await svc.storage
+        .from(config.storage.imageBucket)
+        .upload(filename, file, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: "image/webp",
+        });
       return res as unknown as StorageUploadResult;
     },
     // list/create buckets are only available with admin privileges

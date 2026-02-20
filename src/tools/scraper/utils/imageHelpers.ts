@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { HASH_TRUNCATE_LENGTH } from "@/utils/config";
+import { config } from "@/utils/config";
 
 export type NormalizeImageUrlOptions = { src: string };
 export function normalizeImageUrl({ src }: NormalizeImageUrlOptions): string {
@@ -21,7 +21,7 @@ export function hashFilenameFromUrl({
     .createHash("md5")
     .update(normalized)
     .digest("hex")
-    .substring(0, HASH_TRUNCATE_LENGTH);
+    .substring(0, config.scraper.defaultHashTruncate);
   return `${h}.${ext}`;
 }
 

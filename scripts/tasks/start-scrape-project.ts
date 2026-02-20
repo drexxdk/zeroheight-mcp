@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 
 import { runTool } from "./start-task";
-import { ZEROHEIGHT_PROJECT_PASSWORD } from "../../src/utils/config";
+import { config } from "../../src/utils/config";
 
 async function main(): Promise<void> {
   // Start the scraper as a background task via the registered tool
-  const password = ZEROHEIGHT_PROJECT_PASSWORD || undefined;
+  const password = config.env.zeroheightProjectPassword || undefined;
   await runTool("../../src/tools/scraper/scrape", "scrapeTool", {
     password,
   });

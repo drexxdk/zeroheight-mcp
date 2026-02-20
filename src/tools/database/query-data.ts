@@ -1,11 +1,7 @@
 import { z } from "zod";
 import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
-import {
-  IMAGE_BUCKET,
-  NEXT_PUBLIC_SUPABASE_URL,
-  SCRAPER_QUERY_DEFAULT_LIMIT,
-} from "@/utils/config";
+import { config } from "@/utils/config";
 import { PageData } from "@/tools/scraper/utils/shared";
 import type { ToolDefinition } from "@/tools/toolTypes";
 import type { QueryDataResult } from "./types";
@@ -24,13 +20,13 @@ const queryDataInput = z.object({
   limit: z
     .number()
     .optional()
-    .default(SCRAPER_QUERY_DEFAULT_LIMIT)
+    .default(config.scraper.db.queryDefaultLimit)
     .describe("Maximum number of results to return"),
 });
 
 // Get the Supabase project URL for constructing storage URLs
 const getSupabaseProjectUrl = (): string => {
-  const supabaseUrl = NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = config.env.nextPublicSupabaseUrl;
   if (!supabaseUrl) {
     console.warn("NEXT_PUBLIC_SUPABASE_URL not found, using fallback");
     return "https://qyoexslrsblaphbcvjdk.supabase.co";
@@ -71,7 +67,7 @@ export const queryDataTool: ToolDefinition<
 
     // Set defaults
     const effectiveIncludeImages = includeImages ?? true;
-    const effectiveLimit = limit ?? SCRAPER_QUERY_DEFAULT_LIMIT;
+    const effectiveLimit = limit ?? config.scraper.db.queryDefaultLimit;
 
     let pages: PageData[] = [];
 
@@ -167,7 +163,7 @@ export const queryDataTool: ToolDefinition<
               ? Object.fromEntries(
                   page.images.map((img) => [
                     img.original_url,
-                    `${supabaseUrl}/storage/v1/object/public/${IMAGE_BUCKET}/${img.storage_path}`,
+                    `${supabaseUrl}/storage/v1/object/public/${config.storage.imageBucket}/${img.storage_path}`,
                   ]),
                 )
               : {},

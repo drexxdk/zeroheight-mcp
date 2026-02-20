@@ -1,217 +1,162 @@
-// Centralized runtime configuration (env-driven) for the project.
-// This file centralizes defaults so env usage is discoverable in one place.
+// Centralized runtime configuration (defaults grouped under `config`).
+// Only the following environment variables are read directly:
+// - ZEROHEIGHT_MCP_ACCESS_TOKEN
+// - SUPABASE_SERVICE_ROLE_KEY
+// - SUPABASE_ACCESS_TOKEN
+// - NEXT_PUBLIC_SUPABASE_URL
+// - ZEROHEIGHT_PROJECT_URL
+// - ZEROHEIGHT_PROJECT_PASSWORD
+// The rest of runtime values are exposed under `config`.
 
-export const SCRAPER_CONCURRENCY = Number(process.env.SCRAPER_CONCURRENCY || 6);
-export const SCRAPER_IDLE_TIMEOUT_MS = Number(
-  process.env.SCRAPER_IDLE_TIMEOUT_MS || 1000,
-);
-export const SCRAPER_SEED_PREFETCH_CONCURRENCY = Number(
-  process.env.SCRAPER_SEED_PREFETCH_CONCURRENCY || 4,
-);
-export const SCRAPER_PAGE_UPSERT_CHUNK = Number(
-  process.env.SCRAPER_PAGE_UPSERT_CHUNK || 200,
-);
-export const SCRAPER_IMAGE_INSERT_CHUNK = Number(
-  process.env.SCRAPER_IMAGE_INSERT_CHUNK || 500,
-);
-export const SCRAPER_DEBUG =
-  (process.env.SCRAPER_DEBUG || "").toLowerCase().trim() === "true";
-export const SCRAPER_IMAGE_CONCURRENCY = Number(
-  process.env.SCRAPER_IMAGE_CONCURRENCY || 4,
-);
+import { z } from "zod";
 
-// Prefetch / scroll timing configuration (milliseconds / pixels)
-export const SCRAPER_PREFETCH_WAIT_MS = Number(
-  process.env.SCRAPER_PREFETCH_WAIT_MS || 400,
-);
-export const SCRAPER_PREFETCH_SCROLL_STEP_MS = Number(
-  process.env.SCRAPER_PREFETCH_SCROLL_STEP_MS || 120,
-);
-export const SCRAPER_PREFETCH_FINAL_WAIT_MS = Number(
-  process.env.SCRAPER_PREFETCH_FINAL_WAIT_MS || 200,
-);
-export const SCRAPER_PREFETCH_SCROLL_STEP_PX = Number(
-  process.env.SCRAPER_PREFETCH_SCROLL_STEP_PX || 800,
-);
+// Normalize process.env values: treat empty-string as undefined for clarity
+const rawEnv = {
+  ZEROHEIGHT_MCP_ACCESS_TOKEN:
+    process.env.ZEROHEIGHT_MCP_ACCESS_TOKEN?.trim() || undefined,
+  SUPABASE_SERVICE_ROLE_KEY:
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || undefined,
+  SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN?.trim() || undefined,
+  NEXT_PUBLIC_SUPABASE_URL:
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || undefined,
+  ZEROHEIGHT_PROJECT_URL:
+    process.env.ZEROHEIGHT_PROJECT_URL?.trim() || undefined,
+  ZEROHEIGHT_PROJECT_PASSWORD:
+    process.env.ZEROHEIGHT_PROJECT_PASSWORD?.trim() || undefined,
+};
 
-export const ZEROHEIGHT_PROJECT_URL = process.env.ZEROHEIGHT_PROJECT_URL || "";
-export const ZEROHEIGHT_PROJECT_PASSWORD =
-  process.env.ZEROHEIGHT_PROJECT_PASSWORD || undefined;
+const envSchema = z.object({
+  // Required: API key for server auth
+  zeroheightMcpAccessToken: z
+    .string()
+    .min(1, "ZEROHEIGHT_MCP_ACCESS_TOKEN is required"),
+  // Required: Supabase keys/urls (any non-empty string; URLs validated below where appropriate)
+  supabaseServiceRoleKey: z
+    .string()
+    .min(1, "SUPABASE_SERVICE_ROLE_KEY is required"),
+  supabaseAccessToken: z.string().min(1, "SUPABASE_ACCESS_TOKEN is required"),
+  // Required: public Supabase URL (must be a URL)
+  nextPublicSupabaseUrl: z
+    .string()
+    .url("NEXT_PUBLIC_SUPABASE_URL must be a valid URL"),
+  // Required: Zeroheight project URL (must be a URL)
+  zeroheightProjectUrl: z
+    .string()
+    .url("ZEROHEIGHT_PROJECT_URL must be a valid URL"),
+  // Optional: project password
+  zeroheightProjectPassword: z.string().optional(),
+});
 
-export const ZEROHEIGHT_MCP_ACCESS_TOKEN =
-  process.env.ZEROHEIGHT_MCP_ACCESS_TOKEN || "";
-export const MCP_URL = process.env.MCP_URL || "http://localhost:3000/api/mcp";
+// Map normalized raw env to our camelCase shape for zod parsing
+const mapped = {
+  zeroheightMcpAccessToken: rawEnv.ZEROHEIGHT_MCP_ACCESS_TOKEN,
+  supabaseServiceRoleKey: rawEnv.SUPABASE_SERVICE_ROLE_KEY,
+  supabaseAccessToken: rawEnv.SUPABASE_ACCESS_TOKEN,
+  nextPublicSupabaseUrl: rawEnv.NEXT_PUBLIC_SUPABASE_URL,
+  zeroheightProjectUrl: rawEnv.ZEROHEIGHT_PROJECT_URL,
+  zeroheightProjectPassword: rawEnv.ZEROHEIGHT_PROJECT_PASSWORD,
+};
 
-export const NEXT_PUBLIC_SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-export const SUPABASE_ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN || "";
-export const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+export type Env = z.infer<typeof envSchema>;
 
-export const IMAGE_BUCKET =
-  process.env.SUPABASE_IMAGE_BUCKET ||
-  process.env.NEXT_PUBLIC_SUPABASE_IMAGE_BUCKET ||
-  "images";
+let parsedEnv: Env;
+try {
+  parsedEnv = envSchema.parse(mapped);
+} catch (e) {
+  // Provide a clearer error message for missing/invalid envs
+  if (e instanceof z.ZodError) {
+    const details = (e.issues || [])
+      .map((issue: z.ZodIssue) => `${issue.path.join(".")}: ${issue.message}`)
+      .join("; ");
+    throw new Error(`Environment validation failed: ${details}`);
+  }
+  throw e;
+}
 
-export const EXCLUDE_IMAGE_FORMATS = (
-  process.env.IMAGE_EXCLUDE_FORMATS || "svg,gif"
-)
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
+const env: Env = parsedEnv;
 
-export const ALLOWED_MIME_TYPES = (
-  process.env.SUPABASE_ALLOWED_MIME_TYPES ||
-  "image/png,image/jpeg,image/jpg,image/webp"
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-export const IMAGE_MAX_DIM = parseInt(process.env.IMAGE_MAX_DIM || "600", 10);
-export const IMAGE_JPEG_QUALITY = parseInt(
-  process.env.IMAGE_JPEG_QUALITY || "80",
-  10,
-);
-export const IMAGE_WEBP_QUALITY = parseInt(
-  process.env.IMAGE_WEBP_QUALITY || "80",
-  10,
-);
-
-export const SERVER_RATE_LIMIT_TOKENS = Number(
-  process.env.SERVER_RATE_LIMIT_TOKENS || 60,
-);
-
-export const SCRAPE_TEST_PAGE_URLS = process.env.SCRAPE_TEST_PAGE_URLS || "";
-
-// Viewport and navigation defaults for puppeteer pages
-export const SCRAPER_VIEWPORT_WIDTH = Number(
-  process.env.SCRAPER_VIEWPORT_WIDTH || 1280,
-);
-export const SCRAPER_VIEWPORT_HEIGHT = Number(
-  process.env.SCRAPER_VIEWPORT_HEIGHT || 1024,
-);
 export type NavWaitUntil =
   | "load"
   | "domcontentloaded"
   | "networkidle0"
   | "networkidle2";
-function isNavWaitUntil(v: unknown): v is NavWaitUntil {
-  return (
-    v === "load" ||
-    v === "domcontentloaded" ||
-    v === "networkidle0" ||
-    v === "networkidle2"
-  );
-}
-export const SCRAPER_NAV_WAITUNTIL: NavWaitUntil = isNavWaitUntil(
-  process.env.SCRAPER_NAV_WAITUNTIL,
-)
-  ? (process.env.SCRAPER_NAV_WAITUNTIL as NavWaitUntil)
-  : "networkidle2";
-export const SCRAPER_NAV_TIMEOUT_MS = Number(
-  process.env.SCRAPER_NAV_TIMEOUT_MS || 30000,
-);
 
-// Retry / backoff / attempt defaults
-export const SCRAPER_MAX_ATTEMPTS = Number(
-  process.env.SCRAPER_MAX_ATTEMPTS || 3,
-);
-export const SCRAPER_RETRY_BASE_MS = Number(
-  process.env.SCRAPER_RETRY_BASE_MS || 250,
-);
-export const SCRAPER_RETRY_FACTOR = Number(
-  process.env.SCRAPER_RETRY_FACTOR || 2,
-);
-
-// Content extraction limits
-export const SCRAPER_CONTENT_MAX_CHARS = Number(
-  process.env.SCRAPER_CONTENT_MAX_CHARS || 10000,
-);
-
-// Monitor / poll intervals
-export const SCRAPER_MONITOR_POLL_MS = Number(
-  process.env.SCRAPER_MONITOR_POLL_MS || 100,
-);
-export const SCRAPER_MONITOR_IDLE_POLL_MS = Number(
-  process.env.SCRAPER_MONITOR_IDLE_POLL_MS || 200,
-);
-
-// Upload retry/backoff
-export const IMAGE_UPLOAD_RETRIES = Number(
-  process.env.IMAGE_UPLOAD_RETRIES || 3,
-);
-export const IMAGE_UPLOAD_BACKOFF_FACTOR = Number(
-  process.env.IMAGE_UPLOAD_BACKOFF_FACTOR || 2,
-);
-export const IMAGE_UPLOAD_MIN_DELAY_MS = Number(
-  process.env.IMAGE_UPLOAD_MIN_DELAY_MS || 250,
-);
-
-// Storage and DB tuning
-export const STORAGE_CACHE_CONTROL_SEC = Number(
-  process.env.STORAGE_CACHE_CONTROL_SEC || 3600,
-);
-
-export const SCRAPER_DB_QUERY_LIMIT = Number(
-  process.env.SCRAPER_DB_QUERY_LIMIT || 1000,
-);
-
-export const SCRAPER_LOG_SAMPLE_SIZE = Number(
-  process.env.SCRAPER_LOG_SAMPLE_SIZE || 12,
-);
-
-export const SCRAPER_QUERY_DEFAULT_LIMIT = Number(
-  process.env.SCRAPER_QUERY_DEFAULT_LIMIT || 10,
-);
-
-export const SCRAPER_BULK_UPSERT_BACKOFF_MS = Number(
-  process.env.SCRAPER_BULK_UPSERT_BACKOFF_MS || 500,
-);
-
-// Additional tuning
-export const STORAGE_FILE_SIZE_LIMIT_BYTES = Number(
-  process.env.STORAGE_FILE_SIZE_LIMIT_BYTES || 10485760,
-);
-
-export const SCRAPER_SCROLL_FALLBACK_PX = Number(
-  process.env.SCRAPER_SCROLL_FALLBACK_PX || 800,
-);
-
-export const SCRAPER_DB_INSPECT_LIMIT = Number(
-  process.env.SCRAPER_DB_INSPECT_LIMIT || 50,
-);
-
-export const SCRAPER_DB_INSPECT_SAMPLE_SIZE = Number(
-  process.env.SCRAPER_DB_INSPECT_SAMPLE_SIZE || 20,
-);
-
-export const SCRAPER_DEFAULT_CONCURRENCY = Number(
-  process.env.SCRAPER_DEFAULT_CONCURRENCY || 4,
-);
-
-export const HASH_TRUNCATE_LENGTH = Number(
-  process.env.HASH_TRUNCATE_LENGTH || 8,
-);
-
-// Job ID and logging tuning
-export const JOBID_RANDOM_START = Number(process.env.JOBID_RANDOM_START || 2);
-export const JOBID_RANDOM_LEN = Number(process.env.JOBID_RANDOM_LEN || 6);
-export const TESTRUNID_RANDOM_LEN = Number(
-  process.env.TESTRUNID_RANDOM_LEN || 4,
-);
-
-export const SCRAPER_LOG_LINK_SAMPLE = Number(
-  process.env.SCRAPER_LOG_LINK_SAMPLE || 6,
-);
-
-export const IMAGE_UTILS_SAMPLE_LIMIT = Number(
-  process.env.IMAGE_UTILS_SAMPLE_LIMIT || 50,
-);
-
-// Database / migration helper flags
-export const DATABASE_URL =
-  process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "";
-export const ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS =
-  (process.env.ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS || "").toLowerCase() ===
-    "true" || (process.env.ALLOW_AUTO_CREATE_SCHEMA_MIGRATIONS || "") === "1";
+export const config = {
+  env,
+  scraper: {
+    concurrency: 6,
+    idleTimeoutMs: 1000,
+    seedPrefetchConcurrency: 4,
+    pageUpsertChunk: 200,
+    imageInsertChunk: 500,
+    debug: false,
+    imageConcurrency: 4,
+    prefetch: {
+      waitMs: 400,
+      scrollStepMs: 120,
+      finalWaitMs: 200,
+      scrollStepPx: 800,
+    },
+    viewport: {
+      width: 1280,
+      height: 1024,
+      navWaitUntil: "networkidle2" as NavWaitUntil,
+      navTimeoutMs: 30000,
+    },
+    retry: {
+      maxAttempts: 3,
+      retryBaseMs: 250,
+      retryFactor: 2,
+    },
+    contentMaxChars: 10000,
+    monitor: {
+      pollMs: 100,
+      idlePollMs: 200,
+    },
+    db: {
+      queryLimit: 1000,
+      inspectLimit: 50,
+      inspectSampleSize: 20,
+      queryDefaultLimit: 10,
+      bulkUpsertBackoffMs: 500,
+      defaultConcurrency: 4,
+    },
+    scrollFallbackPx: 800,
+    log: {
+      sampleSize: 12,
+      linkSample: 6,
+    },
+    defaultHashTruncate: 8,
+    scrapeTestPageUrls: "",
+  },
+  image: {
+    maxDim: 600,
+    jpegQuality: 80,
+    webpQuality: 80,
+    upload: {
+      retries: 3,
+      backoffFactor: 2,
+      minDelayMs: 250,
+    },
+    allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/webp"],
+    excludeFormats: ["svg", "gif"],
+  },
+  storage: {
+    imageBucket: "images",
+    storageCacheControlSec: 3600,
+    fileSizeLimitBytes: 10485760,
+  },
+  server: {
+    rateLimitTokens: 60,
+    mcpUrl: "http://localhost:3000/api/mcp",
+  },
+  hashing: {
+    jobIdRandomStart: 2,
+    jobIdRandomLen: 6,
+    testRunIdRandomLen: 4,
+  },
+  tuning: {
+    scraperDbQueryLimit: 1000,
+    imageUtilsSampleLimit: 50,
+  },
+};
