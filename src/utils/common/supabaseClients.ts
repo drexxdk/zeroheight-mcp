@@ -102,11 +102,9 @@ export function getClient(): {
             if (typeof maybeCreate === "function") {
               // Call the runtime function; narrow the call site with a typed invocation
               // (we avoid assuming the exact client signature at compile time)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              res = await (maybeCreate as (...a: any[]) => Promise<unknown>)(
-                name,
-                opts,
-              );
+              res = await (
+                maybeCreate as (...a: unknown[]) => Promise<unknown>
+              )(name, opts);
             } else {
               return {
                 data: null,
