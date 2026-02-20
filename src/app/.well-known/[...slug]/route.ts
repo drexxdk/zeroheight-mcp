@@ -42,9 +42,9 @@ export async function POST(request: Request) {
 }
 
 export async function OPTIONS(request: Request) {
-  return GET(request as unknown as Request);
+  return GET(request);
 }
 
 export async function HEAD(request: Request) {
-  return GET(request as unknown as Request);
+  return GET(request);
 }

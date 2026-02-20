@@ -77,7 +77,7 @@ async function main(): Promise<void> {
         url: r.url,
         httpVersion: "HTTP/1.1",
         headers: [] as HarHeader[],
-        queryString: [] as unknown[],
+        queryString: [] as { name: string; value: string }[],
         headersSize: -1,
         bodySize: 0,
       },
@@ -114,7 +114,7 @@ async function main(): Promise<void> {
     log: {
       version: "1.2",
       creator: { name: "report-to-har", version: "1" },
-      pages: [] as unknown[],
+      pages: [] as { startedDateTime?: string; title?: string }[],
       entries,
     },
   };

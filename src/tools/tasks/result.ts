@@ -79,7 +79,7 @@ export const tasksResultTool: ToolDefinition<typeof tasksResultInput> = {
       return createErrorResponse({
         message: "Timeout waiting for task to reach terminal state",
       });
-    } catch (e: unknown) {
+    } catch (e) {
       return createErrorResponse({
         message: String(e instanceof Error ? e.message : e),
       });

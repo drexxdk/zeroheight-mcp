@@ -42,7 +42,7 @@ export const testTaskTool: ToolDefinition<typeof testTaskInputSchema> = {
 
       // mark the job as running so it appears active in the DB
       try {
-        await claimJobById({ jobId: jobId as string });
+        await claimJobById({ jobId });
       } catch {
         // ignore claim failures; job may remain unclaimed but background worker can still run
       }
@@ -51,14 +51,14 @@ export const testTaskTool: ToolDefinition<typeof testTaskInputSchema> = {
         try {
           const totalSeconds = minutes * 60;
           for (let i = 1; i <= totalSeconds; i++) {
-            const j = await getJobFromDb({ jobId: jobId as string });
+            const j = await getJobFromDb({ jobId });
             if (j && j.status === "cancelled") {
               await appendJobLog({
-                jobId: jobId as string,
+                jobId,
                 line: "Job cancelled by user",
               });
               await finishJob({
-                jobId: jobId as string,
+                jobId,
                 success: false,
                 result: undefined,
                 errorMsg: "cancelled",
@@ -66,28 +66,22 @@ export const testTaskTool: ToolDefinition<typeof testTaskInputSchema> = {
               return;
             }
             await appendJobLog({
-              jobId: jobId as string,
+              jobId,
               line: `tick ${i}/${totalSeconds}`,
             });
             await new Promise((res) => setTimeout(res, 1000));
           }
-          await appendJobLog({
-            jobId: jobId as string,
-            line: "Test task completed",
-          });
+          await appendJobLog({ jobId, line: "Test task completed" });
           await finishJob({
-            jobId: jobId as string,
+            jobId,
             success: true,
             result: { message: "completed" },
           });
         } catch (e) {
           const errMsg = e instanceof Error ? e.message : String(e);
-          await appendJobLog({
-            jobId: jobId as string,
-            line: `Error: ${errMsg}`,
-          });
+          await appendJobLog({ jobId, line: `Error: ${errMsg}` });
           await finishJob({
-            jobId: jobId as string,
+            jobId,
             success: false,
             result: undefined,
             errorMsg: errMsg,

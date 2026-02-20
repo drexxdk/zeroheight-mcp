@@ -6,7 +6,7 @@ import {
   JOBID_RANDOM_LEN,
   TESTRUNID_RANDOM_LEN,
 } from "@/utils/config";
-import { isRecord } from "../../../utils/common/typeGuards";
+import { isRecord, isJson, getProp } from "../../../utils/common/typeGuards";
 
 export type JobRecord = TasksType;
 
@@ -28,20 +28,32 @@ export async function createJobInDb({
     Math.random()
       .toString(36)
       .slice(JOBID_RANDOM_START, JOBID_RANDOM_START + JOBID_RANDOM_LEN);
-  // Ensure `args` is compatible with the DB `Json` type expected by the
-  // generated Supabase client types.
+  // Ensure `args` is JSON-serializable and compatible with the DB `Json` type.
+  let argsPayload: Json | null = null;
+  if (args) {
+    try {
+      const parsed = JSON.parse(JSON.stringify(args));
+      // Validate JSON-serializability before assigning to `Json`.
+      // Use the runtime guard to avoid an unchecked `as Json` cast.
+      // If it isn't serializable, fall back to `null`.
+      if (isJson(parsed)) argsPayload = parsed;
+      else argsPayload = null;
+    } catch {
+      argsPayload = null;
+    }
+  }
   const payload = {
     id,
     name,
     // SEP-1686: initial state should be `working` (the request is being processed)
     status: "working",
-    args: (args ? (args as unknown as Json) : null) as Json | null,
+    args: argsPayload,
   };
 
   try {
     const { error } = await supabase.from("tasks").insert([payload]);
     if (error) {
-      const errObj = error as unknown;
+      const errObj = error;
       const details =
         isRecord(errObj) && "details" in errObj
           ? String(errObj["details"])
@@ -54,8 +66,14 @@ export async function createJobInDb({
         isRecord(errObj) && "code" in errObj
           ? String(errObj["code"])
           : undefined;
+      let msg: string;
+      if (isRecord(errObj) && typeof getProp(errObj, "message") === "string") {
+        msg = String(getProp(errObj, "message"));
+      } else {
+        msg = String(error);
+      }
       console.error("createJobInDb supabase error:", {
-        message: (error as { message?: string })?.message ?? String(error),
+        message: msg,
         details,
         hint,
         code,
@@ -176,7 +194,10 @@ export async function appendJobLog({
       console.warn("appendJobLog select error:", error);
       return;
     }
-    const current = (data && (data as { logs?: string }).logs) || "";
+    let current = "";
+    if (data && isRecord(data) && typeof getProp(data, "logs") === "string") {
+      current = String(getProp(data, "logs"));
+    }
     const updated = current + (current ? "\n" : "") + line;
     const { error: updateErr } = await supabase
       .from("tasks")

@@ -1,5 +1,6 @@
 import { config as dotenvConfig } from "dotenv";
 import { getSupabaseClient } from "@/utils/common";
+import { isRecord } from "../../src/utils/common/typeGuards";
 
 dotenvConfig({ path: ".env.local" });
 
@@ -38,7 +39,7 @@ async function downloadAndUpload(
     console.log(
       `Test bucket ${TEST_BUCKET} not found; skipping upload to avoid touching production bucket ${BUCKET}`,
     );
-    return null as unknown as { path: string; publicUrl: string };
+    return null as { path: string; publicUrl: string } | null;
   }
 
   const uploader = client;
@@ -51,10 +52,14 @@ async function downloadAndUpload(
       contentType,
     });
 
-  const uploadError = (result as unknown as { error?: unknown }).error;
-  const uploadData = (result as unknown as { data?: { path?: string } }).data;
+  const uploadError = isRecord(result) ? result.error : undefined;
+  const uploadData =
+    isRecord(result) && isRecord(result.data) ? result.data : undefined;
 
-  if (uploadError) throw uploadError as Error;
+  if (uploadError) {
+    if (uploadError instanceof Error) throw uploadError;
+    throw new Error(String(uploadError));
+  }
 
   const storagePath = uploadData?.path;
   if (!storagePath) throw new Error("Upload did not return a storage path");
@@ -78,9 +83,12 @@ async function run() {
       console.log("Trying:", url);
       try {
         const res = await downloadAndUpload(url, BUCKET, TEST_BUCKET);
-        console.log("Uploaded:", res.path);
-        console.log("Public URL:", res.publicUrl);
-        return;
+        if (res) {
+          console.log("Uploaded:", res.path);
+          console.log("Public URL:", res.publicUrl);
+          return;
+        }
+        console.log("Upload skipped (no test bucket or upload returned null)");
       } catch (err) {
         console.error(
           "Attempt failed:",

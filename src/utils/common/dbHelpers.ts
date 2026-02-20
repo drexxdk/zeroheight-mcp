@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../database.schema";
 import type { PagesType, ImagesType } from "../../database.types";
+import { isRecord } from "@/utils/common/typeGuards";
 
 export async function commitPagesAndImages(options: {
   client: SupabaseClient<Database>;
@@ -22,12 +23,12 @@ export async function commitPagesAndImages(options: {
 
   let upsertedPages: Array<{ id?: number; url?: string }> | null = null;
   try {
-    const pagesTable = "pages" as const;
+    const pagesTable = "pages";
     // Manual retry loop to avoid typing issues with Postgrest builders
     let attempts = 0;
     let upsertResult: {
       data?: Array<{ id?: number; url?: string }> | null;
-      error?: unknown;
+      error?: unknown | null;
     } = { data: null, error: null };
     while (attempts < 3) {
       try {
@@ -58,28 +59,27 @@ export async function commitPagesAndImages(options: {
     if (p && p.url && p.id) urlToId.set(p.url, p.id);
   });
 
-  const imagesToInsert = pendingImageRecords
-    .map((r) => {
-      const page_id = urlToId.get(r.pageUrl);
-      if (!page_id) return null;
-      return {
-        page_id,
-        original_url: r.original_url,
-        storage_path: r.storage_path,
-      };
-    })
-    .filter(Boolean) as Array<{
+  const imagesToInsert: Array<{
     page_id: number;
     original_url: ImagesType["original_url"];
     storage_path: ImagesType["storage_path"];
-  }>;
+  }> = [];
+  for (const r of pendingImageRecords) {
+    const page_id = urlToId.get(r.pageUrl);
+    if (!page_id) continue;
+    imagesToInsert.push({
+      page_id,
+      original_url: r.original_url,
+      storage_path: r.storage_path,
+    });
+  }
 
   if (imagesToInsert.length > 0) {
     try {
-      const imagesTable = "images" as const;
+      const imagesTable = "images";
       // Manual retry for image inserts
       let attempts = 0;
-      let insertResult: { error?: unknown } = { error: null };
+      let insertResult: { error?: unknown | null } = { error: null };
       while (attempts < 3) {
         try {
           const res = await supabase.from(imagesTable).insert(imagesToInsert);
@@ -91,9 +91,9 @@ export async function commitPagesAndImages(options: {
         attempts++;
         if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
       }
-      const { error: insertImagesError } = insertResult as {
-        error?: { message?: string } | null;
-      };
+      let insertImagesError: unknown | null = null;
+      if (isRecord(insertResult))
+        insertImagesError = insertResult.error ?? null;
       if (insertImagesError) {
         console.error("Error bulk inserting images:", insertImagesError);
       }

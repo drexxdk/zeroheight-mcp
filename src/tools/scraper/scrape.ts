@@ -161,7 +161,7 @@ export async function scrape({
     const restrictToSeeds = !!(pageUrls && pageUrls.length > 0);
 
     const { client: db } = getClient();
-    const imagesTable = "images" as const;
+    const imagesTable = "images";
     const loggedInHostnames = new Set<string>();
     let allExistingImageUrls = new Set<string>();
     try {
@@ -235,23 +235,30 @@ export async function scrape({
       }
 
       const hostname = new URL(rootUrl).hostname;
+      const fallbackRoot: {
+        pageLinks: string[];
+        normalizedImages: ExtractedImage[];
+        supportedImages: ExtractedImage[];
+        title: string;
+        content: string;
+      } = {
+        pageLinks: [],
+        normalizedImages: [],
+        supportedImages: [],
+        title: "",
+        content: "",
+      };
       const extracted = await extractPageData({
         page: p,
         pageUrl: rootUrl,
         allowedHostname: hostname,
-      }).catch(() => ({
-        pageLinks: [] as string[],
-        normalizedImages: [] as ExtractedImage[],
-        supportedImages: [] as ExtractedImage[],
-        title: "",
-        content: "",
-      }));
+      }).catch(() => fallbackRoot);
 
-      const anchors = await p
+      const anchors: string[] = await p
         .$$eval("a[href]", (links) =>
           links.map((a) => (a as HTMLAnchorElement).href).filter(Boolean),
         )
-        .catch(() => [] as string[]);
+        .catch(() => []);
 
       const initialSet = new Set<string>();
       initialSet.add(normalizeUrl({ u: rootUrl }));
@@ -362,11 +369,24 @@ export async function scrape({
                   normalizedImages = e.normalizedImages || [];
                   pageLinks = e.pageLinks || [];
                 } else {
+                  const fallback: {
+                    pageLinks: string[];
+                    normalizedImages: ExtractedImage[];
+                    supportedImages: ExtractedImage[];
+                    title: string;
+                    content: string;
+                  } = {
+                    pageLinks: [],
+                    normalizedImages: [],
+                    supportedImages: [],
+                    title: "",
+                    content: "",
+                  };
                   const extracted = await extractPageData({
                     page,
                     pageUrl: processingLink,
                     allowedHostname: hostname,
-                  });
+                  }).catch(() => fallback);
                   title = extracted.title;
                   content = extracted.content;
                   supportedImages = extracted.supportedImages || [];
@@ -416,9 +436,7 @@ export async function scrape({
                   },
                 });
 
-                const rawLinks = (returnedPageLinks ||
-                  pageLinks ||
-                  []) as string[];
+                const rawLinks = returnedPageLinks || pageLinks || [];
                 const allowed = rawLinks
                   .map((h) => normalizeUrl({ u: h, base: rootUrl }))
                   .filter((h) => {
@@ -559,9 +577,11 @@ export async function scrape({
           });
           if (res.lines && res.lines.length) printer(res.lines.join("\n"));
         } catch {
-          const uniquePageMap = new Map(
-            pagesToUpsert.map((p) => [p.url, p] as const),
-          );
+          const uniquePageMap = new Map<
+            string,
+            (typeof pagesToUpsert)[number]
+          >();
+          for (const p of pagesToUpsert) uniquePageMap.set(p.url, p);
           const totalUniquePages = uniquePageMap.size;
           const providedCountVal =
             pageUrls && pageUrls.length > 0 ? pageUrls.length : 0;
@@ -614,7 +634,7 @@ export async function scrape({
 }
 
 import type { ToolDefinition } from "@/tools/toolTypes";
-import { isRecord } from "../../utils/common/typeGuards";
+import { isRecord, getProp } from "../../utils/common/typeGuards";
 
 const scrapeInput = z.object({
   pageUrls: z.array(z.string()).optional(),
@@ -631,23 +651,26 @@ export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
     if (!projectUrl)
       return createErrorResponse({ message: "ZEROHEIGHT_PROJECT_URL not set" });
 
-    let jobId: string | null = null;
+    let jobId: string;
     try {
-      jobId = await createJobInDb({
+      const created = await createJobInDb({
         name: "scrape",
         args: { pageUrls: pageUrls || null },
       });
+      if (created) jobId = created;
+      else
+        jobId =
+          Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     } catch (err) {
       console.warn("createJobInDb failed:", err);
-    }
-    if (!jobId)
       jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
 
     (async () => {
       const logger = async (s: string) => {
         try {
           await appendJobLog({
-            jobId: jobId as string,
+            jobId,
             line: `[${new Date().toISOString()}] ${s}`,
           });
         } catch {}
@@ -665,7 +688,7 @@ export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
           },
           shouldCancel: async () => {
             try {
-              const j = await getJobFromDb({ jobId: jobId as string });
+              const j = await getJobFromDb({ jobId });
               return !!(
                 j &&
                 (j.status === "cancelled" || j.status === "failed")
@@ -680,29 +703,19 @@ export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
           isRecord(res) &&
           Object.prototype.hasOwnProperty.call(res, "progress")
         ) {
-          const rAny = res as unknown;
-          if (isRecord(rAny)) structuredResult = rAny.progress ?? res;
+          const p = getProp(res, "progress");
+          structuredResult = p ?? res;
         }
-        await finishJob({
-          jobId: jobId as string,
-          success: true,
-          result: structuredResult,
-        });
-      } catch (e: unknown) {
+        await finishJob({ jobId, success: true, result: structuredResult });
+      } catch (e) {
         const errMsg = e instanceof Error ? e.message : String(e);
         if (e instanceof JobCancelled) {
-          await appendJobLog({
-            jobId: jobId as string,
-            line: "Job cancelled by request",
-          });
-          await finishJob({ jobId: jobId as string, success: false });
+          await appendJobLog({ jobId, line: "Job cancelled by request" });
+          await finishJob({ jobId, success: false });
         } else {
-          await appendJobLog({
-            jobId: jobId as string,
-            line: `Error: ${errMsg}`,
-          });
+          await appendJobLog({ jobId, line: `Error: ${errMsg}` });
           await finishJob({
-            jobId: jobId as string,
+            jobId,
             success: false,
             result: undefined,
             errorMsg: errMsg,

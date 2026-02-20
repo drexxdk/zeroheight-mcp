@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { isRecord, getProp } from "@/utils/common/typeGuards";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../database.schema";
 import {
@@ -73,13 +74,15 @@ export async function downloadImage({
   }
 }
 
+export type StorageDeleteError = { batch?: number; error: unknown };
+
 export async function clearStorageBucket({
   client,
   bucketName,
 }: {
   client: ReturnType<typeof createClient<Database>>;
   bucketName?: string;
-}): Promise<{ deletedCount: number; deleteErrors: unknown[] }> {
+}): Promise<{ deletedCount: number; deleteErrors: StorageDeleteError[] }> {
   try {
     // List all files in the bucket
     let allFiles: string[] = [];
@@ -109,7 +112,7 @@ export async function clearStorageBucket({
     } while (continuationToken);
 
     let deletedCount = 0;
-    const deleteErrors: unknown[] = [];
+    const deleteErrors: StorageDeleteError[] = [];
 
     if (allFiles.length > 0) {
       console.log(`Found ${allFiles.length} files to delete`);
@@ -141,7 +144,7 @@ export async function clearStorageBucket({
     return { deletedCount, deleteErrors };
   } catch (error) {
     console.error("Error clearing storage bucket:", error);
-    return { deletedCount: 0, deleteErrors: [error] };
+    return { deletedCount: 0, deleteErrors: [{ error }] };
   }
 }
 
@@ -158,31 +161,49 @@ export async function getBucketDebugInfo({
 
   try {
     // Try listing buckets (may require admin client)
-    const maybe = client as unknown as {
-      storage?: {
-        listBuckets?: () => Promise<{
-          data?: Array<{ name: string }>;
-          error?: unknown;
-        }>;
-      };
-    };
-
-    if (maybe.storage && typeof maybe.storage.listBuckets === "function") {
-      try {
-        const bRes = await maybe.storage.listBuckets();
-        if (!bRes.error && Array.isArray(bRes.data)) {
-          buckets.push(...(bRes.data.map((b) => b.name) || []));
+    try {
+      if (
+        isRecord(client) &&
+        isRecord(client.storage) &&
+        typeof client.storage["listBuckets"] === "function"
+      ) {
+        try {
+          const fn = client.storage["listBuckets"];
+          if (typeof fn === "function") {
+            const bRes = await (fn as (...a: unknown[]) => Promise<unknown>)();
+            if (isRecord(bRes)) {
+              const maybeData = getProp(bRes, "data");
+              if (Array.isArray(maybeData)) {
+                for (const elem of maybeData) {
+                  if (
+                    isRecord(elem) &&
+                    typeof getProp(elem, "name") === "string"
+                  ) {
+                    buckets.push(String(getProp(elem, "name")));
+                  }
+                }
+              }
+            }
+          }
+        } catch {
+          // ignore bucket listing errors
         }
-      } catch {
-        // ignore bucket listing errors
       }
+    } catch {
+      // ignore listing guard failures
     }
 
     // List files in the target bucket
     try {
       const { data, error } = await client.storage.from(targetBucket).list("");
       if (!error && Array.isArray(data)) {
-        files = data as Array<{ name: string }>;
+        const collected: Array<{ name: string }> = [];
+        for (const item of data) {
+          if (isRecord(item) && typeof getProp(item, "name") === "string") {
+            collected.push({ name: String(getProp(item, "name")) });
+          }
+        }
+        files = collected;
       }
     } catch {
       // ignore file listing errors
@@ -241,7 +262,10 @@ export async function performBucketClear({
   }
 
   // proceed with clearing the bucket
-  let deleteSummary = { deletedCount: 0, deleteErrors: [] as unknown[] };
+  let deleteSummary: { deletedCount: number; deleteErrors: unknown[] } = {
+    deletedCount: 0,
+    deleteErrors: [],
+  };
   try {
     if (storageClientToUse) {
       deleteSummary = await clearStorageBucket({

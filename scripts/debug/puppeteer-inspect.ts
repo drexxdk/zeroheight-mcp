@@ -103,7 +103,9 @@ async function main() {
       rec.headers = res.headers();
       const len = res.headers()["content-length"];
       if (len) {
-        const n = parseInt(len as string, 10);
+        let n = NaN;
+        if (typeof len === "string") n = parseInt(len, 10);
+        else if (typeof len === "number") n = Math.floor(len);
         if (!Number.isNaN(n)) {
           rec.responseSize = n;
           totalBytes += n;
@@ -132,22 +134,24 @@ async function main() {
     stop?: () => Promise<void>;
   } | null = null;
   try {
-    const HarModuleUnknown = (await import("puppeteer-har")) as unknown;
+    const HarModuleUnknown: unknown = await import("puppeteer-har");
     const { isRecord } = await import("../../src/utils/common/typeGuards");
     type PuppeteerHar = {
       start?: (opts?: { path?: string }) => Promise<void>;
       stop?: () => Promise<void>;
     };
+    // Avoid `as unknown` by narrowing the module shape with specific constructor types
     type PuppeteerHarCtor = new (p: Page) => PuppeteerHar;
-    // Use runtime checks instead of unsafe Record casts
+
     if (typeof HarModuleUnknown === "function") {
-      harRecorder = new (HarModuleUnknown as unknown as PuppeteerHarCtor)(page);
-    } else if (
-      isRecord(HarModuleUnknown) &&
-      typeof HarModuleUnknown.PuppeteerHar === "function"
-    ) {
-      const ctor = HarModuleUnknown.PuppeteerHar as unknown as PuppeteerHarCtor;
-      harRecorder = new ctor(page);
+      const Ctor = HarModuleUnknown as PuppeteerHarCtor;
+      harRecorder = new Ctor(page);
+    } else if (isRecord(HarModuleUnknown)) {
+      const mod = HarModuleUnknown as { PuppeteerHar?: unknown };
+      if (typeof mod.PuppeteerHar === "function") {
+        const Ctor = mod.PuppeteerHar as PuppeteerHarCtor;
+        harRecorder = new Ctor(page);
+      }
     }
   } catch {
     harRecorder = null;
@@ -168,7 +172,10 @@ async function main() {
       const cfg = await import("../../src/utils/config");
       const { tryLogin } =
         await import("../../src/utils/common/scraperHelpers");
-      const password = cfg.ZEROHEIGHT_PROJECT_PASSWORD as string | undefined;
+      const password =
+        typeof cfg.ZEROHEIGHT_PROJECT_PASSWORD === "string"
+          ? cfg.ZEROHEIGHT_PROJECT_PASSWORD
+          : undefined;
       if (password) {
         await tryLogin({ page, password });
         console.log("Login attempt complete (inspector)");

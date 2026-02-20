@@ -36,20 +36,27 @@ export type StorageUploadResult = {
   error?: { message?: string } | null;
 };
 
+export type ListBucketsResult = {
+  data?: Array<{ name: string }> | null;
+  error?: { message?: string } | null;
+};
+
+export type CreateBucketResult = {
+  data?: { name?: string } | null;
+  error?: { message?: string } | null;
+};
+
 export type StorageHelper = {
   upload: (filename: string, file: Buffer) => Promise<StorageUploadResult>;
-  listBuckets?: () => Promise<{
-    data?: Array<{ name: string }> | null;
-    error?: unknown;
-  }>;
+  listBuckets?: () => Promise<ListBucketsResult>;
   createBucket?: (
     name: string,
-    opts: {
-      public: boolean;
+    opts?: {
+      public?: boolean;
       allowedMimeTypes?: string[] | null;
       fileSizeLimit?: number | null;
     },
-  ) => Promise<{ data?: unknown; error?: unknown }>;
+  ) => Promise<CreateBucketResult>;
 };
 
 export async function uploadWithRetry(options: {

@@ -31,9 +31,7 @@ const handler = createMcpHandler(
     const wrapTool = <T>(tool: { handler: (a: T) => Promise<unknown> }) => {
       return async (args: unknown): Promise<ToolResponse> => {
         const res = await tool.handler(args as T);
-        if (isRecord(res) && Array.isArray(res.content))
-          return res as unknown as ToolResponse;
-        return { content: [{ type: "text", text: JSON.stringify(res) }] };
+        return normalizeToToolResponse(res);
       };
     };
     server.registerTool(
@@ -153,6 +151,19 @@ const handler = createMcpHandler(
     sseEndpoint: "/mcp",
   },
 );
+// Widen the handler type to accept plain `Request` objects in addition to
+// `NextRequest`. We perform a single, centralized cast here so call-sites
+// can forward `Request` instances without repeating unsafe casts.
+const permissiveHandler = handler as (req: Request) => Promise<Response>;
+
+// The MCP handler expects a `NextRequest` in some environments, but we
+// sometimes need to forward plain `Request` instances (constructed above).
+// Create a small adapter typed for `Request` so call-sites can pass a
+// `Request` without repeated casts.
+type HandlerForRequest = (req: Request) => Promise<Response>;
+const handlerForRequest: HandlerForRequest = async (req) => {
+  return await permissiveHandler(req);
+};
 
 // Export the underlying MCP handler for reuse by the JSON wrapper route.
 export const mcpHandler = handler;
@@ -249,7 +260,7 @@ async function authenticatedHandler(request: NextRequest) {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
-      } catch (e: unknown) {
+      } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         const rpc = {
           jsonrpc: "2.0",
@@ -287,7 +298,7 @@ async function authenticatedHandler(request: NextRequest) {
     });
 
     try {
-      const res = await handler(request as NextRequest);
+      const res = await handlerForRequest(request);
 
       if (res && res.status === 405) {
         console.debug(
@@ -307,12 +318,12 @@ async function authenticatedHandler(request: NextRequest) {
           "application/json, text/event-stream",
         );
 
-        const postResp = await handler(
+        const postResp = await handlerForRequest(
           new Request(request.url, {
             method: "POST",
             headers: forwardedPostHeaders,
             body: rpc,
-          }) as unknown as NextRequest,
+          }),
         );
 
         const postCt = postResp.headers.get("content-type") || "";
@@ -339,7 +350,7 @@ async function authenticatedHandler(request: NextRequest) {
       }
 
       return res;
-    } catch (err: unknown) {
+    } catch (err) {
       console.error("[mcp] handler threw while handling GET/HEAD:", err);
       const msg = err instanceof Error ? err.message : String(err);
       const rpc = {
@@ -361,7 +372,7 @@ async function authenticatedHandler(request: NextRequest) {
     body: hasBodyMethod ? (bodyText ?? undefined) : undefined,
   });
 
-  return handler(forwardedReq as unknown as NextRequest);
+  return handlerForRequest(forwardedReq);
 }
 
 export {

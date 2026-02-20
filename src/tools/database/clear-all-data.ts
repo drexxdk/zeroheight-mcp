@@ -26,8 +26,8 @@ async function clearDatabase() {
     }
 
     if (supabase) {
-      const imagesTable = "images" as const;
-      const pagesTable = "pages" as const;
+      const imagesTable = "images";
+      const pagesTable = "pages";
       const getRowCount = (d: unknown): number =>
         Array.isArray(d) ? d.length : 0;
       // Clear images table

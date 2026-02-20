@@ -1,4 +1,5 @@
 import type { Browser, Page as PuppeteerPage } from "puppeteer";
+import { isRecord } from "@/utils/common/typeGuards";
 import { extractPageData } from "./pageExtraction";
 import { tryLogin } from "@/utils/common/scraperHelpers";
 import { mapWithConcurrency } from "./concurrency";
@@ -73,19 +74,21 @@ export async function prefetchSeeds(options: {
       try {
         // Collect cookies to set on seed pages to reuse session
         const raw = await p.cookies();
-        cookies = raw.map(
-          (c) =>
-            ({
-              name: c.name,
-              value: c.value,
-              domain: c.domain,
-              path: c.path,
-              expires: c.expires,
-              httpOnly: c.httpOnly,
-              secure: c.secure,
-              sameSite: (c as unknown as { sameSite?: string }).sameSite,
-            }) as Parameters<PuppeteerPage["setCookie"]>[0],
-        );
+        cookies = raw.map((c) => {
+          let sameSite: string | undefined = undefined;
+          const ss = isRecord(c) ? c["sameSite"] : undefined;
+          if (typeof ss === "string") sameSite = ss;
+          return {
+            name: c.name,
+            value: c.value,
+            domain: c.domain,
+            path: c.path,
+            expires: c.expires,
+            httpOnly: c.httpOnly,
+            secure: c.secure,
+            sameSite,
+          } as Parameters<PuppeteerPage["setCookie"]>[0];
+        });
       } catch {}
       try {
         await p.close();
@@ -164,22 +167,20 @@ export async function prefetchSeeds(options: {
               );
             } catch {}
 
+            const fallback: PreExtracted = {
+              pageLinks: [],
+              normalizedImages: [],
+              supportedImages: [],
+              title: "",
+              content: "",
+            };
             const extracted = await extractPageData({
               page: p,
               pageUrl: u,
               allowedHostname: hostname,
-            }).catch(
-              () =>
-                ({
-                  pageLinks: [] as string[],
-                  normalizedImages: [] as Array<{ src: string; alt: string }>,
-                  supportedImages: [] as Array<{ src: string; alt: string }>,
-                  title: "",
-                  content: "",
-                }) as PreExtracted,
-            );
+            }).catch(() => fallback);
 
-            preExtractedMap.set(u, extracted as PreExtracted);
+            preExtractedMap.set(u, extracted);
           } finally {
             try {
               await p.close();

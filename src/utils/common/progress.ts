@@ -49,5 +49,5 @@ export function createProgressHelpers(options: {
     logProgress(icon, message);
   }
 
-  return { logProgress, markAttempt } as const;
+  return { logProgress, markAttempt };
 }

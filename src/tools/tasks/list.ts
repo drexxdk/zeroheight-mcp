@@ -35,7 +35,7 @@ export const tasksListTool: ToolDefinition<typeof tasksListInput> = {
       return createSuccessResponse({
         data: { items: data ?? [], limit: l, offset: o },
       });
-    } catch (e: unknown) {
+    } catch (e) {
       return createErrorResponse({
         message: String(e instanceof Error ? e.message : e),
       });

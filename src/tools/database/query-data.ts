@@ -64,7 +64,7 @@ export const queryDataTool: ToolDefinition<typeof queryDataInput> = {
 
     let pages: PageData[] = [];
 
-    const pagesTable = "pages" as const;
+    const pagesTable = "pages";
 
     if (search) {
       // Use separate queries to avoid complex OR conditions that can cause parsing issues

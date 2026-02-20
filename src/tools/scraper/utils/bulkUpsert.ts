@@ -14,7 +14,7 @@ import {
 import type { PagesType, ImagesType } from "@/database.types";
 import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
-import { isRecord } from "../../../utils/common/typeGuards";
+import { isRecord, getProp } from "../../../utils/common/typeGuards";
 
 type DbClient = ReturnType<typeof getClient>["client"];
 
@@ -78,12 +78,15 @@ export async function bulkUpsertPagesAndImages(options: {
       .from("pages")
       .select("url")
       .in("url", uniqueUrls);
-    existingPagesBefore = (existingData as Array<{ url?: string }>) || [];
+    if (Array.isArray(existingData)) existingPagesBefore = existingData;
+    else existingPagesBefore = [];
   } catch (err) {
     console.warn("Could not query existing pages before upsert:", err);
   }
   const existingUrlSet = new Set(
-    existingPagesBefore.map((p) => p?.url).filter(Boolean) as string[],
+    existingPagesBefore
+      .map((p) => p?.url)
+      .filter((v): v is string => Boolean(v)),
   );
 
   // Upsert pages in chunks with retries
@@ -100,7 +103,31 @@ export async function bulkUpsertPagesAndImages(options: {
             .from("pages")
             .upsert(chunk, { onConflict: "url" })
             .select("id, url");
-          chunkResult = res as unknown as UpsertPagesRes;
+          // Normalize supabase response shape safely at runtime
+          const maybe = res;
+          if (isRecord(maybe)) {
+            const maybeData = getProp(maybe, "data");
+            let normalizedData:
+              | Array<{ id?: number; url?: string }>
+              | undefined = undefined;
+            if (Array.isArray(maybeData)) {
+              normalizedData = [];
+              for (const it of maybeData) {
+                if (isRecord(it)) {
+                  normalizedData.push({
+                    id: typeof it.id === "number" ? it.id : undefined,
+                    url: typeof it.url === "string" ? it.url : undefined,
+                  });
+                }
+              }
+            }
+            chunkResult = {
+              data: normalizedData,
+              error: getProp(maybe, "error"),
+            };
+          } else {
+            chunkResult = { error: maybe };
+          }
           if (!chunkResult.error) break;
         } else {
           // Dry run: pretend upsert succeeded and generate ids
@@ -118,10 +145,8 @@ export async function bulkUpsertPagesAndImages(options: {
           setTimeout(r, SCRAPER_BULK_UPSERT_BACKOFF_MS * attempts),
         );
     }
-    if (chunkResult && chunkResult.data) {
-      upsertedPagesAll.push(
-        ...(chunkResult.data as Array<{ id?: number; url?: string }>),
-      );
+    if (chunkResult && Array.isArray(chunkResult.data)) {
+      upsertedPagesAll.push(...chunkResult.data);
     } else if (chunkResult?.error) {
       console.error("Error bulk upserting pages chunk:", chunkResult.error);
     }
@@ -144,11 +169,15 @@ export async function bulkUpsertPagesAndImages(options: {
         storage_path: r.storage_path,
       };
     })
-    .filter(Boolean) as Array<{
-    page_id: number;
-    original_url: ImagesType["original_url"];
-    storage_path: ImagesType["storage_path"];
-  }>;
+    .filter(
+      (
+        v,
+      ): v is {
+        page_id: number;
+        original_url: ImagesType["original_url"];
+        storage_path: ImagesType["storage_path"];
+      } => Boolean(v),
+    );
 
   // Compute how many of the unique allowed images are already associated with the processed pages
   let imagesAlreadyAssociatedCount = 0;
@@ -163,14 +192,17 @@ export async function bulkUpsertPagesAndImages(options: {
             .select("original_url, page_id")
             .ilike("original_url", `${norm}%`);
           if (qerr || !qdata) continue;
-          if (
-            (qdata as Array<{ page_id?: number | null }>).some(
-              (r) =>
-                typeof r.page_id === "number" &&
-                pageIdSet.has(r.page_id as number),
-            )
-          ) {
-            imagesAlreadyAssociatedCount++;
+          if (Array.isArray(qdata)) {
+            if (
+              qdata.some(
+                (r) =>
+                  isRecord(r) &&
+                  typeof r.page_id === "number" &&
+                  pageIdSet.has(r.page_id),
+              )
+            ) {
+              imagesAlreadyAssociatedCount++;
+            }
           }
         } catch {
           // continue
@@ -222,14 +254,22 @@ export async function bulkUpsertPagesAndImages(options: {
         .select("original_url")
         .in("original_url", Array.from(uniqueAllowedImageUrls))
         .limit(SCRAPER_DB_QUERY_LIMIT);
-      const existingData = existingRes as unknown as {
-        data?: Array<{ original_url: string }>;
-        error?: unknown;
-      };
-      if (existingData.data && existingData.data.length > 0) {
-        dbExistingImageUrls = new Set(
-          existingData.data.map((r) => r.original_url),
-        );
+      const maybeExisting = existingRes;
+      if (isRecord(maybeExisting)) {
+        const maybeData = getProp(maybeExisting, "data");
+        if (Array.isArray(maybeData)) {
+          dbExistingImageUrls = new Set(
+            maybeData
+              .map((r) =>
+                isRecord(r) && typeof r.original_url === "string"
+                  ? r.original_url
+                  : "",
+              )
+              .filter(Boolean),
+          );
+        } else {
+          dbExistingImageUrls = new Set();
+        }
       } else {
         dbExistingImageUrls = new Set();
       }
@@ -282,21 +322,23 @@ export async function bulkUpsertPagesAndImages(options: {
           .in("original_url", intersection)
           .order("created_at", { ascending: false })
           .limit(SCRAPER_DB_INSPECT_LIMIT);
-        const dbData = dbRes as unknown as {
-          data?: Array<{
-            id?: number;
-            original_url?: string;
-            created_at?: string;
-          }>;
-          error?: unknown;
-        };
-        console.log(
-          `[debug] DB inspection for intersection (up to ${SCRAPER_DB_INSPECT_LIMIT} rows): ${JSON.stringify(
-            dbData.data?.slice(0, SCRAPER_DB_INSPECT_SAMPLE_SIZE) ?? [],
-            null,
-            2,
-          )}`,
-        );
+        const maybeDbData = dbRes;
+        if (isRecord(maybeDbData)) {
+          const maybeData = getProp(maybeDbData, "data");
+          console.log(
+            `[debug] DB inspection for intersection (up to ${SCRAPER_DB_INSPECT_LIMIT} rows): ${JSON.stringify(
+              Array.isArray(maybeData)
+                ? maybeData.slice(0, SCRAPER_DB_INSPECT_SAMPLE_SIZE)
+                : [],
+              null,
+              2,
+            )}`,
+          );
+        } else {
+          console.log(
+            `[debug] DB inspection for intersection (up to ${SCRAPER_DB_INSPECT_LIMIT} rows): []`,
+          );
+        }
       } catch (err) {
         console.log(`[debug] DB inspection error: ${String(err)}`);
       }
@@ -328,30 +370,33 @@ export async function bulkUpsertPagesAndImages(options: {
             .from("images")
             .insert(chunk)
             .select("id, original_url");
-          const insertRes = res as unknown as {
-            data?: unknown[];
-            error?: unknown;
-          };
-          if (insertRes.error) throw insertRes.error;
-          if (Array.isArray(insertRes.data)) {
-            // Collect original_url values returned by the insert so we can
-            // exclude newly-inserted originals from the "skipped before" count.
-            for (const row of insertRes.data as Array<unknown>) {
-              if (!isRecord(row)) continue;
-              const orig = row["original_url"];
-              if (typeof orig === "string") insertedOriginalUrls.add(orig);
+          const maybeInsert = res;
+          if (isRecord(maybeInsert)) {
+            const insertError = getProp(maybeInsert, "error");
+            if (insertError) throw insertError;
+            const maybeData = getProp(maybeInsert, "data");
+            if (Array.isArray(maybeData)) {
+              for (const row of maybeData) {
+                if (!isRecord(row)) continue;
+                const orig = getProp(row, "original_url");
+                if (typeof orig === "string") insertedOriginalUrls.add(orig);
+              }
+              insertedCountTotal += maybeData.length;
             }
-            insertedCountTotal += insertRes.data.length;
             if (debug) {
+              const insertedChunkCount = Array.isArray(maybeData)
+                ? maybeData.length
+                : 0;
               console.log(
-                `[debug] inserted chunk: count=${insertRes.data.length} totalInserted=${insertedCountTotal}`,
+                `[debug] inserted chunk: count=${insertedChunkCount} totalInserted=${insertedCountTotal}`,
               );
               try {
-                const maybeFirst = insertRes.data[0];
+                const maybeFirst = Array.isArray(maybeData)
+                  ? maybeData[0]
+                  : undefined;
                 if (isRecord(maybeFirst)) {
-                  console.log(
-                    `[debug] sample inserted id=${String(maybeFirst.id)}`,
-                  );
+                  console.log(`
+                    [debug] sample inserted id=${String(getProp(maybeFirst, "id"))}`);
                 }
               } catch {}
             }
@@ -409,7 +454,7 @@ export async function bulkUpsertPagesAndImages(options: {
     imagesFailed: imagesStats.failed,
     imagesDbInsertedCount,
     imagesAlreadyAssociatedCount,
-  } as const;
+  };
 
   const out = formatSummaryBox({ p: params });
   return { lines: out };

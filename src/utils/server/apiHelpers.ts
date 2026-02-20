@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { NextRequest } from "next/server";
+import { isRecord } from "../common/typeGuards";
 
 type Bucket = { tokens: number; lastRefill: number };
 
@@ -58,7 +59,7 @@ export async function auditRequest({
   req: NextRequest;
   route: string;
   details?: Record<string, unknown>;
-  bodyProvided?: unknown;
+  bodyProvided?: string | Record<string, unknown>;
 }) {
   try {
     ensureLogDir();
@@ -68,8 +69,8 @@ export async function auditRequest({
     const ip =
       req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "";
     // use provided body if present (so callers can avoid double-read)
-    let body: unknown = bodyProvided;
-    if (body === undefined) {
+    let body: string | Record<string, unknown> | undefined;
+    if (bodyProvided === undefined) {
       try {
         const txt = await req.text();
         if (txt) {
@@ -82,6 +83,12 @@ export async function auditRequest({
       } catch {
         body = undefined;
       }
+    } else if (typeof bodyProvided === "string") {
+      body = bodyProvided;
+    } else if (isRecord(bodyProvided)) {
+      body = bodyProvided;
+    } else {
+      body = undefined;
     }
 
     const entry = {

@@ -54,7 +54,7 @@ export const tasksGetTool: ToolDefinition<typeof tasksGetInput> = {
         },
       };
       return createSuccessResponse({ data: res });
-    } catch (e: unknown) {
+    } catch (e) {
       return createErrorResponse({
         message: String(e instanceof Error ? e.message : e),
       });

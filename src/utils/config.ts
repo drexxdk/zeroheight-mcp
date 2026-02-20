@@ -54,14 +54,14 @@ export const IMAGE_BUCKET =
   "images";
 
 export const EXCLUDE_IMAGE_FORMATS = (
-  (process.env.IMAGE_EXCLUDE_FORMATS as string | undefined) || "svg,gif"
+  process.env.IMAGE_EXCLUDE_FORMATS || "svg,gif"
 )
   .split(",")
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
 export const ALLOWED_MIME_TYPES = (
-  (process.env.SUPABASE_ALLOWED_MIME_TYPES as string | undefined) ||
+  process.env.SUPABASE_ALLOWED_MIME_TYPES ||
   "image/png,image/jpeg,image/jpg,image/webp"
 )
   .split(",")
@@ -96,8 +96,19 @@ export type NavWaitUntil =
   | "domcontentloaded"
   | "networkidle0"
   | "networkidle2";
-export const SCRAPER_NAV_WAITUNTIL: NavWaitUntil =
-  (process.env.SCRAPER_NAV_WAITUNTIL as NavWaitUntil) || "networkidle2";
+function isNavWaitUntil(v: unknown): v is NavWaitUntil {
+  return (
+    v === "load" ||
+    v === "domcontentloaded" ||
+    v === "networkidle0" ||
+    v === "networkidle2"
+  );
+}
+export const SCRAPER_NAV_WAITUNTIL: NavWaitUntil = isNavWaitUntil(
+  process.env.SCRAPER_NAV_WAITUNTIL,
+)
+  ? (process.env.SCRAPER_NAV_WAITUNTIL as NavWaitUntil)
+  : "networkidle2";
 export const SCRAPER_NAV_TIMEOUT_MS = Number(
   process.env.SCRAPER_NAV_TIMEOUT_MS || 30000,
 );

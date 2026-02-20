@@ -148,7 +148,7 @@ async function main() {
         taskId: jobId,
         requestedTtlMs: requestedTtl,
       });
-      const directAny = direct as unknown;
+      const directAny: unknown = direct;
       const directRec = isRecord(directAny) ? directAny : undefined;
       if (directRec && isRecord(directRec.error))
         throw new Error(JSON.stringify(directRec.error));

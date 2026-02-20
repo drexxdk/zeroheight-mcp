@@ -10,3 +10,21 @@ export function hasStringProp(
   const val = obj[prop];
   return typeof val === "string";
 }
+
+import type { Json } from "../../database.schema";
+
+export function isJson(x: unknown): x is Json {
+  try {
+    // JSON.stringify will throw on circular structures; if it succeeds,
+    // the value is JSON-serializable which is sufficient for DB `Json`.
+    JSON.stringify(x);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getProp(obj: unknown, key: string): unknown | undefined {
+  if (!isRecord(obj)) return undefined;
+  return obj[key];
+}
