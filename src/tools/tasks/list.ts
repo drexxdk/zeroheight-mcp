@@ -1,10 +1,8 @@
 import { getSupabaseAdminClient } from "@/utils/common";
 import { z } from "zod";
-import {
-  createErrorResponse,
-  createSuccessResponse,
-} from "@/utils/toolResponses";
+import { createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
+import type { TasksListResult } from "./types";
 
 const tasksListInput = z
   .object({
@@ -13,10 +11,18 @@ const tasksListInput = z
   })
   .optional();
 
-export const tasksListTool: ToolDefinition<typeof tasksListInput> = {
+export const tasksListTool: ToolDefinition<
+  typeof tasksListInput,
+  TasksListResult | { error: string } | ReturnType<typeof createErrorResponse>
+> = {
   title: "TASKS_list",
   description: "List tasks (simple pagination: limit, offset).",
   inputSchema: tasksListInput,
+  outputSchema: z.object({
+    items: z.array(z.record(z.string(), z.unknown())),
+    limit: z.number().int(),
+    offset: z.number().int(),
+  }),
   handler: async (args?: z.infer<typeof tasksListInput>) => {
     const { limit, offset } = args ?? {};
     try {
@@ -30,11 +36,8 @@ export const tasksListTool: ToolDefinition<typeof tasksListInput> = {
         .select("id, name, status, created_at, started_at, finished_at")
         .order("created_at", { ascending: false })
         .range(o, o + l - 1);
-      if (error)
-        return createErrorResponse({ message: error.message || String(error) });
-      return createSuccessResponse({
-        data: { items: data ?? [], limit: l, offset: o },
-      });
+      if (error) return { error: error.message || String(error) };
+      return { items: data ?? [], limit: l, offset: o };
     } catch (e) {
       return createErrorResponse({
         message: String(e instanceof Error ? e.message : e),

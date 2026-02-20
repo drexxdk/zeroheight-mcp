@@ -31,6 +31,29 @@ export type ProcessPageParams = {
   // helpers for marking attempts and invariant checks
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
 };
+export type ProcessPageResult = {
+  usedLink: string;
+  pageUpsert: {
+    url: string;
+    title: string;
+    content: string;
+  };
+  processedPageEntry: {
+    url: string;
+    title: string;
+    content: string;
+    images: Array<{ src: string; alt: string }>;
+  };
+  pageLinks: string[];
+  normalizedImages: Array<{ src: string; alt: string }>;
+  supportedImages: Array<{ src: string; alt: string; originalSrc?: string }>;
+  imgStats: {
+    processed: number;
+    uploaded: number;
+    skipped: number;
+    failed: number;
+  };
+};
 
 export async function processPageAndImages(
   params: ProcessPageParams & {
@@ -48,7 +71,7 @@ export async function processPageAndImages(
         }
       | undefined;
   },
-) {
+): Promise<ProcessPageResult> {
   const {
     page,
     link,

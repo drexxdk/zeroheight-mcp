@@ -17,7 +17,10 @@ import {
   tasksTailTool,
 } from "@/tools/tasks";
 import type { ToolResponse } from "@/utils/toolResponses";
-import { normalizeToToolResponse } from "@/utils/toolResponses";
+import {
+  normalizeToToolResponse,
+  createErrorResponse,
+} from "@/utils/toolResponses";
 import { isRecord } from "../../../utils/common/typeGuards";
 
 const handler = createMcpHandler(
@@ -29,9 +32,34 @@ const handler = createMcpHandler(
     // Wrap a tool handler and coerce its result into a `ToolResponse` so the
     // MCP server receives a consistent shape regardless of the handler's raw
     // return value.
-    const wrapTool = <T>(tool: { handler: (a: T) => Promise<unknown> }) => {
+    const wrapTool = <T>(tool: {
+      handler: (a: T) => Promise<unknown>;
+      outputSchema?: import("zod").ZodTypeAny;
+    }) => {
       return async (args: unknown): Promise<ToolResponse> => {
         const res = await tool.handler(args as T);
+        // If the tool provided an outputSchema, validate the result before
+        // normalization. If validation fails, return an error ToolResponse.
+        try {
+          if (tool.outputSchema) {
+            const parsed = tool.outputSchema.safeParse(res);
+            if (!parsed.success) {
+              console.error(
+                "Tool output validation failed:",
+                parsed.error.format(),
+              );
+              return createErrorResponse({
+                message: "Tool output failed validation",
+              });
+            }
+          }
+        } catch (e) {
+          console.error("Error validating tool output:", e);
+          return createErrorResponse({
+            message: "Tool output validation error",
+          });
+        }
+
         return normalizeToToolResponse(res);
       };
     };
@@ -108,7 +136,7 @@ const handler = createMcpHandler(
         description: getDatabaseSchemaTool.description,
         inputSchema: getDatabaseSchemaTool.inputSchema,
       },
-      getDatabaseSchemaTool.handler,
+      wrapTool(getDatabaseSchemaTool),
     );
 
     // (Removed) get-project-url and get-publishable-api-keys tools — not needed
@@ -121,7 +149,7 @@ const handler = createMcpHandler(
         description: getDatabaseTypesTool.description,
         inputSchema: getDatabaseTypesTool.inputSchema,
       },
-      getDatabaseTypesTool.handler,
+      wrapTool(getDatabaseTypesTool),
     );
     // Scraper-related tools
     server.registerTool(
@@ -131,7 +159,7 @@ const handler = createMcpHandler(
         description: clearDatabaseTool.description,
         inputSchema: clearDatabaseTool.inputSchema,
       },
-      clearDatabaseTool.handler,
+      wrapTool(clearDatabaseTool),
     );
 
     server.registerTool(
@@ -141,7 +169,7 @@ const handler = createMcpHandler(
         description: scrapeTool.description,
         inputSchema: scrapeTool.inputSchema,
       },
-      scrapeTool.handler,
+      wrapTool(scrapeTool),
     );
 
     server.registerTool(
@@ -151,7 +179,7 @@ const handler = createMcpHandler(
         description: queryDatatabaseTool.description,
         inputSchema: queryDatatabaseTool.inputSchema,
       },
-      queryDatatabaseTool.handler,
+      wrapTool(queryDatatabaseTool),
     );
   },
   {},
@@ -236,29 +264,17 @@ async function authenticatedHandler(request: NextRequest) {
 
     if (toolName && taskTools.has(toolName)) {
       try {
-        const wrapHandler = <T, R>(h: (a: T) => Promise<R>) => {
-          return async (a?: unknown) => h(a as T) as Promise<unknown>;
+        const wrapHandler = <T>(h: (a: T) => Promise<unknown>) => {
+          return async (a?: unknown): Promise<unknown> => h(a as T);
         };
 
         const toolMap: Record<string, (a?: unknown) => Promise<unknown>> = {
-          [tasksGetTool.title]: wrapHandler(
-            tasksGetTool.handler as (a: unknown) => Promise<unknown>,
-          ),
-          [tasksResultTool.title]: wrapHandler(
-            tasksResultTool.handler as (a: unknown) => Promise<unknown>,
-          ),
-          [tasksListTool.title]: wrapHandler(
-            tasksListTool.handler as (a: unknown) => Promise<unknown>,
-          ),
-          [tasksCancelTool.title]: wrapHandler(
-            tasksCancelTool.handler as (a: unknown) => Promise<unknown>,
-          ),
-          [testTaskTool.title]: wrapHandler(
-            testTaskTool.handler as (a: unknown) => Promise<unknown>,
-          ),
-          [tasksTailTool.title]: wrapHandler(
-            tasksTailTool.handler as (a: unknown) => Promise<unknown>,
-          ),
+          [tasksGetTool.title]: wrapHandler(tasksGetTool.handler),
+          [tasksResultTool.title]: wrapHandler(tasksResultTool.handler),
+          [tasksListTool.title]: wrapHandler(tasksListTool.handler),
+          [tasksCancelTool.title]: wrapHandler(tasksCancelTool.handler),
+          [testTaskTool.title]: wrapHandler(testTaskTool.handler),
+          [tasksTailTool.title]: wrapHandler(tasksTailTool.handler),
         };
 
         const handlerFn = toolMap[toolName];

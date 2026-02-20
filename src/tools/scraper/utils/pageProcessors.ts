@@ -18,6 +18,13 @@ export type LogProgressFn = (icon: string, message: string) => void;
 // Module-level set to prevent duplicate uploads across concurrent page workers.
 const GLOBAL_IN_PROGRESS = new Set<string>();
 
+export type ProcessImagesResult = {
+  processed: number;
+  uploaded: number;
+  skipped: number;
+  failed: number;
+};
+
 export async function processImagesForPage(options: {
   supportedImages: Array<{ src: string; alt: string; originalSrc?: string }>;
   link: string;
@@ -35,12 +42,7 @@ export async function processImagesForPage(options: {
   // Optional cooperative cancellation callback. If it returns true, processing
   // should stop promptly by throwing an error.
   shouldCancel?: () => boolean;
-}): Promise<{
-  processed: number;
-  uploaded: number;
-  skipped: number;
-  failed: number;
-}> {
+}): Promise<ProcessImagesResult> {
   const {
     supportedImages,
     link,

@@ -15,6 +15,14 @@ export type ExtractedImage = {
   index?: number;
 };
 
+export type ExtractPageDataResult = {
+  title: string;
+  content: string;
+  normalizedImages: ExtractedImage[];
+  supportedImages: ExtractedImage[];
+  pageLinks: string[];
+};
+
 export async function extractPageData({
   page,
   pageUrl,
@@ -23,7 +31,7 @@ export async function extractPageData({
   page: Page;
   pageUrl: string;
   allowedHostname: string;
-}) {
+}): Promise<ExtractPageDataResult> {
   const title: string = await page.title();
 
   const content: string = await page

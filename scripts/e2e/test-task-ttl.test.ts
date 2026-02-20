@@ -4,6 +4,7 @@ import { config } from "dotenv";
 // Ensure dotenv runs before importing any app modules that read env at module-evaluation time.
 config({ path: ".env.local" });
 import { isRecord } from "../../src/utils/common/typeGuards";
+import type { ZodTypeAny } from "zod";
 
 async function main() {
   const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
@@ -148,8 +149,26 @@ async function main() {
         taskId: jobId,
         requestedTtlMs: requestedTtl,
       });
-      const directAny: unknown = direct;
-      const directRec = isRecord(directAny) ? directAny : undefined;
+
+      // If the tool exposes an outputSchema, validate the direct handler
+      // response against it so tests exercise the same runtime checks.
+      const outputSchema = (
+        tasksGetTool as unknown as { outputSchema?: ZodTypeAny }
+      ).outputSchema as ZodTypeAny | undefined;
+      let directRec: Record<string, unknown> | undefined;
+      if (outputSchema) {
+        const parsed = outputSchema.safeParse(direct);
+        if (!parsed.success) {
+          throw new Error(
+            `Direct tool output failed validation: ${JSON.stringify(parsed.error.format())}`,
+          );
+        }
+        directRec = isRecord(parsed.data) ? parsed.data : undefined;
+      } else {
+        const directAny: unknown = direct;
+        directRec = isRecord(directAny) ? directAny : undefined;
+      }
+
       if (directRec && isRecord(directRec.error))
         throw new Error(JSON.stringify(directRec.error));
       const taskNode =

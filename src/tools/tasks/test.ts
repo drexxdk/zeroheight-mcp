@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  createErrorResponse,
-  createSuccessResponse,
-} from "@/utils/toolResponses";
+import { createErrorResponse } from "@/utils/toolResponses";
 import {
   createTestJobInDb,
   appendJobLog,
@@ -12,6 +9,7 @@ import {
 } from "./utils/jobStore";
 import { mapStatusToSep, SERVER_SUGGESTED_TTL_MS } from "./utils";
 import type { ToolDefinition } from "@/tools/toolTypes";
+import type { TasksGetResult } from "./types";
 
 const testTaskInputSchema = z.object({
   durationMinutes: z
@@ -22,11 +20,25 @@ const testTaskInputSchema = z.object({
     .describe("Duration in minutes; defaults to 10"),
 });
 
-export const testTaskTool: ToolDefinition<typeof testTaskInputSchema> = {
+export const testTaskTool: ToolDefinition<
+  typeof testTaskInputSchema,
+  TasksGetResult | ReturnType<typeof createErrorResponse>
+> = {
   title: "TASKS_test",
   description:
     "Start a safe test task that ticks once per second for a duration (minutes).",
   inputSchema: testTaskInputSchema,
+  outputSchema: z.object({
+    task: z.object({
+      taskId: z.string(),
+      status: z.string(),
+      statusMessage: z.string().nullable().optional(),
+      createdAt: z.string().nullable().optional(),
+      lastUpdatedAt: z.string().nullable().optional(),
+      ttl: z.number().optional(),
+      pollInterval: z.number().optional(),
+    }),
+  }),
   handler: async ({
     durationMinutes,
   }: z.infer<typeof testTaskInputSchema> = {}) => {
@@ -102,7 +114,7 @@ export const testTaskTool: ToolDefinition<typeof testTaskInputSchema> = {
           pollInterval: 5000,
         },
       };
-      return createSuccessResponse({ data: taskResponse });
+      return taskResponse;
     } catch (e) {
       return createErrorResponse({
         message: `Test task failed: ${e instanceof Error ? e.message : String(e)}`,

@@ -11,6 +11,8 @@ import { isRecord, getProp } from "@/utils/common/typeGuards";
 
 export type LogProgressFn = (icon: string, message: string) => void;
 
+export type UploadBufferResult = { path?: string; error?: unknown };
+
 export async function uploadBufferToStorage({
   storage,
   filename,
@@ -19,7 +21,7 @@ export async function uploadBufferToStorage({
   storage: StorageHelper;
   filename: string;
   fileBuffer: Buffer;
-}): Promise<{ path?: string; error?: unknown }> {
+}): Promise<UploadBufferResult> {
   await ensureBucket({ storage, bucket: IMAGE_BUCKET });
 
   const res = await retryWithBackoff(

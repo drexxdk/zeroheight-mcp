@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  createErrorResponse,
-  createSuccessResponse,
-} from "@/utils/toolResponses";
+import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
 import {
   IMAGE_BUCKET,
@@ -11,6 +8,7 @@ import {
 } from "@/utils/config";
 import { PageData } from "@/tools/scraper/utils/shared";
 import type { ToolDefinition } from "@/tools/toolTypes";
+import type { QueryDataResult } from "./types";
 
 const queryDataInput = z.object({
   search: z
@@ -40,11 +38,24 @@ const getSupabaseProjectUrl = () => {
   return supabaseUrl;
 };
 
-export const queryDataTool: ToolDefinition<typeof queryDataInput> = {
+export const queryDataTool: ToolDefinition<
+  typeof queryDataInput,
+  QueryDataResult | ReturnType<typeof createErrorResponse>
+> = {
   title: "DATABASE_query-data",
   description:
     "Query the cached Zeroheight data from the database. Supports searching by title, content, or URL, and can include image data with full Supabase storage URLs.",
   inputSchema: queryDataInput,
+  outputSchema: z.object({
+    pages: z.array(
+      z.object({
+        url: z.string().nullable(),
+        title: z.string().nullable(),
+        content: z.string().nullable(),
+        images: z.record(z.string(), z.string()),
+      }),
+    ),
+  }),
   handler: async ({
     search,
     url,
@@ -155,6 +166,8 @@ export const queryDataTool: ToolDefinition<typeof queryDataInput> = {
       };
     });
 
-    return createSuccessResponse({ data: result });
+    // Return a domain-shaped result so callers can rely on typed output.
+    const out: QueryDataResult = { pages: result };
+    return out;
   },
 };

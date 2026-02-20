@@ -2,6 +2,9 @@
 
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
+import type { ToolResponse } from "@/utils/toolResponses";
+import { normalizeToToolResponse } from "@/utils/toolResponses";
+import type { ZodTypeAny } from "zod";
 
 async function main() {
   const ids = process.argv.slice(2);
@@ -21,11 +24,27 @@ async function main() {
       jobId,
       `timeoutMs=${timeoutMs}`,
     );
-    const res = await tasksResultTool.handler({
+    const raw = await tasksResultTool.handler({
       taskId: jobId,
       timeoutMs,
     });
-    console.log(JSON.stringify(res, null, 2));
+    const outputSchema = tasksResultTool.outputSchema as ZodTypeAny | undefined;
+    if (outputSchema) {
+      const parsed = outputSchema.safeParse(raw);
+      if (!parsed.success) {
+        console.error(
+          "Validation failed for tasksResultTool:",
+          parsed.error.format(),
+        );
+        const res = normalizeToToolResponse(raw);
+        console.log(JSON.stringify(res, null, 2));
+      } else {
+        console.log(JSON.stringify(parsed.data, null, 2));
+      }
+    } else {
+      const res: ToolResponse = normalizeToToolResponse(raw);
+      console.log(JSON.stringify(res, null, 2));
+    }
   }
 }
 

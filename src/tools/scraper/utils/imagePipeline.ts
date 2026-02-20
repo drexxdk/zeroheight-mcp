@@ -26,6 +26,12 @@ export async function downloadImageToBuffer({
   return Buffer.from(base64, "base64");
 }
 
+export type ProcessAndUploadResult = {
+  uploaded: boolean;
+  path?: string;
+  error?: string;
+};
+
 export async function processAndUploadImage(options: {
   storage: StorageHelper;
   downloadUrl: string;
@@ -40,7 +46,7 @@ export async function processAndUploadImage(options: {
   // Optional cooperative cancellation callback
   shouldCancel?: () => boolean;
   filename?: string;
-}): Promise<{ uploaded: boolean; path?: string; error?: string }> {
+}): Promise<ProcessAndUploadResult> {
   const {
     storage,
     downloadUrl,

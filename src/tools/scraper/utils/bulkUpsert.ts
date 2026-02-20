@@ -24,6 +24,8 @@ type UpsertPagesRes = {
 };
 // InsertRes type not needed
 
+export type BulkUpsertResult = { lines: string[] };
+
 export async function bulkUpsertPagesAndImages(options: {
   db: DbClient;
   pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
@@ -45,7 +47,7 @@ export async function bulkUpsertPagesAndImages(options: {
   pagesFailed: number;
   providedCount: number;
   dryRun?: boolean;
-}): Promise<{ lines: string[] }> {
+}): Promise<BulkUpsertResult> {
   const {
     db,
     pagesToUpsert,

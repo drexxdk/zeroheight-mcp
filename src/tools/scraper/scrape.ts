@@ -1,10 +1,7 @@
 import { z } from "zod";
 import type { Page } from "puppeteer";
 import { launchBrowser, attachDefaultInterception } from "./utils/puppeteer";
-import {
-  createSuccessResponse,
-  createErrorResponse,
-} from "@/utils/toolResponses";
+import { createErrorResponse } from "@/utils/toolResponses";
 import { JobCancelled } from "@/utils/common/errors";
 import {
   getClient,
@@ -45,6 +42,12 @@ import {
 } from "../tasks/utils/jobStore";
 import { mapStatusToSep, SERVER_SUGGESTED_TTL_MS } from "../tasks/utils";
 import { tryLogin } from "@/utils/common/scraperHelpers";
+import type { TasksGetResult } from "../tasks/types";
+
+export type ScrapeResult = {
+  debug?: { seedUrl: string };
+  progress: OverallProgress;
+};
 
 // Primary scraper (previously V2) - coordinator-based queue, deterministic totals, parallel workers
 export async function scrape({
@@ -632,12 +635,11 @@ export async function scrape({
 
     await browser.close();
 
-    return createSuccessResponse({
-      data: { debug: { seedUrl: rootUrl }, progress },
-    });
+    const result: ScrapeResult = { debug: { seedUrl: rootUrl }, progress };
+    return result;
   } catch (err) {
     if (err instanceof JobCancelled)
-      return createSuccessResponse({ data: { message: "Job cancelled" } });
+      return { message: "Job cancelled" } as unknown;
     return createErrorResponse({
       message: String(err instanceof Error ? err.message : err),
     });
@@ -645,6 +647,7 @@ export async function scrape({
 }
 
 import type { ToolDefinition } from "@/tools/toolTypes";
+import type { ToolResponse } from "@/utils/toolResponses";
 import { isRecord, getProp } from "../../utils/common/typeGuards";
 
 const scrapeInput = z.object({
@@ -652,11 +655,25 @@ const scrapeInput = z.object({
   password: z.string().optional(),
 });
 
-export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
+export const scrapeTool: ToolDefinition<
+  typeof scrapeInput,
+  ToolResponse | ScrapeResult | TasksGetResult | { message: string }
+> = {
   title: "SCRAPER_scrape",
   description:
     "Start an asynchronous scraping job for the configured Zeroheight project. Seeds from the project root or provided page URLs; extracts pages and records page content and remote image URLs to the database as a background job.",
   inputSchema: scrapeInput,
+  outputSchema: z.object({
+    task: z.object({
+      taskId: z.string(),
+      status: z.string(),
+      statusMessage: z.string().nullable().optional(),
+      createdAt: z.string().nullable().optional(),
+      lastUpdatedAt: z.string().nullable().optional(),
+      ttl: z.number().optional(),
+      pollInterval: z.number().optional(),
+    }),
+  }),
   handler: async ({ pageUrls, password }: z.infer<typeof scrapeInput>) => {
     const projectUrl = ZEROHEIGHT_PROJECT_URL;
     if (!projectUrl)
@@ -749,6 +766,10 @@ export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
         pollInterval: 5000,
       },
     };
-    return createSuccessResponse({ data: taskResponse });
+    // Return the structured `task` object directly; MCP registration will
+    // normalize this domain-shaped result into a `ToolResponse` for JSON-RPC
+    // consumers.
+    const out: TasksGetResult = taskResponse;
+    return out;
   },
 };

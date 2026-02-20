@@ -30,7 +30,12 @@ async function main() {
 
   const text = await res.text();
   console.log("STATUS", res.status);
-  console.log(text);
+  try {
+    const parsed = JSON.parse(text);
+    console.log(JSON.stringify(parsed, null, 2));
+  } catch {
+    console.log(text);
+  }
 }
 
 main().catch((err) => {

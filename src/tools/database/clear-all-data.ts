@@ -1,13 +1,24 @@
-import {
-  createErrorResponse,
-  createSuccessResponse,
-} from "@/utils/toolResponses";
+import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
 import { getSupabaseAdminClient } from "@/utils/common";
 import { performBucketClear } from "@/utils/image-utils";
 import { ZEROHEIGHT_MCP_ACCESS_TOKEN } from "@/utils/config";
+import { z } from "zod";
+import type { ToolDefinition } from "@/tools/toolTypes";
 
-async function clearDatabase() {
+export type ClearAllDataResult = {
+  message: string;
+  bucket?: string | null;
+  foundCount?: number;
+  foundFiles?: string[];
+  availableBuckets?: string[];
+  deletedCount?: number;
+  deleteErrors?: Array<{ file: string; error: string }>;
+};
+
+async function clearDatabase(): Promise<
+  ClearAllDataResult | ReturnType<typeof createErrorResponse>
+> {
   try {
     console.log("Clearing existing Zeroheight data...");
 
@@ -16,7 +27,7 @@ async function clearDatabase() {
 
     console.log("Supabase client available:", !!supabase);
     console.log("Supabase admin client available:", !!adminClient);
-    console.log("Admin-capable storage available:", !!storage.listBuckets);
+    console.log("Admin-capable storage available:", !!storage?.listBuckets);
 
     if (!adminClient) {
       const errMsg =
@@ -30,13 +41,13 @@ async function clearDatabase() {
       const pagesTable = "pages";
       const getRowCount = (d: unknown): number =>
         Array.isArray(d) ? d.length : 0;
+
       // Clear images table
       console.log("Clearing images table...");
-      // Use admin client to bypass RLS for destructive operations
       const { data: imagesData, error: imagesError } = await adminClient
         .from(imagesTable)
         .delete()
-        .neq("id", 0); // Delete all rows
+        .neq("id", 0);
 
       if (imagesError) {
         console.error("Error clearing images table:", imagesError);
@@ -52,7 +63,7 @@ async function clearDatabase() {
       const { data: pagesData, error: pagesError } = await adminClient
         .from(pagesTable)
         .delete()
-        .neq("id", 0); // Delete all rows
+        .neq("id", 0);
 
       if (pagesError) {
         console.error("Error clearing pages table:", pagesError);
@@ -63,7 +74,7 @@ async function clearDatabase() {
         console.log(`Pages table cleared (${getRowCount(pagesData)} rows)`);
       }
 
-      // Clear finished/terminal tasks rows (completed, failed, cancelled)
+      // Clear finished/terminal tasks rows
       console.log(
         "Clearing terminal tasks rows (completed, failed, cancelled)...",
       );
@@ -83,29 +94,30 @@ async function clearDatabase() {
         console.error("Unexpected error while clearing tasks:", err);
       }
 
-      // Clear storage bucket (use configured bucket name if provided)
-
       const bucketResult = await performBucketClear({
         clientInstance: adminClient,
       });
 
       console.log("All Zeroheight data cleared successfully");
-      return createSuccessResponse({
-        data: {
-          message: "Zeroheight data cleared successfully",
-          bucket: bucketResult.bucket,
-          foundCount: bucketResult.foundCount,
-          foundFiles: bucketResult.foundFiles,
-          availableBuckets: bucketResult.availableBuckets,
-          deletedCount: bucketResult.deletedCount,
-          deleteErrors: bucketResult.deleteErrors,
-        },
-      });
-    } else {
-      const errorMsg = "Supabase clients not available, cannot clear data";
-      console.log(errorMsg);
-      return createErrorResponse({ message: errorMsg });
+      return {
+        message: "Zeroheight data cleared successfully",
+        bucket: bucketResult.bucket,
+        foundCount: bucketResult.foundCount,
+        foundFiles: bucketResult.foundFiles,
+        availableBuckets: bucketResult.availableBuckets,
+        deletedCount: bucketResult.deletedCount,
+        deleteErrors: Array.isArray(bucketResult.deleteErrors)
+          ? (bucketResult.deleteErrors as Array<{
+              file: string;
+              error: string;
+            }>)
+          : undefined,
+      };
     }
+
+    const errorMsg = "Supabase clients not available, cannot clear data";
+    console.log(errorMsg);
+    return createErrorResponse({ message: errorMsg });
   } catch (error) {
     console.error("Error clearing Zeroheight data:", error);
     return createErrorResponse({
@@ -113,9 +125,6 @@ async function clearDatabase() {
     });
   }
 }
-
-import { z } from "zod";
-import type { ToolDefinition } from "@/tools/toolTypes";
 
 const clearAllDataInput = z.object({
   apiKey: z
@@ -125,11 +134,25 @@ const clearAllDataInput = z.object({
     ),
 });
 
-export const clearAllDataTool: ToolDefinition<typeof clearAllDataInput> = {
+export const clearAllDataTool: ToolDefinition<
+  typeof clearAllDataInput,
+  ClearAllDataResult | ReturnType<typeof createErrorResponse>
+> = {
   title: "DATABASE_clear-all-data",
   description:
     "Clear all Zeroheight data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
   inputSchema: clearAllDataInput,
+  outputSchema: z.object({
+    message: z.string(),
+    bucket: z.string().nullable().optional(),
+    foundCount: z.number().optional(),
+    foundFiles: z.array(z.string()).optional(),
+    availableBuckets: z.array(z.string()).optional(),
+    deletedCount: z.number().optional(),
+    deleteErrors: z
+      .array(z.object({ file: z.string(), error: z.string() }))
+      .optional(),
+  }),
   handler: async ({ apiKey }: z.infer<typeof clearAllDataInput>) => {
     const expectedApiKey = ZEROHEIGHT_MCP_ACCESS_TOKEN;
     if (!expectedApiKey) {

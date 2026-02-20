@@ -32,6 +32,8 @@ const eslintConfig = defineConfig([
           allowEmptyCatch: false,
         },
       ],
+      // Forbid use of `any` to improve type safety
+      "@typescript-eslint/no-explicit-any": "error",
     },
   },
   {
@@ -50,6 +52,16 @@ const eslintConfig = defineConfig([
           selector: "TSAsExpression[typeAnnotation.typeName.name='Record']",
           message:
             "Avoid casting to Record<string, unknown> (e.g. `as Record<string, unknown>`). Use runtime guards or explicit types instead.",
+        },
+        {
+          selector: "TSAsExpression[typeAnnotation.typeName.name='any']",
+          message:
+            "Avoid casting to `any`; use concrete types or runtime checks.",
+        },
+        {
+          selector: "TSAsExpression[typeAnnotation.typeName.name='unknown']",
+          message:
+            "Avoid casting to `unknown` directly; prefer proper narrowing or runtime guards.",
         },
       ],
     },

@@ -20,7 +20,7 @@ export function addPendingImageRecord({
   downloadUrl: string;
   storagePath: string;
   allExistingImageUrls: Set<string>;
-}) {
+}): void {
   const normalized = normalizeImageUrl({ src: downloadUrl });
   pendingImageRecords.push({
     pageUrl,

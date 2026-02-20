@@ -2,11 +2,9 @@ import { getSupabaseAdminClient } from "@/utils/common";
 import { getJobFromDb } from "./utils/jobStore";
 import { TERMINAL, SERVER_SUGGESTED_TTL_MS, SERVER_MAX_TTL_MS } from "./utils";
 import { z } from "zod";
-import {
-  createErrorResponse,
-  createSuccessResponse,
-} from "@/utils/toolResponses";
+import { createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
+import type { TasksResultResponse } from "./types";
 import { isRecord } from "../../utils/common/typeGuards";
 
 const tasksResultInput = z.object({
@@ -15,11 +13,31 @@ const tasksResultInput = z.object({
   requestedTtlMs: z.number().int().nonnegative().optional(),
 });
 
-export const tasksResultTool: ToolDefinition<typeof tasksResultInput> = {
+export const tasksResultTool: ToolDefinition<
+  typeof tasksResultInput,
+  TasksResultResponse | ReturnType<typeof createErrorResponse>
+> = {
   title: "TASKS_result",
   description:
     "Retrieve task result (blocks until terminal) — returns task metadata and logs.",
   inputSchema: tasksResultInput,
+  outputSchema: z.union([
+    z.object({
+      taskId: z.string(),
+      status: z.string(),
+      result: z.unknown(),
+      ttl: z.number().optional(),
+    }),
+    z.object({
+      taskId: z.string(),
+      status: z.string(),
+      logs: z.string().nullable(),
+      started_at: z.string().nullable().optional(),
+      finished_at: z.string().nullable().optional(),
+      error: z.string().nullable().optional(),
+      ttl: z.number().optional(),
+    }),
+  ]),
   handler: async ({
     taskId,
     timeoutMs,
@@ -49,30 +67,26 @@ export const tasksResultTool: ToolDefinition<typeof tasksResultInput> = {
               typeof requestedTtlMs === "number"
                 ? Math.min(requestedTtlMs, SERVER_MAX_TTL_MS)
                 : SERVER_SUGGESTED_TTL_MS;
-            return createSuccessResponse({
-              data: {
-                taskId: j.id,
-                status: j.status,
-                result: j.result,
-                ttl,
-              },
-            });
+            return {
+              taskId: j.id,
+              status: j.status,
+              result: j.result,
+              ttl,
+            };
           }
           const ttl =
             typeof requestedTtlMs === "number"
               ? Math.min(requestedTtlMs, SERVER_MAX_TTL_MS)
               : SERVER_SUGGESTED_TTL_MS;
-          return createSuccessResponse({
-            data: {
-              taskId: j.id,
-              status: j.status,
-              logs: j.logs ?? null,
-              started_at: j.started_at ?? null,
-              finished_at: j.finished_at ?? null,
-              error: j.error ?? null,
-              ttl,
-            },
-          });
+          return {
+            taskId: j.id,
+            status: j.status,
+            logs: j.logs ?? null,
+            started_at: j.started_at ?? null,
+            finished_at: j.finished_at ?? null,
+            error: j.error ?? null,
+            ttl,
+          };
         }
         await new Promise((r) => setTimeout(r, interval));
       }

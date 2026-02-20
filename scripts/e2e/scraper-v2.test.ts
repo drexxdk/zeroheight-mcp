@@ -1,4 +1,5 @@
 import { scrape } from "@/tools/scraper/scrape";
+import { isRecord } from "@/utils/common/typeGuards";
 async function run() {
   const { SCRAPE_TEST_PAGE_URLS } = await import("@/utils/config");
   const raw = SCRAPE_TEST_PAGE_URLS || "";
@@ -28,26 +29,52 @@ async function run() {
   });
 
   try {
-    const text = res.content?.[0]?.text || "";
-    const parsed = JSON.parse(text);
-    const progress = parsed.progress;
+    const extractProgress = (v: unknown): unknown => {
+      if (isRecord(v) && "progress" in v) {
+        return v["progress"];
+      }
+      if (isRecord(v) && "content" in v) {
+        const content = v["content"];
+        if (Array.isArray(content) && content.length > 0) {
+          const first = content[0];
+          if (isRecord(first) && "text" in first) {
+            const text = String(first["text"] ?? "");
+            try {
+              return JSON.parse(text).progress;
+            } catch {
+              return undefined;
+            }
+          }
+        }
+      }
+      return undefined;
+    };
+
+    const progress = extractProgress(res);
     if (!progress) {
       console.error("FAIL: response missing progress field");
-      console.error(parsed);
+      console.error(res);
       process.exit(2);
     }
 
     console.log("Progress from v2:", progress);
 
-    if (progress.current === progress.total) {
-      console.log("PASS: progress.current === progress.total");
-      process.exit(0);
-    } else {
+    if (
+      isRecord(progress) &&
+      typeof progress["current"] === "number" &&
+      typeof progress["total"] === "number"
+    ) {
+      if (progress["current"] === progress["total"]) {
+        console.log("PASS: progress.current === progress.total");
+        process.exit(0);
+      }
       console.error(
-        `FAIL: progress mismatch final current=${progress.current} total=${progress.total}`,
+        `FAIL: progress mismatch final current=${progress["current"]} total=${progress["total"]}`,
       );
       process.exit(1);
     }
+    console.error("FAIL: progress object malformed", progress);
+    process.exit(2);
   } catch (e) {
     console.error("FAIL: could not parse tool response", e);
     process.exit(3);

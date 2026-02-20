@@ -46,7 +46,12 @@ async function main() {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     const text = await res.text();
-    console.log("Response:\n", text);
+    try {
+      const parsed = JSON.parse(text);
+      console.log(JSON.stringify(parsed, null, 2));
+    } catch {
+      console.log("Response:\n", text);
+    }
   } catch (e) {
     console.error(
       "Request failed:",

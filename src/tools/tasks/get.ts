@@ -6,11 +6,9 @@ import {
   SERVER_MAX_TTL_MS,
 } from "./utils";
 import { z } from "zod";
-import {
-  createErrorResponse,
-  createSuccessResponse,
-} from "@/utils/toolResponses";
+import { createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
+import type { TasksGetResult } from "./types";
 
 const tasksGetInput = z
   .object({
@@ -19,10 +17,24 @@ const tasksGetInput = z
   })
   .required();
 
-export const tasksGetTool: ToolDefinition<typeof tasksGetInput> = {
+export const tasksGetTool: ToolDefinition<
+  typeof tasksGetInput,
+  TasksGetResult | ReturnType<typeof createErrorResponse>
+> = {
   title: "TASKS_get",
   description: "Get task status and metadata by taskId (SEP-1686).",
   inputSchema: tasksGetInput,
+  outputSchema: z.object({
+    task: z.object({
+      taskId: z.string(),
+      status: z.string(),
+      statusMessage: z.string().nullable().optional(),
+      createdAt: z.string().nullable().optional(),
+      lastUpdatedAt: z.string().nullable().optional(),
+      ttl: z.number().optional(),
+      pollInterval: z.number().optional(),
+    }),
+  }),
   handler: async ({
     taskId,
     requestedTtlMs,
@@ -53,7 +65,7 @@ export const tasksGetTool: ToolDefinition<typeof tasksGetInput> = {
           pollInterval: 5000,
         },
       };
-      return createSuccessResponse({ data: res });
+      return res;
     } catch (e) {
       return createErrorResponse({
         message: String(e instanceof Error ? e.message : e),
