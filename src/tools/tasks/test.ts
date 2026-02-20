@@ -23,7 +23,7 @@ const testTaskInputSchema = z.object({
 });
 
 export const testTaskTool: ToolDefinition<typeof testTaskInputSchema> = {
-  title: "test-task",
+  title: "TASKS_test",
   description:
     "Start a safe test task that ticks once per second for a duration (minutes).",
   inputSchema: testTaskInputSchema,

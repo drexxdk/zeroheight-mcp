@@ -14,7 +14,7 @@ const tasksListInput = z
   .optional();
 
 export const tasksListTool: ToolDefinition<typeof tasksListInput> = {
-  title: "tasks-list",
+  title: "TASKS_list",
   description: "List tasks (simple pagination: limit, offset).",
   inputSchema: tasksListInput,
   handler: async (args?: z.infer<typeof tasksListInput>) => {

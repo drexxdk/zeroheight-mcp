@@ -20,7 +20,7 @@ const tasksGetInput = z
   .required();
 
 export const tasksGetTool: ToolDefinition<typeof tasksGetInput> = {
-  title: "tasks-get",
+  title: "TASKS_get",
   description: "Get task status and metadata by taskId (SEP-1686).",
   inputSchema: tasksGetInput,
   handler: async ({

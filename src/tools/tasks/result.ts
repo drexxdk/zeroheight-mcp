@@ -16,7 +16,7 @@ const tasksResultInput = z.object({
 });
 
 export const tasksResultTool: ToolDefinition<typeof tasksResultInput> = {
-  title: "tasks-result",
+  title: "TASKS_result",
   description:
     "Retrieve task result (blocks until terminal) — returns task metadata and logs.",
   inputSchema: tasksResultInput,

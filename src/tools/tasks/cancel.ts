@@ -10,7 +10,7 @@ import type { ToolDefinition } from "@/tools/toolTypes";
 const tasksCancelInput = z.object({ taskId: z.string() });
 
 export const tasksCancelTool: ToolDefinition<typeof tasksCancelInput> = {
-  title: "tasks-cancel",
+  title: "TASKS_cancel",
   description: "Cancel a task by id (marks as cancelled).",
   inputSchema: tasksCancelInput,
   handler: async ({ taskId }: z.infer<typeof tasksCancelInput>) => {

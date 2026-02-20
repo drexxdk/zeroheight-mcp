@@ -1,29 +1,71 @@
 import { z } from "zod";
-import { createSuccessResponse } from "@/utils/toolResponses";
+import { createSuccessResponse, createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
+import { getJobFromDb } from "./utils/jobStore";
 
-const tasksTailInput = z.object({ taskId: z.string() }).required();
+const tasksTailInput = z
+  .object({
+    taskId: z.string(),
+    sinceLine: z.number().int().nonnegative().optional(),
+    timeoutMs: z.number().int().nonnegative().optional(),
+    intervalMs: z.number().int().nonnegative().optional(),
+  })
+  .required();
 
 export const tasksTailTool: ToolDefinition<typeof tasksTailInput> = {
-  title: "tasks-tail",
-  description: "Get SSE tail URL for a taskId (returns path to SSE endpoint)",
+  title: "TASKS_tail",
+  description:
+    "Tail logs for a taskId (polls DB and returns new log lines).",
   inputSchema: tasksTailInput,
-  handler: async ({ taskId }: z.infer<typeof tasksTailInput>) => {
-    // Return the relative SSE endpoint URL so clients can open an SSE connection.
-    const url = `/api/tasks/tail?taskId=${encodeURIComponent(taskId)}`;
-    return createSuccessResponse({ data: { url } });
+  handler: async ({ taskId, sinceLine, timeoutMs, intervalMs }) => {
+    try {
+      const poll = typeof timeoutMs === "number" ? timeoutMs : 30000;
+      const interval = typeof intervalMs === "number" ? Math.max(200, intervalMs) : 1000;
+      const start = Date.now();
+
+      let cursor = typeof sinceLine === "number" ? sinceLine : 0;
+
+      while (Date.now() - start < poll) {
+        const j = await getJobFromDb({ jobId: taskId });
+        if (!j) return createErrorResponse({ message: `No task found with id=${taskId}` });
+
+        const raw = j.logs ?? "";
+        const lines = raw === "" ? [] : String(raw).split(/\r?\n/);
+        if (lines.length > cursor) {
+          const newLines = lines.slice(cursor);
+          cursor = lines.length;
+          return createSuccessResponse({
+            data: {
+              taskId: j.id,
+              status: j.status,
+              lines: newLines,
+              nextCursor: cursor,
+              finished_at: j.finished_at ?? null,
+              error: j.error ?? null,
+            },
+          });
+        }
+
+        if (j.status && ["completed", "failed", "cancelled"].includes(j.status)) {
+          // terminal but no new lines — return terminal state
+          return createSuccessResponse({
+            data: {
+              taskId: j.id,
+              status: j.status,
+              lines: [],
+              nextCursor: cursor,
+              finished_at: j.finished_at ?? null,
+              error: j.error ?? null,
+            },
+          });
+        }
+
+        await new Promise((r) => setTimeout(r, interval));
+      }
+
+      return createSuccessResponse({ data: { taskId, status: "running", lines: [], nextCursor: cursor } });
+    } catch (e) {
+      return createErrorResponse({ message: String(e instanceof Error ? e.message : e) });
+    }
   },
 };
-
-// Provide a compatibility export so the app route or other callers can
-// programmatically invoke the SSE handler from the tools module. This keeps
-// callers flexible even if the route implementation lives under `app/`.
-export async function sseHandler(req: Request): Promise<Response> {
-  const mod = await import("@/app/api/tasks/tail/route");
-  if (mod && typeof mod.GET === "function") {
-    return await mod.GET(req as Request);
-  }
-  return new Response(JSON.stringify({ error: "SSE handler not available" }), {
-    status: 500,
-  });
-}
