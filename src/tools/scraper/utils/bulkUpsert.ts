@@ -398,7 +398,9 @@ export async function bulkUpsertPagesAndImages(options: {
                   console.log(`
                     [debug] sample inserted id=${String(getProp(maybeFirst, "id"))}`);
                 }
-              } catch {}
+              } catch (e) {
+                console.debug("bulk upsert row normalization failed:", e);
+              }
             }
           }
           break;

@@ -89,10 +89,14 @@ export async function prefetchSeeds(options: {
             sameSite,
           } as Parameters<PuppeteerPage["setCookie"]>[0];
         });
-      } catch {}
+      } catch (e) {
+        console.debug("prefetch seed parsing failed:", e);
+      }
       try {
         await p.close();
-      } catch {}
+      } catch (e) {
+        console.debug("prefetch optional parse failed:", e);
+      }
     } catch (e) {
       if (logger) logger(`Root prefetch/login failed: ${String(e)}`);
     }
@@ -118,7 +122,9 @@ export async function prefetchSeeds(options: {
               try {
                 // Puppeteer's setCookie expects CookieParam; spread basic fields
                 await p.setCookie(...cookies);
-              } catch {}
+              } catch (e) {
+                console.debug("prefetch loop item parse failed:", e);
+              }
             }
             await p.goto(u, {
               waitUntil: SCRAPER_NAV_WAITUNTIL,
@@ -165,7 +171,9 @@ export async function prefetchSeeds(options: {
                 finalWait,
                 SCRAPER_PREFETCH_SCROLL_STEP_PX,
               );
-            } catch {}
+            } catch (e) {
+              console.debug("prefetch inner error:", e);
+            }
 
             const fallback: PreExtracted = {
               pageLinks: [],
@@ -184,7 +192,9 @@ export async function prefetchSeeds(options: {
           } finally {
             try {
               await p.close();
-            } catch {}
+            } catch (e) {
+              console.debug("prefetch finalizer error:", e);
+            }
           }
           break; // success
         } catch (err) {

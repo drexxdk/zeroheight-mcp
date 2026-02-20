@@ -25,6 +25,13 @@ const eslintConfig = defineConfig([
             "Do not access process.env directly. Import values from src/utils/config.ts instead.",
         },
       ],
+      // Disallow empty catch blocks; require at least logging or rethrowing.
+      "no-empty": [
+        "error",
+        {
+          allowEmptyCatch: false,
+        },
+      ],
     },
   },
   {

@@ -38,7 +38,9 @@ export function getBlockReason(
   try {
     if (imageExtRe.test(parsedPathLower) || fontExtRe.test(parsedPathLower))
       return "blocked-ext";
-  } catch {}
+  } catch (e) {
+    console.debug("extension regex test failed:", e);
+  }
 
   if (urlLower.startsWith("data:")) {
     const m = urlLower.match(/^data:([^;,]+)[;,]/);
@@ -92,8 +94,8 @@ export async function attachDefaultInterception(
   const blockSet = opts?.block ?? new Set<string>();
   try {
     await page.setRequestInterception(true);
-  } catch {
-    // ignore if not supported
+  } catch (e) {
+    console.debug("page.setRequestInterception not supported:", e);
   }
 
   page.on("request", (req: HTTPRequest) => {
@@ -105,14 +107,16 @@ export async function attachDefaultInterception(
     );
     if (reason) {
       opts?.onRequest?.(req, "blocked", reason);
-      void req.abort().catch(() => {});
+      void req.abort().catch((e) => console.debug("req.abort error:", e));
       return;
     }
     opts?.onRequest?.(req, "continued");
-    void req.continue().catch(() => {});
+    void req.continue().catch((e) => console.debug("req.continue error:", e));
   });
 
-  page.on("requestfailed", () => {});
+  page.on("requestfailed", (req) =>
+    console.debug("request failed:", req.url()),
+  );
   page.on("response", () => {
     // noop: consumers may attach their own handlers if they want details
   });

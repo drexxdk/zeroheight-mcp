@@ -129,7 +129,9 @@ export async function extractPageData({
       try {
         const url = new URL(normalizedSrc);
         normalizedSrc = `${url.protocol}//${url.hostname}${url.pathname}`;
-      } catch {}
+      } catch (e) {
+        console.debug("pageExtraction metadata parse error:", e);
+      }
     }
 
     if (
@@ -139,7 +141,9 @@ export async function extractPageData({
       try {
         const url = new URL(normalizedSrc);
         normalizedSrc = `${url.protocol}//${url.hostname}${url.pathname}`;
-      } catch {}
+      } catch (e) {
+        console.debug("pageExtraction attribute parse error:", e);
+      }
     }
 
     return { ...img, src: normalizedSrc, originalSrc: img.src };

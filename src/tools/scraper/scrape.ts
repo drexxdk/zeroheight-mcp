@@ -177,7 +177,9 @@ export async function scrape({
           try {
             const u = new URL(normalizedUrl);
             normalizedUrl = `${u.protocol}//${u.hostname}${u.pathname}`;
-          } catch {}
+          } catch (e) {
+            console.debug("normalize URL failed:", e);
+          }
           return normalizedUrl;
         }),
       );
@@ -220,7 +222,9 @@ export async function scrape({
       // attach default interception rules (blocks fonts/styles/ext images etc.)
       try {
         await attachDefaultInterception(p).catch(() => {});
-      } catch {}
+      } catch (e) {
+        console.warn("Failed to prefetch seeds:", e);
+      }
       await p.goto(rootUrl, {
         waitUntil: SCRAPER_NAV_WAITUNTIL,
         timeout: SCRAPER_NAV_TIMEOUT_MS,
@@ -274,7 +278,9 @@ export async function scrape({
       enqueueLinks(initial);
       try {
         await p.close();
-      } catch {}
+      } catch (e) {
+        console.debug("Error reading image urls from DB:", e);
+      }
     }
 
     const workers: Promise<void>[] = [];
@@ -288,7 +294,9 @@ export async function scrape({
           });
           try {
             await attachDefaultInterception(page).catch(() => {});
-          } catch {}
+          } catch (e) {
+            console.debug("URL parse failed while normalizing seed:", e);
+          }
           try {
             while (true) {
               if (shouldCancel && (await Promise.resolve(shouldCancel())))
@@ -493,7 +501,9 @@ export async function scrape({
           } finally {
             try {
               await page.close();
-            } catch {}
+            } catch (e) {
+              console.debug("Error in prefetch iteration:", e);
+            }
           }
         })(),
       );
@@ -674,7 +684,9 @@ export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
             jobId,
             line: `[${new Date().toISOString()}] ${s}`,
           });
-        } catch {}
+        } catch (e) {
+          console.debug("Error during some scrape step:", e);
+        }
         if (SCRAPER_DEBUG) console.log(`[debug] ${s}`);
         else console.log(s);
       };
