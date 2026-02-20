@@ -5,7 +5,7 @@ import path from "path";
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
 
-import { HTTPRequest, HTTPResponse, Page } from "puppeteer";
+import { HTTPRequest, HTTPResponse } from "puppeteer";
 import {
   launchBrowser as sharedLaunchBrowser,
   attachDefaultInterception,
@@ -53,7 +53,6 @@ async function main() {
   const runTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const reportPath = path.join(outDir, `report-${runTimestamp}.json`);
   const screenshotPath = path.join(outDir, `screenshot-${runTimestamp}.png`);
-  const harPath = path.join(outDir, `trace-${runTimestamp}.har`);
 
   const browser = await sharedLaunchBrowser();
   const page = await browser.newPage();
@@ -128,42 +127,6 @@ async function main() {
   console.log(
     `Navigating to ${url} (blocking: ${[...blockSet].join(",") || "none"})`,
   );
-  // try to load an optional HAR recorder
-  let harRecorder: {
-    start?: (opts?: { path?: string }) => Promise<void>;
-    stop?: () => Promise<void>;
-  } | null = null;
-  try {
-    const HarModuleUnknown: unknown = await import("puppeteer-har");
-    const { isRecord } = await import("../../src/utils/common/typeGuards");
-    type PuppeteerHar = {
-      start?: (opts?: { path?: string }) => Promise<void>;
-      stop?: () => Promise<void>;
-    };
-    // Avoid `as unknown` by narrowing the module shape with specific constructor types
-    type PuppeteerHarCtor = new (p: Page) => PuppeteerHar;
-
-    if (typeof HarModuleUnknown === "function") {
-      const Ctor = HarModuleUnknown as PuppeteerHarCtor;
-      harRecorder = new Ctor(page);
-    } else if (isRecord(HarModuleUnknown)) {
-      const mod = HarModuleUnknown as { PuppeteerHar?: unknown };
-      if (typeof mod.PuppeteerHar === "function") {
-        const Ctor = mod.PuppeteerHar as PuppeteerHarCtor;
-        harRecorder = new Ctor(page);
-      }
-    }
-  } catch {
-    harRecorder = null;
-  }
-
-  try {
-    if (harRecorder && harRecorder.start) {
-      await harRecorder.start({ path: harPath });
-    }
-  } catch {
-    // ignore har start failures
-  }
 
   try {
     await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
@@ -191,12 +154,6 @@ async function main() {
     console.error("Navigation failed:", e instanceof Error ? e.message : e);
   }
 
-  try {
-    if (harRecorder && harRecorder.stop) await harRecorder.stop();
-  } catch {
-    // ignore
-  }
-
   // give a short grace period for late responses
   await new Promise((res) => setTimeout(res, 1000));
 
@@ -213,14 +170,6 @@ async function main() {
   await page
     .screenshot({ path: screenshotPath, fullPage: true })
     .catch(() => {});
-
-  // Attempt to write HAR if the puppeteer-har module is available and recording was started
-  try {
-    // if a har file was created by the recorder earlier, leave it; else try to generate via optional helper
-    // (the HAR recorder is started/stopped around navigation when available)
-  } catch {
-    // ignore
-  }
 
   console.log(`Report written: ${reportPath}`);
   console.log(`Screenshot written: ${screenshotPath}`);
