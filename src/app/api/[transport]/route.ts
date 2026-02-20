@@ -14,6 +14,7 @@ import {
   tasksListTool,
   tasksCancelTool,
   testTaskTool,
+  tasksTailTool,
 } from "@/tools/tasks";
 import type { ToolResponse } from "@/utils/toolResponses";
 import { normalizeToToolResponse } from "@/utils/toolResponses";
@@ -83,6 +84,16 @@ const handler = createMcpHandler(
         inputSchema: testTaskTool.inputSchema,
       },
       wrapTool(testTaskTool),
+    );
+
+    server.registerTool(
+      tasksTailTool.title,
+      {
+        title: tasksTailTool.title,
+        description: tasksTailTool.description,
+        inputSchema: tasksTailTool.inputSchema,
+      },
+      wrapTool(tasksTailTool),
     );
 
     // Database Inspection & Management Tools
@@ -220,6 +231,7 @@ async function authenticatedHandler(request: NextRequest) {
       tasksListTool.title,
       tasksCancelTool.title,
       testTaskTool.title,
+      tasksTailTool.title,
     ]);
 
     if (toolName && taskTools.has(toolName)) {
@@ -243,6 +255,9 @@ async function authenticatedHandler(request: NextRequest) {
           ),
           [testTaskTool.title]: wrapHandler(
             testTaskTool.handler as (a: unknown) => Promise<unknown>,
+          ),
+          [tasksTailTool.title]: wrapHandler(
+            tasksTailTool.handler as (a: unknown) => Promise<unknown>,
           ),
         };
 

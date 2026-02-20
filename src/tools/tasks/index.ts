@@ -3,3 +3,4 @@ export { tasksResultTool } from "./result";
 export { tasksListTool } from "./list";
 export { tasksCancelTool } from "./cancel";
 export { testTaskTool } from "./testTask";
+export { tasksTailTool } from "./tail";
