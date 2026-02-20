@@ -43,6 +43,7 @@ import {
   finishJob,
   getJobFromDb,
 } from "../tasks/utils/jobStore";
+import { mapStatusToSep, SERVER_SUGGESTED_TTL_MS } from "../tasks/utils";
 import { tryLogin } from "@/utils/common/scraperHelpers";
 
 // Primary scraper (previously V2) - coordinator-based queue, deterministic totals, parallel workers
@@ -724,6 +725,18 @@ export const scrapeTool: ToolDefinition<typeof scrapeInput> = {
       }
     })();
 
-    return createSuccessResponse({ data: { message: "Job started" } });
+    const startedAt = new Date().toISOString();
+    const taskResponse = {
+      task: {
+        taskId: jobId,
+        status: mapStatusToSep({ status: "working" }),
+        statusMessage: "Scraping is now in progress.",
+        createdAt: startedAt,
+        lastUpdatedAt: null,
+        ttl: SERVER_SUGGESTED_TTL_MS,
+        pollInterval: 5000,
+      },
+    };
+    return createSuccessResponse({ data: taskResponse });
   },
 };

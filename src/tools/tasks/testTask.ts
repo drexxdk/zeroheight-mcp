@@ -10,6 +10,7 @@ import {
   getJobFromDb,
   claimJobById,
 } from "./utils/jobStore";
+import { mapStatusToSep, SERVER_SUGGESTED_TTL_MS } from "./utils";
 import type { ToolDefinition } from "@/tools/toolTypes";
 
 const testTaskInputSchema = z.object({
@@ -89,9 +90,19 @@ export const testTaskTool: ToolDefinition<typeof testTaskInputSchema> = {
         }
       })();
 
-      return createSuccessResponse({
-        data: { message: "Test task started", jobId },
-      });
+      const createdAt = new Date().toISOString();
+      const taskResponse = {
+        task: {
+          taskId: jobId,
+          status: mapStatusToSep({ status: "working" }),
+          statusMessage: "Test task is now in progress.",
+          createdAt,
+          lastUpdatedAt: null,
+          ttl: SERVER_SUGGESTED_TTL_MS,
+          pollInterval: 5000,
+        },
+      };
+      return createSuccessResponse({ data: taskResponse });
     } catch (e) {
       return createErrorResponse({
         message: `Test task failed: ${e instanceof Error ? e.message : String(e)}`,

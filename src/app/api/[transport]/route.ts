@@ -249,7 +249,19 @@ async function authenticatedHandler(request: NextRequest) {
         const handlerFn = toolMap[toolName];
         const result = await handlerFn(args);
 
-        const rpcResult = normalizeToToolResponse(result);
+        // If the tool returned a structured task object (SEP-1686), forward
+        // it directly as the JSON-RPC `result` so callers receive typed task
+        // metadata. Otherwise normalize into a ToolResponse for backward
+        // compatibility with tools that return raw values or errors.
+        let rpcResult: unknown;
+        if (
+          isRecord(result) &&
+          Object.prototype.hasOwnProperty.call(result, "task")
+        ) {
+          rpcResult = result;
+        } else {
+          rpcResult = normalizeToToolResponse(result);
+        }
 
         const rpc = {
           jsonrpc: "2.0",
