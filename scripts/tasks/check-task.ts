@@ -2,7 +2,7 @@
 
 import { runTool } from "./start-task";
 
-async function main() {
+async function main(): Promise<void> {
   const taskId = process.argv[2];
   if (!taskId) {
     console.error("Usage: npx tsx scripts/tasks/check-task.ts <taskId>");

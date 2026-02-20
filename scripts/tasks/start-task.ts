@@ -11,7 +11,7 @@ export async function runTool(
   modulePath: string,
   exportName: string,
   args?: Record<string, unknown> | undefined,
-) {
+): Promise<unknown> {
   const mod = await import(modulePath);
   if (!isRecord(mod)) throw new Error(`Invalid module loaded: ${modulePath}`);
   const toolCandidate = mod[exportName];

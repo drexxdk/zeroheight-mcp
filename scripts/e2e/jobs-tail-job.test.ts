@@ -28,13 +28,13 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function sleep(ms: number) {
+async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
 let lastLogs = "";
 
-async function fetchOnce() {
+async function fetchOnce(): Promise<{ finished: boolean }> {
   const { data, error } = await supabase
     .from("tasks")
     .select("id, status, logs, started_at, finished_at, error")
@@ -89,7 +89,7 @@ async function fetchOnce() {
   };
 }
 
-async function runTail() {
+async function runTail(): Promise<void> {
   console.log(`Tailing job ${jobId} every ${interval}s...`);
   while (true) {
     try {

@@ -6,7 +6,7 @@
  * Run with: npx tsx src/e2e/api-mcp.test.ts
  */
 
-async function testApi() {
+async function testApi(): Promise<void> {
   // load env and config dynamically so TS path aliases resolve at runtime
   await import("dotenv/config");
   const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =

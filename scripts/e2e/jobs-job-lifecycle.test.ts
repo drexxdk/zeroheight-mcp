@@ -11,7 +11,7 @@ import {
   deleteJobInDb,
 } from "@/tools/tasks/utils/jobStore";
 
-async function run() {
+async function run(): Promise<void> {
   try {
     console.log("Creating test job...");
     const id = await createTestJobInDb({

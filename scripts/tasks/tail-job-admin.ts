@@ -3,7 +3,7 @@
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-async function main() {
+async function main(): Promise<void> {
   const { getSupabaseAdminClient } = await import("../../src/utils/common");
   const supabase = getSupabaseAdminClient();
   if (!supabase) {

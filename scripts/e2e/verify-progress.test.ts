@@ -3,7 +3,7 @@ import { isRecord } from "@/utils/common/typeGuards";
 
 // load env and config dynamically inside `run` so path aliases resolve
 
-async function run() {
+async function run(): Promise<void> {
   await import("dotenv/config");
   const { SCRAPE_TEST_PAGE_URLS } = await import("@/utils/config");
   const raw = SCRAPE_TEST_PAGE_URLS || "";

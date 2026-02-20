@@ -14,7 +14,7 @@ config({ path: ".env.local" });
 const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
   await import("../src/utils/config");
 
-async function main() {
+async function main(): Promise<void> {
   if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {
     console.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",

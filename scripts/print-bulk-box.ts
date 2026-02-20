@@ -8,7 +8,7 @@ import {
   SummaryParams,
 } from "../src/tools/scraper/utils/bulkUpsert";
 
-async function main() {
+async function main(): Promise<void> {
   const params: SummaryParams = {
     providedCount: 2,
     pagesAnalyzed: 2,

@@ -89,7 +89,7 @@ export async function launchBrowser(): Promise<Browser> {
 export async function attachDefaultInterception(
   page: Page,
   opts?: BlockOptions,
-) {
+): Promise<void> {
   const allowSet = opts?.allow ?? new Set<string>();
   const blockSet = opts?.block ?? new Set<string>();
   try {

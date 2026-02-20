@@ -30,7 +30,7 @@ export function ToolCard({
   codeExample,
   iconColor,
   className = "",
-}: ToolCardProps) {
+}: ToolCardProps): ReactElement {
   const colors = colorMap[iconColor as keyof typeof colorMap] || colorMap.blue;
 
   return (

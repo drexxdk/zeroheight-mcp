@@ -22,7 +22,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function inspect() {
+async function inspect(): Promise<void> {
   const { data, error } = await supabase
     .from("tasks")
     .select("*")

@@ -101,7 +101,7 @@ function generateZodSchema(tableName: string): string {
   return `z.object({\n${fieldDefs}\n})`;
 }
 
-function generateSchemasFromDatabase() {
+function generateSchemasFromDatabase(): { schemas: string[]; types: string[] } {
   const tableNames = extractTableNames();
   const schemas: string[] = [];
   const types: string[] = [];

@@ -4,7 +4,7 @@ import { isRecord } from "../../src/utils/common/typeGuards";
 
 dotenvConfig({ path: ".env.local" });
 
-function extFromContentType(ct: string | null) {
+function extFromContentType(ct: string | null): string {
   if (!ct) return "png";
   if (ct.includes("jpeg")) return "jpg";
   if (ct.includes("png")) return "png";
@@ -17,7 +17,7 @@ async function downloadAndUpload(
   url: string,
   BUCKET: string,
   TEST_BUCKET: string,
-) {
+): Promise<{ path: string; publicUrl: string } | null> {
   const client = getSupabaseClient();
   if (!client) throw new Error("Supabase client not configured");
 
@@ -70,7 +70,7 @@ async function downloadAndUpload(
   return { path: storagePath, publicUrl: urlData.publicUrl };
 }
 
-async function run() {
+async function run(): Promise<void> {
   const { IMAGE_BUCKET } = await import("@/utils/config");
   const BUCKET = IMAGE_BUCKET;
   const TEST_BUCKET = `${BUCKET}_test`;

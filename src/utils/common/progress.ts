@@ -29,11 +29,14 @@ export function createProgressHelpers(options: {
     context?: string;
   }) => void;
   logger?: (msg: string) => void;
-}) {
+}): {
+  logProgress: (icon: string, message: string) => void;
+  markAttempt: (reason: string, icon: string, message: string) => void;
+} {
   const { progress, checkProgressInvariant, logger } = options;
   const out = logger ?? ((msg: string) => console.log(msg));
 
-  function logProgress(icon: string, message: string) {
+  function logProgress(icon: string, message: string): void {
     const progressBar = createProgressBar({
       current: progress.current,
       total: progress.total,
@@ -43,7 +46,7 @@ export function createProgressHelpers(options: {
     );
   }
 
-  function markAttempt(reason: string, icon: string, message: string) {
+  function markAttempt(reason: string, icon: string, message: string): void {
     progress.current++;
     checkProgressInvariant({ overallProgress: progress, context: reason });
     logProgress(icon, message);

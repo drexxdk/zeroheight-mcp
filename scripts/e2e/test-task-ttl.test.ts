@@ -6,7 +6,7 @@ config({ path: ".env.local" });
 import { isRecord } from "../../src/utils/common/typeGuards";
 import type { ZodTypeAny } from "zod";
 
-async function main() {
+async function main(): Promise<void> {
   const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
     await import("@/utils/config");
   if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {

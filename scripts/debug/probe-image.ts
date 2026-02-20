@@ -2,7 +2,7 @@
 
 export {};
 
-async function main() {
+async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
     console.error("Usage: npx tsx scripts/debug/probe-image.ts <url>");
@@ -15,7 +15,7 @@ async function main() {
     const cl = res.headers.get("content-length");
     console.error("Content-Length:", cl);
     const buf = new Uint8Array(await res.arrayBuffer());
-    function readBE(bytes: Uint8Array, off: number) {
+    function readBE(bytes: Uint8Array, off: number): number {
       return (
         ((bytes[off] << 24) |
           (bytes[off + 1] << 16) |

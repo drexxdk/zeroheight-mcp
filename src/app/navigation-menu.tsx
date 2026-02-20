@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactElement } from "react";
 import { Menu } from "@base-ui/react/menu";
 
 const { Root, Trigger, Portal, Positioner, Popup, Item } = Menu;
@@ -16,7 +17,7 @@ export default function NavigationMenu({
   navigationOptions,
   onSectionChange,
   onScrollToSection,
-}: NavigationMenuProps) {
+}: NavigationMenuProps): ReactElement {
   return (
     <Root highlightItemOnHover={false} loopFocus={false}>
       <Trigger className="flex w-full items-center justify-between rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-300 transition-colors hover:border-cyan-400 hover:bg-slate-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900">

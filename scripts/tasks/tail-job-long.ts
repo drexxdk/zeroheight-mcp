@@ -6,7 +6,7 @@ import type { ToolResponse } from "@/utils/toolResponses";
 import { normalizeToToolResponse } from "@/utils/toolResponses";
 import type { ZodTypeAny } from "zod";
 
-async function main() {
+async function main(): Promise<void> {
   const ids = process.argv.slice(2);
   if (ids.length === 0) {
     console.error(

@@ -10,7 +10,7 @@ dotenvConfig({ path: ".env.local" });
 
 const jobId = process.argv[2];
 
-async function runCancel() {
+async function runCancel(): Promise<void> {
   const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
     await import("@/utils/config");
 

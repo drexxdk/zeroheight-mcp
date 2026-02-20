@@ -16,7 +16,7 @@ export async function createJobInDb({
 }: {
   name: string;
   args?: Record<string, unknown> | null;
-}) {
+}): Promise<string | null> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
     console.error("createJobInDb: admin supabase client not available");
@@ -99,7 +99,7 @@ export async function createTestJobInDb({
   name: string;
   args?: Record<string, unknown> | null;
   testRunId?: string;
-}) {
+}): Promise<string | null> {
   const merged: Record<string, unknown> = {
     ...(args || {}),
     __testRunId: testRunId,
@@ -177,7 +177,7 @@ export async function appendJobLog({
 }: {
   jobId: string;
   line: string;
-}) {
+}): Promise<void> {
   if (!jobId) {
     console.warn("appendJobLog called with empty jobId - skipping");
     return;
@@ -219,7 +219,7 @@ export async function finishJob({
   success: boolean;
   result?: unknown;
   errorMsg?: string;
-}) {
+}): Promise<void> {
   const body: Record<string, unknown> = { success };
   if (errorMsg) body.error = errorMsg;
   const supabase = getSupabaseAdminClient();
@@ -257,7 +257,11 @@ export async function finishJob({
   }
 }
 
-export async function markJobCancelledInDb({ jobId }: { jobId: string }) {
+export async function markJobCancelledInDb({
+  jobId,
+}: {
+  jobId: string;
+}): Promise<void> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return;
   try {
@@ -271,7 +275,11 @@ export async function markJobCancelledInDb({ jobId }: { jobId: string }) {
   }
 }
 
-export async function deleteJobInDb({ jobId }: { jobId: string }) {
+export async function deleteJobInDb({
+  jobId,
+}: {
+  jobId: string;
+}): Promise<void> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return;
   try {
@@ -286,7 +294,7 @@ export async function deleteJobsByTestRun({
   testRunId,
 }: {
   testRunId: string;
-}) {
+}): Promise<void> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return;
   try {
@@ -300,7 +308,11 @@ export async function deleteJobsByTestRun({
   }
 }
 
-export async function getJobFromDb({ jobId }: { jobId: string }) {
+export async function getJobFromDb({
+  jobId,
+}: {
+  jobId: string;
+}): Promise<JobRecord | null> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;
   try {

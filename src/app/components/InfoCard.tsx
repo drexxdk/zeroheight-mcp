@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, ReactElement } from "react";
 
 interface InfoCardProps {
   title: string;
@@ -6,7 +6,11 @@ interface InfoCardProps {
   className?: string;
 }
 
-export function InfoCard({ title, children, className = "" }: InfoCardProps) {
+export function InfoCard({
+  title,
+  children,
+  className = "",
+}: InfoCardProps): ReactElement {
   return (
     <div
       className={`rounded-xl border border-slate-700 bg-slate-800 p-6 ${className}`}

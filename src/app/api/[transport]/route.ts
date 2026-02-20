@@ -211,7 +211,7 @@ export const mcpHandler = handler;
 // that target lightweight task tools we shortcut and call the tool handler
 // directly (avoids a full MCP roundtrip). Otherwise the request is forwarded
 // to the MCP handler.
-async function authenticatedHandler(request: NextRequest) {
+async function authenticatedHandler(request: NextRequest): Promise<Response> {
   const auth = authenticateRequest({ request });
 
   if (!auth.isValid) {

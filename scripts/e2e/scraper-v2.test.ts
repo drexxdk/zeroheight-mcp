@@ -1,6 +1,6 @@
 import { scrape } from "@/tools/scraper/scrape";
 import { isRecord } from "@/utils/common/typeGuards";
-async function run() {
+async function run(): Promise<void> {
   const { SCRAPE_TEST_PAGE_URLS } = await import("@/utils/config");
   const raw = SCRAPE_TEST_PAGE_URLS || "";
   if (!raw) {

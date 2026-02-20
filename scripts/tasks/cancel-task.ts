@@ -2,7 +2,7 @@
 
 import { runTool } from "./start-task";
 
-async function main() {
+async function main(): Promise<void> {
   const ids = process.argv.slice(2);
   if (ids.length === 0) {
     console.error(

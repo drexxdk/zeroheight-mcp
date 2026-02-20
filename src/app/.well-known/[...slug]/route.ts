@@ -1,14 +1,14 @@
 // Provide minimal OpenID Connect discovery and JWKS endpoints for local dev.
 // mcp-remote expects valid discovery metadata at /.well-known/openid-configuration.
 
-function jsonResponse(obj: unknown, status = 200) {
+function jsonResponse(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), {
     status,
     headers: { "Content-Type": "application/json" },
   });
 }
 
-export async function GET(request: Request) {
+export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -37,14 +37,14 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   return GET(request);
 }
 
-export async function OPTIONS(request: Request) {
+export async function OPTIONS(request: Request): Promise<Response> {
   return GET(request);
 }
 
-export async function HEAD(request: Request) {
+export async function HEAD(request: Request): Promise<Response> {
   return GET(request);
 }

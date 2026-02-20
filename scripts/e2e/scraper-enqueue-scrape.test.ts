@@ -11,7 +11,7 @@ dotenvConfig({ path: ".env.local" });
 const args = process.argv.slice(2);
 const pageUrls = args.length > 0 ? args : undefined;
 
-async function runEnqueue() {
+async function runEnqueue(): Promise<void> {
   const { ZEROHEIGHT_MCP_ACCESS_TOKEN, MCP_URL } =
     await import("@/utils/config");
   if (!ZEROHEIGHT_MCP_ACCESS_TOKEN) {

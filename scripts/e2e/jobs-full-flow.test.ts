@@ -12,11 +12,11 @@ import {
   deleteJobInDb,
 } from "@/tools/tasks/utils/jobStore";
 
-function sleep(ms: number) {
+function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function run() {
+async function run(): Promise<void> {
   console.log("Creating test job...");
   const id = await createTestJobInDb({
     name: "test-job-full-flow",

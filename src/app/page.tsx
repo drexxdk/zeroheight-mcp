@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "motion/react";
 import { SectionHeader, FeatureCard, ToolCard, InfoCard } from "./components";
@@ -40,12 +40,12 @@ interface NavigationOption {
   label: string;
 }
 
-export default function Home() {
+export default function Home(): ReactElement {
   const [activeSection, setActiveSection] = useState("features");
   const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
-    const handleScroll = () => {
+    const handleScroll = (): void => {
       const sections = [
         "features",
         "image-management",
@@ -94,7 +94,7 @@ export default function Home() {
     { value: "legal", label: "Legal" },
   ];
 
-  const scrollToSection = (sectionId: string) => {
+  const scrollToSection = (sectionId: string): void => {
     const element = document.getElementById(sectionId);
     if (element) {
       const headerOffset = 80; // Account for sticky header height

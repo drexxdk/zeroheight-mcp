@@ -3,7 +3,7 @@
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-async function main() {
+async function main(): Promise<void> {
   // Simple positional arg style (like tail-job-admin.ts). Optional first
   // positional argument is treated as minutes. Default to 5 minutes.
   const arg = process.argv[2];

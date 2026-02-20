@@ -32,6 +32,16 @@ const eslintConfig = defineConfig([
           allowEmptyCatch: false,
         },
       ],
+      // Require explicit return types and module boundary types while auditing
+      // (temporarily enabled to collect missing explicit-type locations).
+      "@typescript-eslint/explicit-function-return-type": [
+        "error",
+        {
+          allowExpressions: true,
+          allowTypedFunctionExpressions: true,
+        },
+      ],
+      "@typescript-eslint/explicit-module-boundary-types": ["error"],
       // Forbid use of `any` to improve type safety
       "@typescript-eslint/no-explicit-any": "error",
     },

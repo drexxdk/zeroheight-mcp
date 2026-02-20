@@ -28,7 +28,7 @@ export function FeatureCard({
   description,
   iconColor,
   className = "",
-}: FeatureCardProps) {
+}: FeatureCardProps): ReactElement {
   const colors = colorMap[iconColor as keyof typeof colorMap] || colorMap.blue;
 
   return (

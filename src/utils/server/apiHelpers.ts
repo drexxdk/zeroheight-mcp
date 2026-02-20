@@ -32,7 +32,7 @@ function getBucket(key: string): Bucket {
   return b;
 }
 
-export function checkRateLimit({ apiKey }: { apiKey: string }) {
+export function checkRateLimit({ apiKey }: { apiKey: string }): boolean {
   const bucket = getBucket(apiKey || "anon");
   if (bucket.tokens <= 0) return false;
   bucket.tokens -= 1;
@@ -42,7 +42,7 @@ export function checkRateLimit({ apiKey }: { apiKey: string }) {
 const LOG_DIR = path.resolve(process.cwd(), "logs");
 const AUDIT_LOG = path.join(LOG_DIR, "api-audit.log");
 
-function ensureLogDir() {
+function ensureLogDir(): void {
   try {
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
   } catch {
@@ -60,7 +60,7 @@ export async function auditRequest({
   route: string;
   details?: Record<string, unknown>;
   bodyProvided?: string | Record<string, unknown>;
-}) {
+}): Promise<void> {
   try {
     ensureLogDir();
     const now = new Date().toISOString();

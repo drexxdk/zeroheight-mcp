@@ -17,7 +17,13 @@ import {
   SCRAPER_RETRY_BASE_MS,
 } from "@/utils/config";
 
-export function normalizeUrl({ u, base }: { u: string; base?: string }) {
+export function normalizeUrl({
+  u,
+  base,
+}: {
+  u: string;
+  base?: string;
+}): string {
   try {
     const parsed = new URL(u, base || undefined);
     parsed.hash = "";
@@ -46,7 +52,10 @@ export async function prefetchSeeds(options: {
   password?: string;
   concurrency?: number;
   logger?: (s: string) => void;
-}) {
+}): Promise<{
+  preExtractedMap: Map<string, PreExtracted>;
+  normalizedSeeds: string[];
+}> {
   const { browser, rootUrl, seeds, password, concurrency, logger } = options;
   const hostname = new URL(rootUrl).hostname;
   const normSeeds = seeds.map((s) => normalizeUrl({ u: s, base: rootUrl }));

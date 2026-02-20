@@ -29,7 +29,7 @@ const queryDataInput = z.object({
 });
 
 // Get the Supabase project URL for constructing storage URLs
-const getSupabaseProjectUrl = () => {
+const getSupabaseProjectUrl = (): string => {
   const supabaseUrl = NEXT_PUBLIC_SUPABASE_URL;
   if (!supabaseUrl) {
     console.warn("NEXT_PUBLIC_SUPABASE_URL not found, using fallback");
@@ -148,23 +148,32 @@ export const queryDataTool: ToolDefinition<
       pages = allPages || [];
     }
 
-    const result = pages.map((page) => {
-      const supabaseUrl = getSupabaseProjectUrl();
-      return {
-        url: page.url,
-        title: page.title,
-        content: page.content,
-        images:
-          effectiveIncludeImages && page.images
-            ? Object.fromEntries(
-                page.images.map((img) => [
-                  img.original_url,
-                  `${supabaseUrl}/storage/v1/object/public/${IMAGE_BUCKET}/${img.storage_path}`,
-                ]),
-              )
-            : {},
-      };
-    });
+    const result = pages.map(
+      (
+        page,
+      ): {
+        url: string | null;
+        title: string | null;
+        content: string | null;
+        images: Record<string, string>;
+      } => {
+        const supabaseUrl = getSupabaseProjectUrl();
+        return {
+          url: page.url,
+          title: page.title,
+          content: page.content,
+          images:
+            effectiveIncludeImages && page.images
+              ? Object.fromEntries(
+                  page.images.map((img) => [
+                    img.original_url,
+                    `${supabaseUrl}/storage/v1/object/public/${IMAGE_BUCKET}/${img.storage_path}`,
+                  ]),
+                )
+              : {},
+        };
+      },
+    );
 
     // Return a domain-shaped result so callers can rely on typed output.
     const out: QueryDataResult = { pages: result };

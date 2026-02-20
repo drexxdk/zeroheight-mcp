@@ -1,26 +1,57 @@
 import { getSupabaseClient, getSupabaseAdminClient } from "../common";
 import { isRecord, getProp } from "@/utils/common/typeGuards";
 import { IMAGE_BUCKET } from "../config";
+import type { StorageUploadResult } from "@/utils/common/scraperHelpers";
+
+type ListBucketsResult = {
+  data: Array<{ name: string }> | null;
+  error: { message: string } | null;
+};
+
+type CreateBucketResult = {
+  data: { name: string } | null;
+  error: { message: string } | null;
+};
+
+type StorageHelpers = {
+  upload: (filename: string, file: Buffer) => Promise<StorageUploadResult>;
+  listBuckets?: () => Promise<ListBucketsResult>;
+  createBucket?: (
+    name: string,
+    opts?: {
+      public?: boolean;
+      allowedMimeTypes?: string[] | null;
+      fileSizeLimit?: number | null;
+    },
+  ) => Promise<CreateBucketResult>;
+};
 
 // Provide a single wrapper that exposes the regular client and a storage helper
 // which will prefer admin capabilities when an admin client is available.
-export function getClient() {
+export function getClient(): {
+  client: ReturnType<typeof getSupabaseClient> | null;
+  storage: StorageHelpers;
+} {
   const client = getSupabaseClient();
   const admin = getSupabaseAdminClient();
 
   const storage = {
     // upload a buffer to the configured bucket; prefer admin client when available
-    upload: async (filename: string, file: Buffer) => {
+    upload: async (
+      filename: string,
+      file: Buffer,
+    ): Promise<StorageUploadResult> => {
       const svc = admin ?? client!;
-      return await svc.storage.from(IMAGE_BUCKET).upload(filename, file, {
+      const res = await svc.storage.from(IMAGE_BUCKET).upload(filename, file, {
         cacheControl: "3600",
         upsert: true,
         contentType: "image/webp",
       });
+      return res as unknown as StorageUploadResult;
     },
     // list/create buckets are only available with admin privileges
     listBuckets: admin
-      ? async () => {
+      ? async (): Promise<ListBucketsResult> => {
           const res = await admin.storage.listBuckets();
           if (isRecord(res)) {
             const data = getProp(res, "data");
@@ -31,7 +62,9 @@ export function getClient() {
                     (it: unknown): it is Record<string, unknown> =>
                       isRecord(it) && typeof getProp(it, "name") === "string",
                   )
-                  .map((it) => ({ name: String(getProp(it, "name")) }))
+                  .map((it): { name: string } => ({
+                    name: String(getProp(it, "name")),
+                  }))
               : null;
             const errorOut =
               isRecord(errorRaw) &&
@@ -57,7 +90,7 @@ export function getClient() {
             allowedMimeTypes?: string[] | null;
             fileSizeLimit?: number | null;
           },
-        ) => {
+        ): Promise<CreateBucketResult> => {
           // Access the runtime `createBucket` function safely and call it.
           const maybeStorage = admin.storage;
           if (
@@ -76,7 +109,7 @@ export function getClient() {
               );
             } else {
               return {
-                data: undefined,
+                data: null,
                 error: { message: "createBucket not available" },
               };
             }
@@ -97,10 +130,10 @@ export function getClient() {
                     : null;
               return { data: dataOut, error: errorOut };
             }
-            return { data: undefined, error: { message: String(res) } };
+            return { data: null, error: { message: String(res) } };
           }
           return {
-            data: undefined,
+            data: null,
             error: { message: "createBucket not available" },
           };
         }
@@ -117,7 +150,7 @@ export function checkProgressInvariant({
 }: {
   overallProgress: { current: number; total: number };
   context?: string;
-}) {
+}): void {
   if (overallProgress.current > overallProgress.total) {
     console.warn(
       `⚠️ Progress invariant violated${context ? ` (${context})` : ""}: current (${overallProgress.current}) > total (${overallProgress.total})`,

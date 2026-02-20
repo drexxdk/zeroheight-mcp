@@ -11,7 +11,7 @@ export async function commitPagesAndImages(options: {
     original_url: ImagesType["original_url"];
     storage_path: ImagesType["storage_path"];
   }>;
-}) {
+}): Promise<{ pagesUpserted: number; imagesInserted: number }> {
   const { client: supabase, pagesToUpsert, pendingImageRecords } = options;
   // Deduplicate pages
   const pageMap = new Map<

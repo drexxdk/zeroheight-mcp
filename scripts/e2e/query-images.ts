@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { getClient } from "@/utils/common/supabaseClients";
 
-async function main() {
+async function main(): Promise<void> {
   const { client: supabase } = getClient();
   if (!supabase) {
     console.error("Supabase client not configured");

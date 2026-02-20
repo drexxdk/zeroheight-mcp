@@ -62,7 +62,9 @@ export async function scrape({
   pageUrls?: string[];
   logger?: (s: string) => void;
   shouldCancel?: () => boolean | Promise<boolean>;
-}) {
+}): Promise<
+  ScrapeResult | ReturnType<typeof createErrorResponse> | { message: string }
+> {
   try {
     const concurrency = SCRAPER_CONCURRENCY;
     const idleTimeout = SCRAPER_IDLE_TIMEOUT_MS;
@@ -114,7 +116,7 @@ export async function scrape({
 
     const waiters: Array<(val: string | null) => void> = [];
 
-    function formatLinkForConsole(u: string) {
+    function formatLinkForConsole(u: string): string {
       try {
         const parsed = new URL(u);
         return `${parsed.pathname}${parsed.search}` || "/";
@@ -123,7 +125,7 @@ export async function scrape({
       }
     }
 
-    function enqueueLinks(links: string[]) {
+    function enqueueLinks(links: string[]): void {
       const added: string[] = [];
       for (const l of links) {
         const effective = redirects.get(l) ?? l;
@@ -546,7 +548,7 @@ export async function scrape({
     let printedBox = false;
     try {
       const { client: db } = getClient();
-      const printer = (s: string) => {
+      const printer = (s: string): void => {
         if (logger) logger(s);
         else console.log(s);
       };
@@ -569,7 +571,7 @@ export async function scrape({
       console.warn("V2 bulkUpsert failed:", e);
     } finally {
       if (!printedBox) {
-        const printer = (s: string) => {
+        const printer = (s: string): void => {
           if (logger) logger(s);
           else console.log(s);
         };
@@ -638,8 +640,7 @@ export async function scrape({
     const result: ScrapeResult = { debug: { seedUrl: rootUrl }, progress };
     return result;
   } catch (err) {
-    if (err instanceof JobCancelled)
-      return { message: "Job cancelled" } as unknown;
+    if (err instanceof JobCancelled) return { message: "Job cancelled" };
     return createErrorResponse({
       message: String(err instanceof Error ? err.message : err),
     });
@@ -695,7 +696,7 @@ export const scrapeTool: ToolDefinition<
     }
 
     (async () => {
-      const logger = async (s: string) => {
+      const logger = async (s: string): Promise<void> => {
         try {
           await appendJobLog({
             jobId,

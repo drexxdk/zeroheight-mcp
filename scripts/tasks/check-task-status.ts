@@ -3,7 +3,7 @@
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-async function main() {
+async function main(): Promise<void> {
   const ids = process.argv.slice(2);
   if (ids.length === 0) {
     console.error("Usage: npx tsx scripts/tasks/check-task-status.ts <taskId>");

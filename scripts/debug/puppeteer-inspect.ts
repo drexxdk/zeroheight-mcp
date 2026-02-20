@@ -23,7 +23,7 @@ type ReqRecord = {
   timestamp: number;
 };
 
-function parseBlockArg(arg?: string) {
+function parseBlockArg(arg?: string): Set<string> {
   if (!arg) return new Set<string>();
   return new Set(
     arg
@@ -33,7 +33,7 @@ function parseBlockArg(arg?: string) {
   );
 }
 
-async function main() {
+async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
     console.error(

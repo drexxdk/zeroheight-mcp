@@ -134,7 +134,7 @@ function generateZodSchema(tableName: string): string {
 }
 
 // Generate schemas dynamically from extracted table names
-function generateSchemasFromDatabase() {
+function generateSchemasFromDatabase(): { schemas: string[]; types: string[] } {
   const tableNames = extractTableNames();
   const schemas: string[] = [];
   const types: string[] = [];

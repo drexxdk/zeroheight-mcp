@@ -3,7 +3,7 @@
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
 
-async function main() {
+async function main(): Promise<void> {
   // dynamically import config so env is loaded and TS path aliases resolve
   const cfg = await import("@/utils/config");
   const url: string = cfg.MCP_URL;
