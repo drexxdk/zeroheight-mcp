@@ -4,7 +4,7 @@ import { parseAndValidateJson } from "@/utils/server/apiHelpers";
 const DemoSchema = z.object({ message: z.string() });
 
 export async function POST(request: Request): Promise<Response> {
-  const res = await parseAndValidateJson(request as any, DemoSchema as any);
+  const res = await parseAndValidateJson(request, DemoSchema);
   if (!res.ok) {
     return new Response(JSON.stringify({ error: res.error }), {
       status: 400,

@@ -18,8 +18,8 @@ describe("typeGuards", () => {
 
   it("isJson returns true for serializable values and false for circular", () => {
     expect(isJson({ a: 1 })).toBe(true);
-    const circular: any = {};
-    circular.self = circular;
+    const circular: Record<string, unknown> = {};
+    circular["self"] = circular;
     expect(isJson(circular)).toBe(false);
   });
 
