@@ -7,7 +7,7 @@ import {
   getDatabaseTypesTool,
 } from "@/tools/development";
 import { scrapeTool } from "@/tools/scraper";
-import { clearDatabaseTool, queryDatatabaseTool } from "@/tools/database";
+import { clearAllDataTool, queryDataTool } from "@/tools/database";
 import {
   tasksGetTool,
   tasksResultTool,
@@ -52,11 +52,11 @@ const handler = createMcpHandler(
           // If the tool provided an outputSchema, validate the result before
           // normalization. If validation fails, return an error ToolResponse.
           if (tool.outputSchema) {
-            const parsed = tool.outputSchema.safeParse(res);
-            if (!parsed.success) {
+            const parsedOut = tool.outputSchema.safeParse(res);
+            if (!parsedOut.success) {
               logger.error(
                 "Tool output validation failed:",
-                parsed.error.format(),
+                parsedOut.error.format(),
               );
               return createErrorResponse({
                 message: "Tool output failed validation",
@@ -161,13 +161,13 @@ const handler = createMcpHandler(
     );
     // Scraper-related tools
     server.registerTool(
-      clearDatabaseTool.title,
+      clearAllDataTool.title,
       {
-        title: clearDatabaseTool.title,
-        description: clearDatabaseTool.description,
-        inputSchema: clearDatabaseTool.inputSchema,
+        title: clearAllDataTool.title,
+        description: clearAllDataTool.description,
+        inputSchema: clearAllDataTool.inputSchema,
       },
-      wrapTool(clearDatabaseTool),
+      wrapTool(clearAllDataTool),
     );
 
     server.registerTool(
@@ -181,13 +181,13 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
-      queryDatatabaseTool.title,
+      queryDataTool.title,
       {
-        title: queryDatatabaseTool.title,
-        description: queryDatatabaseTool.description,
-        inputSchema: queryDatatabaseTool.inputSchema,
+        title: queryDataTool.title,
+        description: queryDataTool.description,
+        inputSchema: queryDataTool.inputSchema,
       },
-      wrapTool(queryDatatabaseTool),
+      wrapTool(queryDataTool),
     );
   },
   {},
@@ -272,9 +272,9 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
           inputSchema: S;
         }) => {
           return async (a?: unknown) => {
-            const parsed = tool.inputSchema.safeParse(a);
-            if (!parsed.success) throw new Error("Invalid input");
-            return tool.handler(parsed.data);
+            const parsedInput = tool.inputSchema.safeParse(a);
+            if (!parsedInput.success) throw new Error("Invalid input");
+            return tool.handler(parsedInput.data);
           };
         };
 

@@ -1,2 +1,2 @@
-export { generateTypescriptTypesTool as getDatabaseSchemaTool } from "./getDatabaseSchema";
-export { databaseTypesTool as getDatabaseTypesTool } from "./getDatabaseTypes";
+export { getDatabaseSchemaTool } from "./getDatabaseSchema";
+export { getDatabaseTypesTool } from "./getDatabaseTypes";

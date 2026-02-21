@@ -135,12 +135,12 @@ async function main(): Promise<void> {
     await page.goto(url, { waitUntil: "networkidle2", timeout: navTimeout });
     // Attempt to login using project password if available
     try {
-      const cfg = await import("../../src/utils/config");
+      const cfgLogin = await import("../../src/utils/config");
       const { tryLogin } =
         await import("../../src/utils/common/scraperHelpers");
       const password =
-        typeof cfg.config.env.zeroheightProjectPassword === "string"
-          ? cfg.config.env.zeroheightProjectPassword
+        typeof cfgLogin.config.env.zeroheightProjectPassword === "string"
+          ? cfgLogin.config.env.zeroheightProjectPassword
           : undefined;
       if (password) {
         await tryLogin({ page, password });

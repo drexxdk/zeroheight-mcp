@@ -9,9 +9,9 @@ Quick notes for contributors on git hooks and the `debugger` rule.
 
 **Pre-commit behavior**
 
-- The pre-commit hook runs `node scripts/check-no-debugger.js` and `npm run lint`.
-- `check-no-debugger.js` inspects staged JS/TS files and aborts the commit if any contain a literal `debugger` statement.
-- ESLint allows `debugger` during development (so you can use it locally), but committing files with `debugger` is blocked.
+- The pre-commit hook runs the staged-file `debugger` checker and `npm run lint`.
+- The checker is implemented in TypeScript and executed with `npx tsx` so it runs without a separate build step.
+- ESLint has been configured with `@eslint-community/eslint-plugin-eslint-comments` to forbid disabling the `@typescript-eslint/no-explicit-any` rule; this is enforced during `npm run lint`.
 
 How to enable locally
 
@@ -29,8 +29,8 @@ If you prefer the hook to only check for `debugger` (faster), you can remove `np
 
 Support files
 
-- Hook script: `.husky/pre-commit`
-- Checker: `scripts/check-no-debugger.js`
+- Hook script: `.husky/pre-commit` (runs `npx tsx scripts/check-no-debugger.ts` then `npm run lint`)
+- Checker: `scripts/check-no-debugger.ts`
 
 Questions or changes
 

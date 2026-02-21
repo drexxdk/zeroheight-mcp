@@ -2,7 +2,8 @@
 . "$(dirname "$0")/_/husky.sh"
 
 # Prevent committing `debugger` and run lint
-node scripts/check-no-debugger.js || exit 1
+# Run the TypeScript version via tsx so it works without a separate build step
+npx tsx scripts/check-no-debugger.ts || exit 1
 npm run lint || exit 1
 
 exit 0

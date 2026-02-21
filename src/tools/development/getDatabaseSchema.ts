@@ -8,7 +8,7 @@ export type DatabaseSchemaResult = { content: string };
 
 const dbSchemaInput = z.object({});
 
-export const generateTypescriptTypesTool: ToolDefinition<
+export const getDatabaseSchemaTool: ToolDefinition<
   typeof dbSchemaInput,
   DatabaseSchemaResult | ReturnType<typeof createErrorResponse>
 > = {

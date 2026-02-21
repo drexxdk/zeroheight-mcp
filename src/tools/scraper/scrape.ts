@@ -22,6 +22,7 @@ import {
   formatSummaryBox,
   SummaryParams,
 } from "./utils/bulkUpsert";
+import { loadExistingImageUrls, performBulkUpsertSummary } from "./utils/scrapeHelpers";
 import {
   createJobInDb,
   appendJobLog,
@@ -156,36 +157,7 @@ export async function scrape({
 
     const { client: db } = getClient();
     const loggedInHostnames = new Set<string>();
-    let allExistingImageUrls = new Set<string>();
-    try {
-      const { data: allExistingImages } = await db!
-        .from("images")
-        .select("original_url");
-      const existingArray = Array.isArray(allExistingImages)
-        ? allExistingImages.filter(isRecord)
-        : [];
-      allExistingImageUrls = new Set(
-        existingArray.map((img) => {
-          let normalizedUrl = "";
-          const original = getProp(img, "original_url");
-          if (typeof original === "string") normalizedUrl = original;
-          try {
-            const u = new URL(normalizedUrl);
-            normalizedUrl = `${u.protocol}//${u.hostname}${u.pathname}`;
-          } catch (e) {
-            defaultLogger.debug("normalize URL failed:", e);
-          }
-          return normalizedUrl;
-        }),
-      );
-      if (logger)
-        logger(
-          `Found ${allExistingImageUrls.size} existing images in database`,
-        );
-    } catch (e) {
-      if (logger) logger(`Failed to load existing images: ${String(e)}`);
-      allExistingImageUrls = new Set<string>();
-    }
+    const allExistingImageUrls = await loadExistingImageUrls(db, logger);
 
     if (pageUrls && pageUrls.length > 0) {
       const normalized = pageUrls.map((p) =>
@@ -580,96 +552,19 @@ export async function scrape({
 
     await Promise.all(workers);
 
-    let bulkLines: string[] | undefined;
-    let printedBox = false;
-    try {
-      const { client: db } = getClient();
-      const printer = (s: string): void => {
-        if (logger) logger(s);
-        else defaultLogger.log(s);
-      };
-      const res = await bulkUpsertPagesAndImages({
-        db: db!,
-        pagesToUpsert,
-        pendingImageRecords,
-        uniqueAllowedImageUrls,
-        uniqueAllImageUrls,
-        uniqueUnsupportedImageUrls,
-        allExistingImageUrls,
-        imagesStats,
-        pagesFailed: pagesFailed,
-        providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
-      });
-      bulkLines = res.lines;
-      if (bulkLines && bulkLines.length) printer(bulkLines.join("\n"));
-      printedBox = true;
-    } catch (e) {
-      defaultLogger.warn("V2 bulkUpsert failed:", e);
-    } finally {
-      if (!printedBox) {
-        const printer = (s: string): void => {
-          if (logger) logger(s);
-          else defaultLogger.log(s);
-        };
-        try {
-          const { client: db } = getClient();
-          const res = await bulkUpsertPagesAndImages({
-            db: db!,
-            pagesToUpsert,
-            pendingImageRecords,
-            uniqueAllowedImageUrls,
-            uniqueAllImageUrls,
-            uniqueUnsupportedImageUrls,
-            allExistingImageUrls,
-            imagesStats,
-            pagesFailed: pagesFailed,
-            providedCount:
-              pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
-            dryRun: true,
-          });
-          if (res.lines && res.lines.length) printer(res.lines.join("\n"));
-        } catch {
-          const uniquePageMap = new Map<
-            string,
-            (typeof pagesToUpsert)[number]
-          >();
-          for (const p of pagesToUpsert) uniquePageMap.set(p.url, p);
-          const totalUniquePages = uniquePageMap.size;
-          const providedCountVal =
-            pageUrls && pageUrls.length > 0 ? pageUrls.length : 0;
-          const insertedCountVal = totalUniquePages;
-          const updatedCountVal = 0;
-          const skippedCountVal =
-            providedCountVal > 0
-              ? Math.max(0, providedCountVal - totalUniquePages)
-              : 0;
-
-          const params: SummaryParams = {
-            providedCount: providedCountVal,
-            pagesAnalyzed:
-              providedCountVal > 0 ? providedCountVal : totalUniquePages,
-            insertedCount: insertedCountVal,
-            updatedCount: updatedCountVal,
-            skippedCount: skippedCountVal,
-            pagesFailed: pagesFailed,
-            uniqueTotalImages: uniqueAllImageUrls.size,
-            uniqueUnsupported: uniqueUnsupportedImageUrls.size,
-            uniqueAllowed: uniqueAllowedImageUrls.size,
-            imagesUploadedCount: imagesStats.uploaded,
-            uniqueSkipped: Array.from(uniqueAllowedImageUrls).filter((u) =>
-              allExistingImageUrls.has(u),
-            ).length,
-            imagesFailed: imagesStats.failed,
-            imagesDbInsertedCount: pendingImageRecords.length,
-            imagesAlreadyAssociatedCount: Array.from(
-              uniqueAllowedImageUrls,
-            ).filter((u) => allExistingImageUrls.has(u)).length,
-          };
-          const boxed = formatSummaryBox({ p: params });
-          if (boxed && boxed.length) printer(boxed.join("\n"));
-        }
-      }
-    }
+    // Perform bulk upsert and print a summary; moved to helper to reduce function complexity
+    await performBulkUpsertSummary({
+      pagesToUpsert,
+      pendingImageRecords,
+      uniqueAllowedImageUrls,
+      uniqueAllImageUrls,
+      uniqueUnsupportedImageUrls,
+      allExistingImageUrls,
+      imagesStats,
+      pagesFailed,
+      providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
+      logger,
+    });
 
     await browser.close();
 

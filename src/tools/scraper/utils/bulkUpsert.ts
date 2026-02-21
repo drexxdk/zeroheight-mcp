@@ -1,14 +1,36 @@
 ﻿import "dotenv/config";
 import { config } from "@/utils/config";
 import type { PagesType, ImagesType } from "@/database.types";
+import type { TestDbClient } from "./mockDb";
 import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
 import logger from "@/utils/logger";
 import { isRecord, getProp } from "../../../utils/common/typeGuards";
+import { queryExistingPages, insertImageChunks } from "./bulkUpsertHelpers";
 import { toErrorObj } from "@/utils/common/errorUtils";
 
-type DbClient = ReturnType<typeof getClient>["client"];
+// Allow either the real Supabase client or a lightweight test stub that
+// provides a `from` method. Tests supply a `MockSupabaseClient` with a
+// compatible `from` signature, so accept a looser shape here to avoid
+// expensive casting in tests.
+type DbClient = ReturnType<typeof getClient>["client"] | TestDbClient;
 
+type InspectionThenable = {
+  limit: (n: number) => Promise<unknown>;
+  order: (field: string, dir?: unknown) => InspectionThenable;
+};
+type InspectionSelect = {
+  in: (key: string, values: unknown) => InspectionThenable;
+  order: (field: string, dir?: unknown) => InspectionThenable;
+};
+type InspectionFrom = { select: (cols?: string) => InspectionSelect };
+type InspectionClient = { from: (table: string) => InspectionFrom };
+
+function getInspectionClient(db: DbClient): InspectionClient | null {
+  const candidate = db as unknown as InspectionClient;
+  if (candidate && typeof candidate.from === "function") return candidate;
+  return null;
+}
 type UpsertPagesRes = {
   data?: Array<{ id?: number; url?: string }>;
   error?: { message?: string } | null;
@@ -62,90 +84,14 @@ export async function bulkUpsertPagesAndImages(options: {
 
   // Query existing pages (best-effort)
   const uniqueUrls = uniquePages.map((p) => p.url);
-  let existingPagesBefore: Array<{ url?: string }> = [];
-  try {
-    // Always attempt to query existing pages to produce accurate dry-run
-    // summaries. This is a read-only operation and safe even when callers
-    // requested dryRun.
-    const { data: existingData } = await db!
-      .from("pages")
-      .select("url")
-      .in("url", uniqueUrls);
-    if (Array.isArray(existingData)) existingPagesBefore = existingData;
-    else existingPagesBefore = [];
-  } catch (err) {
-    logger.warn("Could not query existing pages before upsert:", err);
-  }
-  const existingUrlSet = new Set(
-    existingPagesBefore
-      .map((p) => p?.url)
-      .filter((v): v is string => Boolean(v)),
-  );
+  const existingUrlSet = await queryExistingPages(db, uniqueUrls);
 
   // Upsert pages in chunks with retries
   const pageChunkSize = config.scraper.pageUpsertChunk;
-  const upsertedPagesAll: Array<{ id?: number; url?: string }> = [];
-  for (let i = 0; i < uniquePages.length; i += pageChunkSize) {
-    const chunk = uniquePages.slice(i, i + pageChunkSize);
-    let attempts = 0;
-    let chunkResult: UpsertPagesRes | null = null;
-    // use shared toErrorObj helper
-
-    while (attempts < config.scraper.retry.maxAttempts) {
-      try {
-        if (!options.dryRun) {
-          const res = await db!
-            .from("pages")
-            .upsert(chunk, { onConflict: "url" })
-            .select("id, url");
-          // Normalize supabase response shape safely at runtime
-          const maybe = res;
-          if (isRecord(maybe)) {
-            const maybeData = getProp(maybe, "data");
-            let normalizedData:
-              | Array<{ id?: number; url?: string }>
-              | undefined = undefined;
-            if (Array.isArray(maybeData)) {
-              normalizedData = [];
-              for (const it of maybeData) {
-                if (isRecord(it)) {
-                  normalizedData.push({
-                    id: typeof it.id === "number" ? it.id : undefined,
-                    url: typeof it.url === "string" ? it.url : undefined,
-                  });
-                }
-              }
-            }
-            chunkResult = {
-              data: normalizedData,
-              error: toErrorObj(getProp(maybe, "error")),
-            };
-          } else {
-            chunkResult = { error: toErrorObj(maybe) };
-          }
-          if (chunkResult && !chunkResult.error) break;
-        } else {
-          // Dry run: pretend upsert succeeded and generate ids
-          chunkResult = {
-            data: chunk.map((p, idx) => ({ id: i + idx + 1, url: p.url })),
-          };
-          break;
-        }
-      } catch (err) {
-        chunkResult = { error: toErrorObj(err) };
-      }
-      attempts++;
-      if (attempts < config.scraper.retry.maxAttempts)
-        await new Promise((r) =>
-          setTimeout(r, config.scraper.db.bulkUpsertBackoffMs * attempts),
-        );
-    }
-    if (chunkResult && Array.isArray(chunkResult.data)) {
-      upsertedPagesAll.push(...chunkResult.data);
-    } else if (chunkResult?.error) {
-      logger.error("Error bulk upserting pages chunk:", chunkResult.error);
-    }
-  }
+  const upsertedPagesAll = await upsertPages(db, uniquePages, pageChunkSize, options.dryRun, {
+    maxAttempts: config.scraper.retry.maxAttempts,
+    backoffMs: config.scraper.db.bulkUpsertBackoffMs,
+  });
 
   // Map url -> id for image inserts
   const urlToId = new Map<string, number>();
@@ -175,38 +121,9 @@ export async function bulkUpsertPagesAndImages(options: {
     );
 
   // Compute how many of the unique allowed images are already associated with the processed pages
-  let imagesAlreadyAssociatedCount = 0;
-  try {
-    const imagesFoundArray = Array.from(uniqueAllowedImageUrls);
-    if (imagesFoundArray.length > 0) {
-      const pageIdSet = new Set<number>(Array.from(urlToId.values()));
-      for (const norm of imagesFoundArray) {
-        try {
-          const { data: qdata, error: qerr } = await db!
-            .from("images")
-            .select("original_url, page_id")
-            .ilike("original_url", `${norm}%`);
-          if (qerr || !qdata) continue;
-          if (Array.isArray(qdata)) {
-            if (
-              qdata.some(
-                (r) =>
-                  isRecord(r) &&
-                  typeof r.page_id === "number" &&
-                  pageIdSet.has(r.page_id),
-              )
-            ) {
-              imagesAlreadyAssociatedCount++;
-            }
-          }
-        } catch {
-          // continue
-        }
-      }
-    }
-  } catch (e) {
-    logger.warn("DEBUG: failed to compute imagesAlreadyAssociatedCount:", e);
-  }
+  const imagesFoundArray = Array.from(uniqueAllowedImageUrls);
+  const pageIdSet = new Set<number>(Array.from(urlToId.values()));
+  const imagesAlreadyAssociatedCount = await computeImagesAlreadyAssociatedCount(db, imagesFoundArray, pageIdSet);
 
   // Insert new images in manageable chunks to avoid very large single inserts.
   // We retry transient failures a few times. Skip writes when doing a dry run.
@@ -242,39 +159,8 @@ export async function bulkUpsertPagesAndImages(options: {
       `image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
     );
 
-  if (db && uniqueAllowedImageUrls.size > 0) {
-    try {
-      const existingRes = await db
-        .from("images")
-        .select("original_url")
-        .in("original_url", Array.from(uniqueAllowedImageUrls))
-        .limit(config.scraper.db.queryLimit);
-      const maybeExisting = existingRes;
-      if (isRecord(maybeExisting)) {
-        const maybeData = getProp(maybeExisting, "data");
-        if (Array.isArray(maybeData)) {
-          dbExistingImageUrls = new Set(
-            maybeData
-              .map((r) =>
-                isRecord(r) && typeof r.original_url === "string"
-                  ? r.original_url
-                  : "",
-              )
-              .filter(Boolean),
-          );
-        } else {
-          dbExistingImageUrls = new Set();
-        }
-      } else {
-        dbExistingImageUrls = new Set();
-      }
-    } catch (err) {
-      if (debug)
-        logger.debug(`[debug] DB existence check error: ${String(err)}`);
-      else logger.log(`DB existence check error: ${String(err)}`);
-      dbExistingImageUrls = allExistingImageUrls;
-    }
-  }
+  // Attempt an authoritative DB lookup for whether an original_url already exists
+  const dbExistingImageUrls = await getDbExistingImageUrls(db, uniqueAllowedImageUrls, allExistingImageUrls);
 
   const skippedList = Array.from(uniqueAllowedImageUrls).filter((u) =>
     dbExistingImageUrls.has(u),
@@ -311,28 +197,61 @@ export async function bulkUpsertPagesAndImages(options: {
     // If we have intersection URLs, fetch DB rows for inspection (up to 50)
     if (intersection.length > 0 && db) {
       try {
-        const dbRes = await db
-          .from("images")
-          .select("id, original_url, created_at")
-          .in("original_url", intersection)
-          .order("created_at", { ascending: false })
-          .limit(config.scraper.db.inspectLimit);
-        const maybeDbData = dbRes;
-        if (isRecord(maybeDbData)) {
-          const maybeData = getProp(maybeDbData, "data");
-          logger.debug(
-            `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
-              Array.isArray(maybeData)
-                ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
-                : [],
-              null,
-              2,
-            )}`,
-          );
+        const inspector = getInspectionClient(db);
+        if (inspector) {
+          const dbRes = await inspector
+            .from("images")
+            .select("id, original_url, created_at")
+            .in("original_url", intersection)
+            .order("created_at", { ascending: false })
+            .limit(config.scraper.db.inspectLimit);
+          const maybeDbData = dbRes;
+          if (isRecord(maybeDbData)) {
+            const maybeData = getProp(maybeDbData, "data");
+            logger.debug(
+              `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
+                Array.isArray(maybeData)
+                  ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
+                  : [],
+                null,
+                2,
+              )}`,
+            );
+          } else {
+            logger.debug(
+              `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
+            );
+          }
         } else {
-          logger.debug(
-            `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
-          );
+          // Fallback: try the real client chain and ignore errors
+          try {
+            const realDb = db as ReturnType<typeof getClient>["client"];
+            const realRes = await realDb!
+              .from("images")
+              .select("id, original_url, created_at")
+              .in("original_url", intersection)
+              .order("created_at", { ascending: false })
+              .limit(config.scraper.db.inspectLimit);
+            const maybeDbData = realRes;
+            if (isRecord(maybeDbData)) {
+              const maybeData = getProp(maybeDbData, "data");
+              logger.debug(
+                `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
+                  Array.isArray(maybeData)
+                    ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
+                    : [],
+                  null,
+                  2,
+                )}`,
+              );
+            } else {
+              logger.debug(
+                `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
+              );
+            }
+          } catch (err) {
+            logger.debug(`[debug] DB inspection error: ${String(err)}`);
+          }
         }
       } catch (err) {
         logger.debug(`[debug] DB inspection error: ${String(err)}`);
@@ -352,64 +271,14 @@ export async function bulkUpsertPagesAndImages(options: {
     );
   }
   let insertedCountTotal = 0;
-  const insertedOriginalUrls = new Set<string>();
+  let insertedOriginalUrls = new Set<string>();
   if (!options.dryRun && dedupImagesToInsert.length > 0) {
-    for (let i = 0; i < dedupImagesToInsert.length; i += imageChunkSize) {
-      const chunk = dedupImagesToInsert.slice(i, i + imageChunkSize);
-      let attempts = 0;
-      while (attempts < config.scraper.retry.maxAttempts) {
-        attempts += 1;
-        try {
-          const res = await db!
-            .from("images")
-            .insert(chunk)
-            .select("id, original_url");
-          const maybeInsert = res;
-          if (isRecord(maybeInsert)) {
-            const insertError = getProp(maybeInsert, "error");
-            if (insertError) throw insertError;
-            const maybeData = getProp(maybeInsert, "data");
-            if (Array.isArray(maybeData)) {
-              for (const row of maybeData) {
-                if (!isRecord(row)) continue;
-                const orig = getProp(row, "original_url");
-                if (typeof orig === "string") insertedOriginalUrls.add(orig);
-              }
-              insertedCountTotal += maybeData.length;
-            }
-            if (debug) {
-              const insertedChunkCount = Array.isArray(maybeData)
-                ? maybeData.length
-                : 0;
-              logger.debug(
-                `[debug] inserted chunk: count=${insertedChunkCount} totalInserted=${insertedCountTotal}`,
-              );
-              try {
-                const maybeFirst = Array.isArray(maybeData)
-                  ? maybeData[0]
-                  : undefined;
-                if (isRecord(maybeFirst)) {
-                  logger.debug(`
-                    [debug] sample inserted id=${String(getProp(maybeFirst, "id"))}`);
-                }
-              } catch (e) {
-                logger.debug("bulk upsert row normalization failed:", e);
-              }
-            }
-          }
-          break;
-        } catch (err) {
-          if (attempts >= config.scraper.retry.maxAttempts) {
-            logger.error("Failed inserting image chunk after retries:", err);
-            throw err;
-          }
-          // small backoff
-          await new Promise((r) =>
-            setTimeout(r, config.scraper.retry.retryBaseMs * attempts),
-          );
-        }
-      }
-    }
+    const res = await insertImageChunks(db, dedupImagesToInsert, imageChunkSize, {
+      maxAttempts: config.scraper.retry.maxAttempts,
+      retryBaseMs: config.scraper.retry.retryBaseMs,
+    });
+    insertedCountTotal = res.insertedCountTotal;
+    insertedOriginalUrls = res.insertedOriginalUrls;
   } else {
     // Dry-run: assume none inserted, but for reporting we can set insertedCountTotal
     // to the number of unique dedup records (they would be inserted if not dry-run).

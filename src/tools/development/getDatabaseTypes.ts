@@ -10,7 +10,7 @@ export type DatabaseTypesResult = {
 
 const dbTypesInput = z.object({});
 
-export const databaseTypesTool: ToolDefinition<
+export const getDatabaseTypesTool: ToolDefinition<
   typeof dbTypesInput,
   DatabaseTypesResult | ReturnType<typeof createErrorResponse>
 > = {

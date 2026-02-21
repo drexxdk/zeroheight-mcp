@@ -156,13 +156,13 @@ async function main(): Promise<void> {
         .outputSchema as ZodTypeAny | undefined;
       let directRec: Record<string, unknown> | undefined;
       if (outputSchema) {
-        const parsed = outputSchema.safeParse(direct);
-        if (!parsed.success) {
+        const safe = outputSchema.safeParse(direct);
+        if (!safe.success) {
           throw new Error(
-            `Direct tool output failed validation: ${JSON.stringify(parsed.error.format())}`,
+            `Direct tool output failed validation: ${JSON.stringify(safe.error.format())}`,
           );
         }
-        directRec = isRecord(parsed.data) ? parsed.data : undefined;
+        directRec = isRecord(safe.data) ? safe.data : undefined;
       } else {
         const directAny: unknown = direct;
         directRec = isRecord(directAny) ? directAny : undefined;
@@ -190,13 +190,13 @@ async function main(): Promise<void> {
   // Unwrap ToolResponse wrapper if present: result.content[0].text may contain the real JSON
   let actualResult: unknown = gj["result"];
   if (isRecord(actualResult) && Array.isArray(actualResult.content)) {
-    const content = (() => {
+    const maybeContent = (() => {
       const __tmp = actualResult.content;
       return isRecord(__tmp)
         ? (__tmp as Array<Record<string, unknown>>)
         : __tmp;
     })();
-    const first = content[0];
+    const first = maybeContent[0];
     const inner = first?.text;
     if (typeof inner === "string") {
       try {
