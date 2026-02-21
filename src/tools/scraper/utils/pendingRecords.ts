@@ -7,6 +7,7 @@ export type PendingImageRecord = {
 };
 
 import { config } from "@/utils/config";
+import logger from "@/utils/logger";
 
 export function addPendingImageRecord({
   pendingImageRecords,
@@ -29,7 +30,7 @@ export function addPendingImageRecord({
   });
   allExistingImageUrls.add(normalized);
   if (config.scraper.debug) {
-    console.log(
+    logger.debug(
       `[debug] addPendingImageRecord page=${pageUrl} download=${downloadUrl} normalized=${normalized} storage=${storagePath}`,
     );
   }

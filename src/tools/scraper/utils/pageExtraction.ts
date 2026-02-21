@@ -1,5 +1,6 @@
 import type { Page } from "puppeteer";
 import { config } from "@/utils/config";
+import logger from "@/utils/logger";
 
 export type ExtractedImage = {
   src: string;
@@ -132,7 +133,7 @@ export async function extractPageData({
         const url = new URL(normalizedSrc);
         normalizedSrc = `${url.protocol}//${url.hostname}${url.pathname}`;
       } catch (e) {
-        console.debug("pageExtraction metadata parse error:", e);
+        logger.debug("pageExtraction metadata parse error:", e);
       }
     }
 
@@ -144,7 +145,7 @@ export async function extractPageData({
         const url = new URL(normalizedSrc);
         normalizedSrc = `${url.protocol}//${url.hostname}${url.pathname}`;
       } catch (e) {
-        console.debug("pageExtraction attribute parse error:", e);
+        logger.debug("pageExtraction attribute parse error:", e);
       }
     }
 

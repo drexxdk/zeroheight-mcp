@@ -5,6 +5,7 @@ import { normalizeImageUrl } from "./imageHelpers";
 import { processAndUploadImage } from "./imagePipeline";
 import { mapWithConcurrency } from "./concurrency";
 import { config } from "@/utils/config";
+import logger from "@/utils/logger";
 
 export type Progress = {
   current: number;
@@ -66,7 +67,7 @@ export async function processImagesForPage(options: {
       if (shouldCancel && shouldCancel()) {
         logProgress("⏹️", "Cancellation requested - stopping image processing");
         try {
-          console.log(
+          logger.log(
             `[${new Date().toISOString()}] Cancellation detected in processImagesForPage for page=${link}`,
           );
         } catch {
@@ -77,7 +78,7 @@ export async function processImagesForPage(options: {
       overallProgress.current++;
 
       if (!(img.src && img.src.startsWith("http"))) {
-        console.error(`❌ Invalid image source: ${img.src}`);
+        logger.error(`❌ Invalid image source: ${img.src}`);
         return { processed: 0, uploaded: 0, skipped: 0, failed: 1 };
       }
 
@@ -121,7 +122,7 @@ export async function processImagesForPage(options: {
       }
       if (result && result.uploaded)
         return { processed: 1, uploaded: 1, skipped: 0, failed: 0 };
-      console.error(
+      logger.error(
         `❌ Failed to process image ${img.src.split("/").pop()}: ${result.error}`,
       );
       return { processed: 1, uploaded: 0, skipped: 0, failed: 1 };

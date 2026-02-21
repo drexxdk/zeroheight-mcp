@@ -6,6 +6,7 @@ import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
 
 import { HTTPRequest, HTTPResponse } from "puppeteer";
+import logger from "../../src/utils/logger";
 import {
   launchBrowser as sharedLaunchBrowser,
   attachDefaultInterception,
@@ -36,7 +37,7 @@ function parseBlockArg(arg?: string): Set<string> {
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
-    console.error(
+    logger.error(
       "Usage: npx tsx scripts/debug/puppeteer-inspect.ts <url> [--block=resourceTypes]",
     );
     process.exit(1);
@@ -124,7 +125,7 @@ async function main(): Promise<void> {
     }
   });
 
-  console.log(
+  logger.log(
     `Navigating to ${url} (blocking: ${[...blockSet].join(",") || "none"})`,
   );
 
@@ -143,17 +144,17 @@ async function main(): Promise<void> {
           : undefined;
       if (password) {
         await tryLogin({ page, password });
-        console.log("Login attempt complete (inspector)");
+        logger.log("Login attempt complete (inspector)");
       }
     } catch (e) {
       // Non-fatal: continue even if login helper isn't available
-      console.warn(
+      logger.warn(
         "Login attempt skipped or failed:",
         e instanceof Error ? e.message : e,
       );
     }
   } catch (e) {
-    console.error("Navigation failed:", e instanceof Error ? e.message : e);
+    logger.error("Navigation failed:", e instanceof Error ? e.message : e);
   }
 
   // give a short grace period for late responses
@@ -174,9 +175,9 @@ async function main(): Promise<void> {
     .screenshot({ path: screenshotPath, fullPage: true })
     .catch(() => {});
 
-  console.log(`Report written: ${reportPath}`);
-  console.log(`Screenshot written: ${screenshotPath}`);
-  console.log(
+  logger.log(`Report written: ${reportPath}`);
+  logger.log(`Screenshot written: ${screenshotPath}`);
+  logger.log(
     `Requests: ${records.length}, blocked: ${blockedCount}, bytes: ${totalBytes}`,
   );
 
@@ -184,6 +185,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-  console.error(e instanceof Error ? e.message : e);
+  logger.error(e instanceof Error ? e.message : e);
   process.exit(1);
 });

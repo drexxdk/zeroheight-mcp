@@ -7,6 +7,7 @@ type Bucket = { tokens: number; lastRefill: number };
 
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 import { config } from "@/utils/config";
+import logger from "@/utils/logger";
 const RATE_LIMIT_TOKENS = config.server.rateLimitTokens;
 
 const buckets = new Map<string, Bucket>();
@@ -103,7 +104,7 @@ export async function auditRequest({
     fs.appendFileSync(AUDIT_LOG, JSON.stringify(entry) + "\n");
   } catch (err) {
     // don't let auditing break the request flow
-    // console.error allowed here for server-side visibility
-    console.error("auditRequest error", err);
+    // log via central logger for consistency
+    logger.error("auditRequest error", err);
   }
 }

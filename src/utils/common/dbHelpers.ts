@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../database.schema";
 import type { PagesType, ImagesType } from "../../database.types";
 import { isRecord } from "@/utils/common/typeGuards";
+import logger from "@/utils/logger";
 
 export async function commitPagesAndImages(options: {
   client: SupabaseClient<Database>;
@@ -55,11 +56,11 @@ export async function commitPagesAndImages(options: {
     }
 
     if (upsertResult.error) {
-      console.error("Error bulk upserting pages:", upsertResult.error);
+      logger.error("Error bulk upserting pages:", upsertResult.error);
     }
     upsertedPages = upsertResult.data || null;
   } catch (e) {
-    console.error("Unexpected error upserting pages:", e);
+    logger.error("Unexpected error upserting pages:", e);
   }
 
   const urlToId = new Map<string, number>();
@@ -111,10 +112,10 @@ export async function commitPagesAndImages(options: {
       if (isRecord(insertResult))
         insertImagesError = insertResult.error ?? null;
       if (insertImagesError) {
-        console.error("Error bulk inserting images:", insertImagesError);
+        logger.error("Error bulk inserting images:", insertImagesError);
       }
     } catch (e) {
-      console.error("Unexpected error inserting images:", e);
+      logger.error("Unexpected error inserting images:", e);
     }
   }
 

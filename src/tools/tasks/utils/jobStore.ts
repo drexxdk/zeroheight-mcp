@@ -3,6 +3,7 @@ import type { Json } from "@/database.schema";
 import { getSupabaseAdminClient } from "@/utils/common";
 import { config } from "@/utils/config";
 import { isRecord, isJson, getProp } from "../../../utils/common/typeGuards";
+import logger from "@/utils/logger";
 
 export type JobRecord = TasksType;
 
@@ -15,7 +16,7 @@ export async function createJobInDb({
 }): Promise<string | null> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
-    console.error("createJobInDb: admin supabase client not available");
+    logger.error("createJobInDb: admin supabase client not available");
     return null;
   }
 
@@ -71,7 +72,7 @@ export async function createJobInDb({
       } else {
         msg = String(error);
       }
-      console.error("createJobInDb supabase error:", {
+      logger.error("createJobInDb supabase error:", {
         message: msg,
         details,
         hint,
@@ -81,7 +82,7 @@ export async function createJobInDb({
     }
     // ignore returned row data; we use our generated `id` value as the job id
   } catch (e) {
-    console.error("createJobInDb unexpected error:", String(e));
+    logger.error("createJobInDb unexpected error:", String(e));
     return null;
   }
   return id;
@@ -108,7 +109,7 @@ export async function createTestJobInDb({
   };
   const id = await createJobInDb({ name, args: merged });
   if (!id) {
-    console.error(
+    logger.error(
       "createTestJobInDb: failed to create job in DB (createJobInDb returned null)",
     );
   }
@@ -134,7 +135,7 @@ export async function claimNextJob(): Promise<JobRecord | null> {
       .update({ started_at: new Date().toISOString() })
       .eq("id", job.id);
     if (updErr) {
-      console.error("claimNextJob update error:", updErr);
+      logger.error("claimNextJob update error:", updErr);
       return null;
     }
     return {
@@ -144,7 +145,7 @@ export async function claimNextJob(): Promise<JobRecord | null> {
       started_at: new Date().toISOString(),
     } as JobRecord;
   } catch (e) {
-    console.error("claimNextJob error:", e);
+    logger.error("claimNextJob error:", e);
     return null;
   }
 }
@@ -168,7 +169,7 @@ export async function claimJobById({
     if (error || !data) return null;
     return { ...(data as JobRecord), status: "running" } as JobRecord;
   } catch (e) {
-    console.error("claimJobById error:", e);
+    logger.error("claimJobById error:", e);
     return null;
   }
 }
@@ -181,7 +182,7 @@ export async function appendJobLog({
   line: string;
 }): Promise<void> {
   if (!jobId) {
-    console.warn("appendJobLog called with empty jobId - skipping");
+    logger.warn("appendJobLog called with empty jobId - skipping");
     return;
   }
   const supabase = getSupabaseAdminClient();
@@ -193,7 +194,7 @@ export async function appendJobLog({
       .eq("id", jobId)
       .maybeSingle();
     if (error) {
-      console.warn("appendJobLog select error:", error);
+      logger.warn("appendJobLog select error:", error);
       return;
     }
     let current = "";
@@ -205,9 +206,9 @@ export async function appendJobLog({
       .from("tasks")
       .update({ logs: updated })
       .eq("id", jobId);
-    if (updateErr) console.warn("appendJobLog update error:", updateErr);
+    if (updateErr) logger.warn("appendJobLog update error:", updateErr);
   } catch (e) {
-    console.warn(`appendJobLog failed for jobId=${jobId}: ${String(e)}`);
+    logger.warn(`appendJobLog failed for jobId=${jobId}: ${String(e)}`);
   }
 }
 
@@ -240,7 +241,7 @@ export async function finishJob({
       .eq("id", jobId)
       .maybeSingle();
     if (readError) {
-      console.warn("finishJob read error:", readError);
+      logger.warn("finishJob read error:", readError);
       return;
     }
     if (
@@ -253,9 +254,9 @@ export async function finishJob({
       .from("tasks")
       .update(payload)
       .eq("id", jobId);
-    if (error) console.warn("finishJob update error:", error);
+    if (error) logger.warn("finishJob update error:", error);
   } catch (e) {
-    console.warn("finishJob failed:", e);
+    logger.warn("finishJob failed:", e);
   }
 }
 
@@ -271,9 +272,9 @@ export async function markJobCancelledInDb({
       .from("tasks")
       .update({ status: "cancelled", finished_at: new Date().toISOString() })
       .eq("id", jobId);
-    if (error) console.warn("markJobCancelledInDb error:", error);
+    if (error) logger.warn("markJobCancelledInDb error:", error);
   } catch (e) {
-    console.warn("markJobCancelledInDb failed:", e);
+    logger.warn("markJobCancelledInDb failed:", e);
   }
 }
 
@@ -286,9 +287,9 @@ export async function deleteJobInDb({
   if (!supabase) return;
   try {
     const { error } = await supabase.from("tasks").delete().eq("id", jobId);
-    if (error) console.warn("deleteJobInDb error:", error);
+    if (error) logger.warn("deleteJobInDb error:", error);
   } catch (e) {
-    console.warn("deleteJobInDb failed:", e);
+    logger.warn("deleteJobInDb failed:", e);
   }
 }
 
@@ -304,9 +305,9 @@ export async function deleteJobsByTestRun({
       .from("tasks")
       .delete()
       .contains("args", { __testRunId: testRunId });
-    if (error) console.warn("deleteJobsByTestRun error:", error);
+    if (error) logger.warn("deleteJobsByTestRun error:", error);
   } catch (e) {
-    console.warn("deleteJobsByTestRun failed:", e);
+    logger.warn("deleteJobsByTestRun failed:", e);
   }
 }
 
@@ -324,12 +325,12 @@ export async function getJobFromDb({
       .eq("id", jobId)
       .maybeSingle();
     if (error) {
-      console.error("getJobFromDb error:", error);
+      logger.error("getJobFromDb error:", error);
       return null;
     }
     return data as JobRecord | null;
   } catch (e) {
-    console.error("getJobFromDb failed:", e);
+    logger.error("getJobFromDb failed:", e);
     return null;
   }
 }

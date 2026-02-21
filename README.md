@@ -1,3 +1,46 @@
+# zeroheight-mcp — Development notes
+
+Quick notes for contributors on git hooks and the `debugger` rule.
+
+**Hooks & Husky**
+
+- This repo uses Husky to manage Git hooks. Husky is installed via the `prepare` script in `package.json`.
+- On `npm install` the `prepare` script runs `husky install` and activates hooks.
+
+**Pre-commit behavior**
+
+- The pre-commit hook runs `node scripts/check-no-debugger.js` and `npm run lint`.
+- `check-no-debugger.js` inspects staged JS/TS files and aborts the commit if any contain a literal `debugger` statement.
+- ESLint allows `debugger` during development (so you can use it locally), but committing files with `debugger` is blocked.
+
+How to enable locally
+
+1. Run:
+
+```bash
+npm install
+# (prepare runs automatically) or run explicitly:
+npx husky install
+```
+
+2. Make a change and commit — the pre-commit hook will run automatically.
+
+If you prefer the hook to only check for `debugger` (faster), you can remove `npm run lint` from `.husky/pre-commit`.
+
+Support files
+
+- Hook script: `.husky/pre-commit`
+- Checker: `scripts/check-no-debugger.js`
+
+Questions or changes
+
+- If you'd like hooks enforced differently (e.g., CI-only or additional checks), tell me how and I can update the hooks.
+
+**Contributing**
+
+- Commits are validated by a Husky pre-commit hook that runs a staged-file check for `debugger` and runs `npm run lint`.
+- Make sure to run `npm install` so Husky is activated locally (the `prepare` script runs `husky install`).
+
 # Zeroheight MCP Server
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)

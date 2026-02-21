@@ -1,11 +1,12 @@
 #!/usr/bin/env tsx
 
 import { runTool } from "./start-task";
+import logger from "../../src/utils/logger";
 
 async function main(): Promise<void> {
   const ids = process.argv.slice(2);
   if (ids.length === 0) {
-    console.error(
+    logger.error(
       "Usage: npx tsx scripts/tasks/cancel-task.ts <taskId> [<taskId> ...]",
     );
     process.exit(2);
@@ -20,10 +21,10 @@ async function main(): Promise<void> {
           taskId: id,
         },
       );
-      console.log(JSON.stringify(res, null, 2));
+      logger.log(JSON.stringify(res, null, 2));
     }
   } catch (e) {
-    console.error("Cancel task failed:", e instanceof Error ? e.message : e);
+    logger.error("Cancel task failed:", e instanceof Error ? e.message : e);
     process.exit(3);
   }
 }

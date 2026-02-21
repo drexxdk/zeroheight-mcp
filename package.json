@@ -22,6 +22,7 @@
     "codemod:guard-record-casts": "npx tsx scripts/codemods/guard-record-casts.ts src --dry-run",
     "inspect-mcp": "npx @modelcontextprotocol/inspector"
   },
+  "prepare": "husky install",
   "dependencies": {
     "@base-ui/react": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.25.2",
@@ -53,6 +54,7 @@
     "tailwindcss": "^4",
     "ts-morph": "^18.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "husky": "^8.0.3"
   }
 }

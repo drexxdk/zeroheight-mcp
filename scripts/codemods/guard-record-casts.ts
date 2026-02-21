@@ -15,7 +15,8 @@ project.addSourceFilesAtPaths(pattern);
 let sourceFiles = project.getSourceFiles();
 // Exclude declaration files which shouldn't have imports inserted
 sourceFiles = sourceFiles.filter((sf) => !sf.getFilePath().endsWith(".d.ts"));
-console.log(`Found ${sourceFiles.length} files under ${target}`);
+import logger from "../../src/utils/logger";
+logger.log(`Found ${sourceFiles.length} files under ${target}`);
 
 for (const sf of sourceFiles) {
   let modified = false;
@@ -62,12 +63,12 @@ for (const sf of sourceFiles) {
 
   if (modified) {
     if (dryRun) {
-      console.log(`[dry-run] would modify: ${sf.getFilePath()}`);
+      logger.log(`[dry-run] would modify: ${sf.getFilePath()}`);
     } else {
       sf.saveSync();
-      console.log(`Modified: ${sf.getFilePath()}`);
+      logger.log(`Modified: ${sf.getFilePath()}`);
     }
   }
 }
 
-console.log(dryRun ? "Dry run complete." : "Codemod complete.");
+logger.log(dryRun ? "Dry run complete." : "Codemod complete.");

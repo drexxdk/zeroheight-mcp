@@ -3,6 +3,7 @@ import { config } from "@/utils/config";
 import type { PagesType, ImagesType } from "@/database.types";
 import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
+import logger from "@/utils/logger";
 import { isRecord, getProp } from "../../../utils/common/typeGuards";
 
 type DbClient = ReturnType<typeof getClient>["client"];
@@ -72,7 +73,7 @@ export async function bulkUpsertPagesAndImages(options: {
     if (Array.isArray(existingData)) existingPagesBefore = existingData;
     else existingPagesBefore = [];
   } catch (err) {
-    console.warn("Could not query existing pages before upsert:", err);
+    logger.warn("Could not query existing pages before upsert:", err);
   }
   const existingUrlSet = new Set(
     existingPagesBefore
@@ -139,7 +140,7 @@ export async function bulkUpsertPagesAndImages(options: {
     if (chunkResult && Array.isArray(chunkResult.data)) {
       upsertedPagesAll.push(...chunkResult.data);
     } else if (chunkResult?.error) {
-      console.error("Error bulk upserting pages chunk:", chunkResult.error);
+      logger.error("Error bulk upserting pages chunk:", chunkResult.error);
     }
   }
 
@@ -201,7 +202,7 @@ export async function bulkUpsertPagesAndImages(options: {
       }
     }
   } catch (e) {
-    console.warn("DEBUG: failed to compute imagesAlreadyAssociatedCount:", e);
+    logger.warn("DEBUG: failed to compute imagesAlreadyAssociatedCount:", e);
   }
 
   // Insert new images in manageable chunks to avoid very large single inserts.
@@ -230,11 +231,11 @@ export async function bulkUpsertPagesAndImages(options: {
   // `SCRAPER_DEBUG` flag and avoids racey heuristics based on the initial
   // `allExistingImageUrls` snapshot.
   if (debug)
-    console.log(
+    logger.debug(
       `[debug] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
     );
   else
-    console.log(
+    logger.log(
       `image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
     );
 
@@ -266,8 +267,8 @@ export async function bulkUpsertPagesAndImages(options: {
       }
     } catch (err) {
       if (debug)
-        console.log(`[debug] DB existence check error: ${String(err)}`);
-      else console.log(`DB existence check error: ${String(err)}`);
+        logger.debug(`[debug] DB existence check error: ${String(err)}`);
+      else logger.log(`DB existence check error: ${String(err)}`);
       dbExistingImageUrls = allExistingImageUrls;
     }
   }
@@ -276,19 +277,19 @@ export async function bulkUpsertPagesAndImages(options: {
     dbExistingImageUrls.has(u),
   );
   if (debug) {
-    console.log(
+    logger.debug(
       `[debug] uniqueAllowed=${uniqueAllowedImageUrls.size} uniqueSkipped(before)=${skippedList.length} sampleSkipped=${skippedList
         .slice(0, config.scraper.log.sampleSize)
         .join(", ")}`,
     );
-    console.log(
+    logger.debug(
       `[debug] sample allExisting (first ${config.scraper.log.sampleSize}): ${Array.from(
         allExistingImageUrls,
       )
         .slice(0, config.scraper.log.sampleSize)
         .join(", ")}`,
     );
-    console.log(
+    logger.debug(
       `[debug] sample uniqueAllowed (first ${config.scraper.log.sampleSize}): ${Array.from(
         uniqueAllowedImageUrls,
       )
@@ -298,7 +299,7 @@ export async function bulkUpsertPagesAndImages(options: {
     const intersection = Array.from(uniqueAllowedImageUrls).filter((u) =>
       dbExistingImageUrls.has(u),
     );
-    console.log(
+    logger.debug(
       `[debug] intersection sample (first ${config.scraper.log.sampleSize}): ${intersection
         .slice(0, config.scraper.log.sampleSize)
         .join(", ")}`,
@@ -316,7 +317,7 @@ export async function bulkUpsertPagesAndImages(options: {
         const maybeDbData = dbRes;
         if (isRecord(maybeDbData)) {
           const maybeData = getProp(maybeDbData, "data");
-          console.log(
+          logger.debug(
             `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
               Array.isArray(maybeData)
                 ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
@@ -326,22 +327,21 @@ export async function bulkUpsertPagesAndImages(options: {
             )}`,
           );
         } else {
-          console.log(
+          logger.debug(
             `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
           );
         }
       } catch (err) {
-        console.log(`[debug] DB inspection error: ${String(err)}`);
+        logger.debug(`[debug] DB inspection error: ${String(err)}`);
       }
     }
-
-    console.log(
+    logger.debug(
       `[debug] pendingImageRecords (first ${config.scraper.log.sampleSize}): ${pendingImageRecords
         .slice(0, config.scraper.log.sampleSize)
         .map((p) => p.original_url)
         .join(", ")}`,
     );
-    console.log(
+    logger.debug(
       `[debug] imagesToInsert (first ${config.scraper.log.sampleSize}): ${imagesToInsert
         .slice(0, config.scraper.log.sampleSize)
         .map((i) => i.original_url + " -> " + i.storage_path)
@@ -378,7 +378,7 @@ export async function bulkUpsertPagesAndImages(options: {
               const insertedChunkCount = Array.isArray(maybeData)
                 ? maybeData.length
                 : 0;
-              console.log(
+              logger.debug(
                 `[debug] inserted chunk: count=${insertedChunkCount} totalInserted=${insertedCountTotal}`,
               );
               try {
@@ -386,18 +386,18 @@ export async function bulkUpsertPagesAndImages(options: {
                   ? maybeData[0]
                   : undefined;
                 if (isRecord(maybeFirst)) {
-                  console.log(`
+                  logger.debug(`
                     [debug] sample inserted id=${String(getProp(maybeFirst, "id"))}`);
                 }
               } catch (e) {
-                console.debug("bulk upsert row normalization failed:", e);
+                logger.debug("bulk upsert row normalization failed:", e);
               }
             }
           }
           break;
         } catch (err) {
           if (attempts >= config.scraper.retry.maxAttempts) {
-            console.error("Failed inserting image chunk after retries:", err);
+            logger.error("Failed inserting image chunk after retries:", err);
             throw err;
           }
           // small backoff

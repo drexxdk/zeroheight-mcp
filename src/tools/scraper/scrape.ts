@@ -15,6 +15,7 @@ import type { ExtractedImage } from "./utils/pageExtraction";
 import { processPageAndImages } from "./utils/processPageAndImages";
 import prefetchSeeds, { normalizeUrl } from "./utils/prefetch";
 import { config } from "@/utils/config";
+import defaultLogger from "@/utils/logger";
 import {
   bulkUpsertPagesAndImages,
   formatSummaryBox,
@@ -168,7 +169,7 @@ export async function scrape({
             const u = new URL(normalizedUrl);
             normalizedUrl = `${u.protocol}//${u.hostname}${u.pathname}`;
           } catch (e) {
-            console.debug("normalize URL failed:", e);
+            defaultLogger.debug("normalize URL failed:", e);
           }
           return normalizedUrl;
         }),
@@ -213,7 +214,7 @@ export async function scrape({
       try {
         await attachDefaultInterception(p).catch(() => {});
       } catch (e) {
-        console.warn("Failed to prefetch seeds:", e);
+        defaultLogger.warn("Failed to prefetch seeds:", e);
       }
       await p.goto(rootUrl, {
         waitUntil: config.scraper.viewport.navWaitUntil,
@@ -269,7 +270,7 @@ export async function scrape({
       try {
         await p.close();
       } catch (e) {
-        console.debug("Error reading image urls from DB:", e);
+        defaultLogger.debug("Error reading image urls from DB:", e);
       }
     }
 
@@ -285,7 +286,7 @@ export async function scrape({
           try {
             await attachDefaultInterception(page).catch(() => {});
           } catch (e) {
-            console.debug("URL parse failed while normalizing seed:", e);
+            defaultLogger.debug("URL parse failed while normalizing seed:", e);
           }
           try {
             while (true) {
@@ -492,7 +493,7 @@ export async function scrape({
             try {
               await page.close();
             } catch (e) {
-              console.debug("Error in prefetch iteration:", e);
+              defaultLogger.debug("Error in prefetch iteration:", e);
             }
           }
         })(),
@@ -538,7 +539,7 @@ export async function scrape({
       const { client: db } = getClient();
       const printer = (s: string): void => {
         if (logger) logger(s);
-        else console.log(s);
+        else defaultLogger.log(s);
       };
       const res = await bulkUpsertPagesAndImages({
         db: db!,
@@ -556,12 +557,12 @@ export async function scrape({
       if (bulkLines && bulkLines.length) printer(bulkLines.join("\n"));
       printedBox = true;
     } catch (e) {
-      console.warn("V2 bulkUpsert failed:", e);
+      defaultLogger.warn("V2 bulkUpsert failed:", e);
     } finally {
       if (!printedBox) {
         const printer = (s: string): void => {
           if (logger) logger(s);
-          else console.log(s);
+          else defaultLogger.log(s);
         };
         try {
           const { client: db } = getClient();
@@ -679,7 +680,7 @@ export const scrapeTool: ToolDefinition<
         jobId =
           Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     } catch (err) {
-      console.warn("createJobInDb failed:", err);
+      defaultLogger.warn("createJobInDb failed:", err);
       jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     }
 
@@ -691,10 +692,10 @@ export const scrapeTool: ToolDefinition<
             line: `[${new Date().toISOString()}] ${s}`,
           });
         } catch (e) {
-          console.debug("Error during some scrape step:", e);
+          defaultLogger.debug("Error during some scrape step:", e);
         }
-        if (config.scraper.debug) console.log(`[debug] ${s}`);
-        else console.log(s);
+        if (config.scraper.debug) defaultLogger.debug(`[debug] ${s}`);
+        else defaultLogger.log(s);
       };
 
       try {

@@ -1,4 +1,5 @@
 import puppeteer, { HTTPRequest, Page, Browser } from "puppeteer";
+import logger from "@/utils/logger";
 
 type BlockOptions = {
   allow?: Set<string>;
@@ -39,7 +40,7 @@ export function getBlockReason(
     if (imageExtRe.test(parsedPathLower) || fontExtRe.test(parsedPathLower))
       return "blocked-ext";
   } catch (e) {
-    console.debug("extension regex test failed:", e);
+    logger.debug("extension regex test failed:", e);
   }
 
   if (urlLower.startsWith("data:")) {
@@ -95,7 +96,7 @@ export async function attachDefaultInterception(
   try {
     await page.setRequestInterception(true);
   } catch (e) {
-    console.debug("page.setRequestInterception not supported:", e);
+    logger.debug("page.setRequestInterception not supported:", e);
   }
 
   page.on("request", (req: HTTPRequest) => {
@@ -107,16 +108,14 @@ export async function attachDefaultInterception(
     );
     if (reason) {
       opts?.onRequest?.(req, "blocked", reason);
-      void req.abort().catch((e) => console.debug("req.abort error:", e));
+      void req.abort().catch((e) => logger.debug("req.abort error:", e));
       return;
     }
     opts?.onRequest?.(req, "continued");
-    void req.continue().catch((e) => console.debug("req.continue error:", e));
+    void req.continue().catch((e) => logger.debug("req.continue error:", e));
   });
 
-  page.on("requestfailed", (req) =>
-    console.debug("request failed:", req.url()),
-  );
+  page.on("requestfailed", (req) => logger.debug("request failed:", req.url()));
   page.on("response", () => {
     // noop: consumers may attach their own handlers if they want details
   });

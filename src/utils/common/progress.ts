@@ -22,6 +22,8 @@ export function createProgressBar({
   return `[${progressBar}]`;
 }
 
+import defaultLogger from "../logger";
+
 export function createProgressHelpers(options: {
   progress: Progress;
   checkProgressInvariant: (opts: {
@@ -34,7 +36,7 @@ export function createProgressHelpers(options: {
   markAttempt: (reason: string, icon: string, message: string) => void;
 } {
   const { progress, checkProgressInvariant, logger } = options;
-  const out = logger ?? ((msg: string) => console.log(msg));
+  const out = logger ?? ((msg: string) => defaultLogger.log(msg));
 
   function logProgress(icon: string, message: string): void {
     const progressBar = createProgressBar({

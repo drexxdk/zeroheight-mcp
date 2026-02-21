@@ -5,15 +5,16 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 import { isRecord } from "../../src/utils/common/typeGuards";
 import type { ZodTypeAny } from "zod";
+import logger from "../../src/utils/logger";
 
 async function main(): Promise<void> {
   const cfg = await import("@/utils/config");
   if (!cfg.config.env.zeroheightMcpAccessToken) {
-    console.error("ZEROHEIGHT_MCP_ACCESS_TOKEN not set");
+    logger.error("ZEROHEIGHT_MCP_ACCESS_TOKEN not set");
     process.exit(1);
   }
 
-  console.log("Starting TTL propagation e2e test...");
+  logger.log("Starting TTL propagation e2e test...");
 
   // 1) Start a test task via MCP
   const startRes = await fetch(cfg.config.server.mcpUrl, {
@@ -32,7 +33,7 @@ async function main(): Promise<void> {
   });
   if (!startRes.ok) throw new Error(`Start task HTTP ${startRes.status}`);
   const startText = await startRes.text();
-  console.log("startText:", startText);
+  logger.log("startText:", startText);
   let startJson: unknown = null;
   try {
     startJson = JSON.parse(startText);
@@ -90,7 +91,7 @@ async function main(): Promise<void> {
     (typeof parsed["jobId"] === "string" && parsed["jobId"]) ||
     (typeof parsed["id"] === "string" && parsed["id"]);
   if (!jobId) throw new Error("Could not extract jobId from testtask response");
-  console.log("Started test task with jobId:", jobId);
+  logger.log("Started test task with jobId:", jobId);
 
   // 2) Call tasks/get via MCP with params.task.ttl and verify response includes ttl
   const requestedTtl = 5000;
@@ -140,7 +141,7 @@ async function main(): Promise<void> {
     if (errObj && typeof errObj["message"] === "string")
       msg = String(errObj["message"]);
     if (msg.includes("Server does not support task creation")) {
-      console.warn(
+      logger.warn(
         "Server rejected task-aware tools/call. Falling back to direct tool call for verification.",
       );
       const { tasksGetTool } = await import("@/tools/tasks/get");
@@ -173,14 +174,14 @@ async function main(): Promise<void> {
       const taskNode =
         directRec && isRecord(directRec.task) ? directRec.task : undefined;
       const dirTtl = taskNode ? taskNode["ttl"] : undefined;
-      console.log("tasks/get (direct) response ttl:", dirTtl);
+      logger.log("tasks/get (direct) response ttl:", dirTtl);
       if (typeof dirTtl !== "number")
         throw new Error("TTL not present in direct tasks/get result");
       if (dirTtl !== requestedTtl)
         throw new Error(
           `TTL mismatch: expected ${requestedTtl}, got ${dirTtl}`,
         );
-      console.log(
+      logger.log(
         "✅ TTL propagation test passed (verified via direct tool call)",
       );
       return;
@@ -210,16 +211,15 @@ async function main(): Promise<void> {
   const taskNode =
     resultObj && isRecord(resultObj["task"]) ? resultObj["task"] : undefined;
   const ttl = taskNode ? taskNode["ttl"] : undefined;
-  console.log("tasks/get response ttl:", ttl);
+  logger.log("tasks/get response ttl:", ttl);
   if (typeof ttl !== "number")
     throw new Error("TTL not present in tasks/get result");
   if (ttl !== requestedTtl)
     throw new Error(`TTL mismatch: expected ${requestedTtl}, got ${ttl}`);
 
-  console.log("✅ TTL propagation test passed");
+  logger.log("✅ TTL propagation test passed");
 }
-
 main().catch((e) => {
-  console.error("Test failed:", e instanceof Error ? e.message : e);
+  logger.error("Test failed:", e instanceof Error ? e.message : e);
   process.exit(1);
 });

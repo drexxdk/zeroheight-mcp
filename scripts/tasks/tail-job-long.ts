@@ -5,11 +5,12 @@ dotenv.config({ path: ".env.local" });
 import type { ToolResponse } from "@/utils/toolResponses";
 import { normalizeToToolResponse } from "@/utils/toolResponses";
 import type { ZodTypeAny } from "zod";
+import logger from "../../src/utils/logger";
 
 async function main(): Promise<void> {
   const ids = process.argv.slice(2);
   if (ids.length === 0) {
-    console.error(
+    logger.error(
       "Usage: npx tsx scripts/tasks/tail-job-long.ts <taskId> [timeoutMs]",
     );
     process.exit(2);
@@ -23,7 +24,7 @@ async function main(): Promise<void> {
 
   const { tasksResultTool } = await import("../../src/tools/tasks");
   for (const jobId of ids) {
-    console.log(
+    logger.log(
       "Querying task result (long wait):",
       jobId,
       `timeoutMs=${timeoutMs}`,
@@ -36,23 +37,23 @@ async function main(): Promise<void> {
     if (outputSchema) {
       const parsed = outputSchema.safeParse(raw);
       if (!parsed.success) {
-        console.error(
+        logger.error(
           "Validation failed for tasksResultTool:",
           parsed.error.format(),
         );
         const res = normalizeToToolResponse(raw);
-        console.log(JSON.stringify(res, null, 2));
+        logger.log(JSON.stringify(res, null, 2));
       } else {
-        console.log(JSON.stringify(parsed.data, null, 2));
+        logger.log(JSON.stringify(parsed.data, null, 2));
       }
     } else {
       const res: ToolResponse = normalizeToToolResponse(raw);
-      console.log(JSON.stringify(res, null, 2));
+      logger.log(JSON.stringify(res, null, 2));
     }
   }
 }
 
 main().catch((e) => {
-  console.error("Error tailing job:", e instanceof Error ? e.message : e);
+  logger.error("Error tailing job:", e instanceof Error ? e.message : e);
   process.exit(1);
 });

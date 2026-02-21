@@ -2,6 +2,7 @@
 // This script uses dynamic imports and expects to be run with `tsx` (npx tsx)
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env.local" });
+import logger from "../src/utils/logger";
 
 async function main(): Promise<void> {
   // dynamically import config so env is loaded and TS path aliases resolve
@@ -24,17 +25,17 @@ async function main(): Promise<void> {
   });
 
   const text = await res.text();
-  console.log("STATUS", res.status);
-  console.log("HEADERS", Object.fromEntries(res.headers.entries()));
+  logger.log("STATUS", res.status);
+  logger.log("HEADERS", Object.fromEntries(res.headers.entries()));
   try {
     const parsed = JSON.parse(text);
-    console.log(JSON.stringify(parsed, null, 2));
+    logger.log(JSON.stringify(parsed, null, 2));
   } catch {
-    console.log(text);
+    logger.log(text);
   }
 }
 
 main().catch((err) => {
-  console.error(err);
+  logger.error(err);
   process.exit(1);
 });

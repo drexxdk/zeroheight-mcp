@@ -10,38 +10,39 @@ import {
   getJobFromDb,
   deleteJobInDb,
 } from "@/tools/tasks/utils/jobStore";
+import logger from "../../src/utils/logger";
 
 async function run(): Promise<void> {
   try {
-    console.log("Creating test job...");
+    logger.log("Creating test job...");
     const id = await createTestJobInDb({
       name: "test-job-run",
       args: { foo: "bar" },
     });
     if (!id) {
-      console.error("Failed to create job in DB");
+      logger.error("Failed to create job in DB");
       process.exit(1);
     }
-    console.log("Created job id:", id);
+    logger.log("Created job id:", id);
 
-    console.log("Claiming job by id...");
+    logger.log("Claiming job by id...");
     const claimed = await claimJobById({ jobId: id });
-    console.log("Claimed:", claimed ? claimed.id : null);
+    logger.log("Claimed:", claimed ? claimed.id : null);
 
-    console.log("Appending log...");
+    logger.log("Appending log...");
     await appendJobLog({ jobId: id, line: "first log line from test" });
 
-    console.log("Finishing job...");
+    logger.log("Finishing job...");
     await finishJob({ jobId: id, success: true });
 
-    console.log("Fetching job...");
+    logger.log("Fetching job...");
     const job = await getJobFromDb({ jobId: id });
-    console.log(JSON.stringify(job, null, 2));
+    logger.log(JSON.stringify(job, null, 2));
 
     // cleanup
     await deleteJobInDb({ jobId: id });
   } catch (e) {
-    console.error(
+    logger.error(
       "Error during job lifecycle test:",
       e instanceof Error ? e.message : e,
     );
@@ -50,6 +51,6 @@ async function run(): Promise<void> {
 }
 
 run().catch((e) => {
-  console.error(e);
+  logger.error(e);
   process.exit(1);
 });

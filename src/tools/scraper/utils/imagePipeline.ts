@@ -4,6 +4,7 @@ import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
 import { uploadBufferToStorage } from "./uploadHelpers";
 import { addPendingImageRecord } from "./pendingRecords";
 import { config } from "@/utils/config";
+import logger from "@/utils/logger";
 import { retryWithBackoff } from "./retryHelpers";
 import { JobCancelled } from "@/utils/common/errors";
 
@@ -89,7 +90,7 @@ export async function processAndUploadImage(options: {
     const path = uploadRes.path;
     if (!path) return { uploaded: false, error: "no_path_returned" };
     if (config.scraper.debug) {
-      console.log(
+      logger.debug(
         `[debug] uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
       );
     }

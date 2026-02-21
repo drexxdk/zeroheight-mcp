@@ -4,6 +4,7 @@ dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
 // Supabase config will be imported dynamically below so env is loaded first
+import logger from "../../src/utils/logger";
 
 const jobId = process.argv[2];
 const intervalArgIndex = process.argv.findIndex((s) => s === "--interval");
@@ -11,7 +12,7 @@ const interval =
   intervalArgIndex >= 0 ? Number(process.argv[intervalArgIndex + 1]) : 5;
 
 if (!jobId) {
-  console.error(
+  logger.error(
     "Usage: npx tsx src/e2e/jobs-tail-job.test.ts <jobId> [--interval N]",
   );
   process.exit(2);
@@ -22,7 +23,7 @@ if (
   !cfg.config.env.nextPublicSupabaseUrl ||
   !cfg.config.env.supabaseServiceRoleKey
 ) {
-  console.error("Missing Supabase config in .env.local");
+  logger.error("Missing Supabase config in .env.local");
   process.exit(2);
 }
 
@@ -46,12 +47,12 @@ async function fetchOnce(): Promise<{ finished: boolean }> {
     .maybeSingle();
 
   if (error) {
-    console.error("Supabase error:", error.message || error);
+    logger.error("Supabase error:", error.message || error);
     return { finished: false };
   }
 
   if (!data) {
-    console.log(`No job found with id=${jobId}`);
+    logger.log(`No job found with id=${jobId}`);
     return { finished: true };
   }
 
@@ -82,7 +83,7 @@ async function fetchOnce(): Promise<{ finished: boolean }> {
     lastLogs = safeLogs;
   }
 
-  console.log(
+  logger.log(
     `\n[status=${status} started=${started_at} finished=${finished_at} error=${err}]\n`,
   );
 
@@ -93,16 +94,16 @@ async function fetchOnce(): Promise<{ finished: boolean }> {
 }
 
 async function runTail(): Promise<void> {
-  console.log(`Tailing job ${jobId} every ${interval}s...`);
+  logger.log(`Tailing job ${jobId} every ${interval}s...`);
   while (true) {
     try {
       const { finished } = await fetchOnce();
       if (finished) {
-        console.log("Job finished; stopping tail.");
+        logger.log("Job finished; stopping tail.");
         process.exit(0);
       }
     } catch (e) {
-      console.error("Tail error:", e instanceof Error ? e.message : String(e));
+      logger.error("Tail error:", e instanceof Error ? e.message : String(e));
     }
     await sleep(interval * 1000);
   }

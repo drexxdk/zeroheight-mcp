@@ -22,6 +22,7 @@ import {
   createErrorResponse,
 } from "@/utils/toolResponses";
 import { isRecord } from "../../../utils/common/typeGuards";
+import logger from "@/utils/logger";
 
 const handler = createMcpHandler(
   async (server) => {
@@ -44,7 +45,7 @@ const handler = createMcpHandler(
           if (tool.outputSchema) {
             const parsed = tool.outputSchema.safeParse(res);
             if (!parsed.success) {
-              console.error(
+              logger.error(
                 "Tool output validation failed:",
                 parsed.error.format(),
               );
@@ -54,7 +55,7 @@ const handler = createMcpHandler(
             }
           }
         } catch (e) {
-          console.error("Error validating tool output:", e);
+          logger.error("Error validating tool output:", e);
           return createErrorResponse({
             message: "Tool output validation error",
           });
@@ -334,7 +335,7 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
   // POST `tools/list` JSON-RPC call and return the result as an SSE event.
   if (method === "GET" || method === "HEAD") {
     // Diagnostic logging to understand 405 responses in this environment
-    console.debug("[mcp] forwarding GET/HEAD to handler", {
+    logger.debug("[mcp] forwarding GET/HEAD to handler", {
       method: request.method,
       url: request.url,
       accept: forwardedHeaders.get("accept"),
@@ -344,7 +345,7 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
       const res = await handlerForRequest(request);
 
       if (res && res.status === 405) {
-        console.debug(
+        logger.debug(
           "[mcp] handler returned 405 for GET/HEAD — attempting POST fallback",
         );
 
@@ -394,7 +395,7 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
 
       return res;
     } catch (err) {
-      console.error("[mcp] handler threw while handling GET/HEAD:", err);
+      logger.error("[mcp] handler threw while handling GET/HEAD:", err);
       const msg = err instanceof Error ? err.message : String(err);
       const rpc = {
         jsonrpc: "2.0",

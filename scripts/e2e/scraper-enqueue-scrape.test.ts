@@ -6,6 +6,7 @@
  */
 
 import { config as dotenvConfig } from "dotenv";
+import logger from "../../src/utils/logger";
 dotenvConfig({ path: ".env.local" });
 
 const args = process.argv.slice(2);
@@ -14,13 +15,13 @@ const pageUrls = args.length > 0 ? args : undefined;
 async function runEnqueue(): Promise<void> {
   const cfg = await import("@/utils/config");
   if (!cfg.config.env.zeroheightMcpAccessToken) {
-    console.error(
+    logger.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
     );
     process.exit(1);
   }
 
-  console.log(`Enqueueing scrape (pageUrls=${pageUrls ? pageUrls.length : 0})`);
+  logger.log(`Enqueueing scrape (pageUrls=${pageUrls ? pageUrls.length : 0})`);
 
   const body = JSON.stringify({
     jsonrpc: "2.0",
@@ -44,12 +45,9 @@ async function runEnqueue(): Promise<void> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     const text = await res.text();
-    console.log("Response:\n", text);
+    logger.log("Response:\n", text);
   } catch (e) {
-    console.error(
-      "Request failed:",
-      e instanceof Error ? e.message : String(e),
-    );
+    logger.error("Request failed:", e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
 }

@@ -3,6 +3,7 @@ import { isRecord, getProp } from "@/utils/common/typeGuards";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../database.schema";
 import { config } from "./config";
+import logger from "@/utils/logger";
 
 export async function downloadImage({
   url,
@@ -20,7 +21,7 @@ export async function downloadImage({
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.error(
+      logger.error(
         `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
       );
       return null;
@@ -35,10 +36,10 @@ export async function downloadImage({
     try {
       metadata = await sharp(Buffer.from(buffer)).metadata();
     } catch (error) {
-      console.error(`Invalid image data or unsupported format: ${error}`);
+      logger.error(`Invalid image data or unsupported format: ${error}`);
       // If it's not a valid image according to Sharp, skip it
       if (!contentType.startsWith("image/")) {
-        console.log(`Skipping non-image content: ${contentType}`);
+        logger.log(`Skipping non-image content: ${contentType}`);
         return null;
       }
       // If content-type says it's an image but Sharp can't process it, still skip
@@ -64,7 +65,7 @@ export async function downloadImage({
 
     return processedBuffer.toString("base64");
   } catch (error) {
-    console.error(`Error downloading image ${url}:`, error);
+    logger.error(`Error downloading image ${url}:`, error);
     return null;
   }
 }
@@ -92,7 +93,7 @@ export async function clearStorageBucket({
       });
 
       if (error) {
-        console.error("Error listing files:", error);
+        logger.error("Error listing files:", error);
         break;
       }
 
@@ -112,7 +113,7 @@ export async function clearStorageBucket({
     const deleteErrors: StorageDeleteError[] = [];
 
     if (allFiles.length > 0) {
-      console.log(`Found ${allFiles.length} files to delete`);
+      logger.log(`Found ${allFiles.length} files to delete`);
 
       // Delete files in batches
       const batchSize = config.storage.deleteBatchSize;
@@ -124,14 +125,14 @@ export async function clearStorageBucket({
           .remove(batch);
 
         if (deleteError) {
-          console.error(
+          logger.error(
             `Error deleting batch ${i / batchSize + 1}:`,
             deleteError,
           );
           deleteErrors.push({ batch: i / batchSize + 1, error: deleteError });
         } else {
           deletedCount += batch.length;
-          console.log(
+          logger.log(
             `Deleted batch ${i / batchSize + 1} (${batch.length} files)`,
           );
         }
@@ -140,7 +141,7 @@ export async function clearStorageBucket({
 
     return { deletedCount, deleteErrors };
   } catch (error) {
-    console.error("Error clearing storage bucket:", error);
+    logger.error("Error clearing storage bucket:", error);
     return { deletedCount: 0, deleteErrors: [{ error }] };
   }
 }
@@ -227,10 +228,7 @@ export async function performBucketClear({
   const { getSupabaseClient } = await import("./common");
   const bucketName = config.storage.imageBucket || undefined;
   const targetBucket = bucketName || config.storage.imageBucket;
-  console.log(
-    "Preparing to clear storage bucket...",
-    bucketName || "(default)",
-  );
+  logger.log("Preparing to clear storage bucket...", bucketName || "(default)");
 
   const maybeClient = getSupabaseClient();
 
@@ -252,10 +250,10 @@ export async function performBucketClear({
       buckets.push(...debug.buckets);
       files.push(...debug.files);
     } else {
-      console.warn("No Supabase client available to list buckets/files");
+      logger.warn("No Supabase client available to list buckets/files");
     }
   } catch (err) {
-    console.error("Error getting bucket debug info:", err);
+    logger.error("Error getting bucket debug info:", err);
   }
 
   // proceed with clearing the bucket
@@ -271,7 +269,7 @@ export async function performBucketClear({
       });
     }
   } catch (err) {
-    console.error("Error during storage clear:", err);
+    logger.error("Error during storage clear:", err);
   }
 
   return {

@@ -10,29 +10,30 @@ async function testApi(): Promise<void> {
   // load env and config dynamically so TS path aliases resolve at runtime
   await import("dotenv/config");
   const cfg = await import("@/utils/config");
+  const logger = (await import("../../src/utils/logger")).default;
 
   if (!cfg.config.env.zeroheightMcpAccessToken) {
-    console.error(
+    logger.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
     );
-    console.log("");
-    console.log("Set it with:");
-    console.log('  export ZEROHEIGHT_MCP_ACCESS_TOKEN="your-api-key-here"');
-    console.log("  # or in PowerShell:");
-    console.log('  $env:ZEROHEIGHT_MCP_ACCESS_TOKEN = "your-api-key-here"');
+    logger.log("");
+    logger.log("Set it with:");
+    logger.log('  export ZEROHEIGHT_MCP_ACCESS_TOKEN="your-api-key-here"');
+    logger.log("  # or in PowerShell:");
+    logger.log('  $env:ZEROHEIGHT_MCP_ACCESS_TOKEN = "your-api-key-here"');
     process.exit(1);
   }
 
-  console.log("🧪 Testing Zeroheight MCP API...");
-  console.log(`📍 API URL: ${cfg.config.server.mcpUrl}`);
-  console.log(
+  logger.log("🧪 Testing Zeroheight MCP API...");
+  logger.log(`📍 API URL: ${cfg.config.server.mcpUrl}`);
+  logger.log(
     `🔑 API Key: ${cfg.config.env.zeroheightMcpAccessToken ? cfg.config.env.zeroheightMcpAccessToken.substring(0, 8) + "..." : "NOT SET"}`,
   );
-  console.log("");
+  logger.log("");
 
   try {
     // Test: Query Zeroheight Data (assumes data was already scraped)
-    console.log("🔍 Testing Query Zeroheight Data...");
+    logger.log("🔍 Testing Query Zeroheight Data...");
     const queryResponse = await fetch(cfg.config.server.mcpUrl, {
       method: "POST",
       headers: {
@@ -62,26 +63,26 @@ async function testApi(): Promise<void> {
     }
 
     const queryResult = await queryResponse.text();
-    console.log("✅ Query request successful");
-    console.log("📄 Response preview:", queryResult.substring(0, 500) + "...");
-    console.log("");
+    logger.log("✅ Query request successful");
+    logger.log("📄 Response preview:", queryResult.substring(0, 500) + "...");
+    logger.log("");
 
-    console.log("🎉 API test passed! The server is responding correctly.");
-    console.log("💡 Note: This test assumes data has already been scraped.");
-    console.log(
+    logger.log("🎉 API test passed! The server is responding correctly.");
+    logger.log("💡 Note: This test assumes data has already been scraped.");
+    logger.log(
       "   To scrape data, use the MCP client or call the Scrape tool directly.",
     );
   } catch (error) {
-    console.error(
+    logger.error(
       "❌ Test failed:",
       error instanceof Error ? error.message : String(error),
     );
-    console.log("");
-    console.log("💡 Troubleshooting:");
-    console.log("- Make sure the server is running: npm run dev");
-    console.log("- Check that ZEROHEIGHT_MCP_ACCESS_TOKEN is set correctly");
-    console.log("- Verify the API URL is accessible");
-    console.log(
+    logger.log("");
+    logger.log("💡 Troubleshooting:");
+    logger.log("- Make sure the server is running: npm run dev");
+    logger.log("- Check that ZEROHEIGHT_MCP_ACCESS_TOKEN is set correctly");
+    logger.log("- Verify the API URL is accessible");
+    logger.log(
       "- Ensure data has been scraped previously (this test only queries)",
     );
     process.exit(1);

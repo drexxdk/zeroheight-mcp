@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createErrorResponse } from "@/utils/toolResponses";
 import { getClient } from "@/utils/common/supabaseClients";
 import { config } from "@/utils/config";
+import defaultLogger from "@/utils/logger";
 import { PageData } from "@/tools/scraper/utils/shared";
 import type { ToolDefinition } from "@/tools/toolTypes";
 import type { QueryDataResult } from "./types";
@@ -28,7 +29,7 @@ const queryDataInput = z.object({
 const getSupabaseProjectUrl = (): string => {
   const supabaseUrl = config.env.nextPublicSupabaseUrl;
   if (!supabaseUrl) {
-    console.warn("NEXT_PUBLIC_SUPABASE_URL not found, using fallback");
+    defaultLogger.warn("NEXT_PUBLIC_SUPABASE_URL not found, using fallback");
     return "https://qyoexslrsblaphbcvjdk.supabase.co";
   }
   return supabaseUrl;
@@ -88,13 +89,13 @@ export const queryDataTool: ToolDefinition<
       ]);
 
       if (titleResult.error) {
-        console.error("Error querying titles:", titleResult.error);
+        defaultLogger.error("Error querying titles:", titleResult.error);
         return createErrorResponse({
           message: "Error querying data: " + titleResult.error.message,
         });
       }
       if (contentResult.error) {
-        console.error("Error querying content:", contentResult.error);
+        defaultLogger.error("Error querying content:", contentResult.error);
         return createErrorResponse({
           message: "Error querying data: " + contentResult.error.message,
         });
@@ -118,7 +119,7 @@ export const queryDataTool: ToolDefinition<
         .limit(effectiveLimit);
 
       if (urlError) {
-        console.error("Error querying by URL:", urlError);
+        defaultLogger.error("Error querying by URL:", urlError);
         return createErrorResponse({
           message: "Error querying data: " + urlError.message,
         });
@@ -133,7 +134,7 @@ export const queryDataTool: ToolDefinition<
         .limit(effectiveLimit);
 
       if (allError) {
-        console.error("Error querying all pages:", allError);
+        defaultLogger.error("Error querying all pages:", allError);
         return createErrorResponse({
           message: "Error querying data: " + allError.message,
         });

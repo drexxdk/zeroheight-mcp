@@ -3,6 +3,7 @@ import { getJobFromDb } from "./utils/jobStore";
 import { mapStatusToSep } from "./utils";
 import { config } from "@/utils/config";
 import { z } from "zod";
+import defaultLogger from "@/utils/logger";
 import { createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
 import type { TasksGetResult } from "./types";
@@ -37,7 +38,10 @@ export const tasksGetTool: ToolDefinition<
     requestedTtlMs,
   }: z.infer<typeof tasksGetInput>) => {
     try {
-      console.log("tasks/get handler called with", { taskId, requestedTtlMs });
+      defaultLogger.log("tasks/get handler called with", {
+        taskId,
+        requestedTtlMs,
+      });
       const admin = getSupabaseAdminClient();
       if (!admin)
         return createErrorResponse({ message: "Admin client not configured" });

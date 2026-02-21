@@ -5,6 +5,7 @@ import type {
 import { uploadWithRetry } from "@/utils/common/scraperHelpers";
 import { config } from "@/utils/config";
 import { getSupabaseAdminClient } from "@/utils/common";
+import logger from "@/utils/logger";
 
 export async function ensureBucket({
   storage,
@@ -17,7 +18,7 @@ export async function ensureBucket({
   try {
     const { data: buckets, error: bucketError } = await storage.listBuckets();
     if (bucketError) {
-      console.error("Error listing buckets:", bucketError);
+      logger.error("Error listing buckets:", bucketError);
       return;
     }
     const bucketExists = buckets?.some(
@@ -29,10 +30,10 @@ export async function ensureBucket({
         allowedMimeTypes: config.image.allowedMimeTypes,
         fileSizeLimit: config.storage.fileSizeLimitBytes,
       });
-      if (createError) console.error("Error creating bucket:", createError);
+      if (createError) logger.error("Error creating bucket:", createError);
     }
   } catch (e) {
-    console.error("ensureBucket exception:", e);
+    logger.error("ensureBucket exception:", e);
   }
 }
 

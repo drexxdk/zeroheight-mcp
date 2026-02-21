@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+import logger from "../src/utils/logger";
 
 // This script regenerates `src/database.types.ts` in-memory and compares it
 // with the on-disk file. Exit code 0 if identical, 1 if different.
@@ -134,7 +135,7 @@ export type SupabaseDatabase = Database;
 const outputPath = join(process.cwd(), "src", "database.types.ts");
 const current = readFileSync(outputPath, "utf-8");
 if (current !== schemasContent) {
-  console.error(
+  logger.error(
     "src/database.types.ts is out of date. Run 'npx tsx scripts/generate-database-types.ts' to regenerate.",
   );
   // Write a diagnostics file to help debugging
@@ -156,4 +157,4 @@ if (current !== schemasContent) {
   process.exit(1);
 }
 
-console.log("src/database.types.ts is up to date.");
+logger.log("src/database.types.ts is up to date.");

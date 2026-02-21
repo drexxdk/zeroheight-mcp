@@ -2,6 +2,7 @@
 
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
+import logger from "../../src/utils/logger";
 
 async function main(): Promise<void> {
   // Simple positional arg style (like tail-job-admin.ts). Optional first
@@ -9,7 +10,7 @@ async function main(): Promise<void> {
   const arg = process.argv[2];
   let durationMinutes = arg ? Number(arg) : 5;
   if (Number.isNaN(durationMinutes) || durationMinutes <= 0) {
-    console.warn(
+    logger.warn(
       `Invalid duration provided (${String(arg)}). Falling back to default 5 minutes.`,
     );
     durationMinutes = 5;
@@ -25,10 +26,10 @@ async function main(): Promise<void> {
       durationMinutes,
     },
   );
-  console.log("Tool returned:", JSON.stringify(res, null, 2));
+  logger.log("Tool returned:", JSON.stringify(res, null, 2));
 }
 
 main().catch((e) => {
-  console.error("Error running test task:", e instanceof Error ? e.message : e);
+  logger.error("Error running test task:", e instanceof Error ? e.message : e);
   process.exit(1);
 });

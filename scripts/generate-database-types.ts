@@ -173,6 +173,8 @@ export type SupabaseDatabase = Database;
 const outputPath = join(process.cwd(), "src", "database.types.ts");
 writeFileSync(outputPath, schemasContent, "utf-8");
 
-console.log(
+import logger from "../src/utils/logger";
+
+logger.log(
   "Schemas and types generated dynamically from database.schema.ts! Written to src/database.types.ts",
 );

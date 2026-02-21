@@ -1,19 +1,20 @@
 #!/usr/bin/env tsx
 
 export {};
+import logger from "../../src/utils/logger";
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
-    console.error("Usage: npx tsx scripts/debug/probe-image.ts <url>");
+    logger.error("Usage: npx tsx scripts/debug/probe-image.ts <url>");
     process.exit(1);
   }
   const url = argv[0];
   try {
     const res = await fetch(url);
-    console.error("HTTP", res.status, res.statusText);
+    logger.error("HTTP", res.status, res.statusText);
     const cl = res.headers.get("content-length");
-    console.error("Content-Length:", cl);
+    logger.error("Content-Length:", cl);
     const buf = new Uint8Array(await res.arrayBuffer());
     function readBE(bytes: Uint8Array, off: number): number {
       return (
@@ -33,9 +34,9 @@ async function main(): Promise<void> {
     ) {
       const width = readBE(buf, 16);
       const height = readBE(buf, 20);
-      console.log("format: PNG");
-      console.log("intrinsic:", `${width}x${height}`);
-      console.log("bytes:", buf.length);
+      logger.log("format: PNG");
+      logger.log("intrinsic:", `${width}x${height}`);
+      logger.log("bytes:", buf.length);
       return;
     }
     if (buf.length >= 4 && buf[0] === 0xff && buf[1] === 0xd8) {
@@ -52,26 +53,26 @@ async function main(): Promise<void> {
         if (marker >= 0xc0 && marker <= 0xc3) {
           const height = (buf[i + 5] << 8) | buf[i + 6];
           const width = (buf[i + 7] << 8) | buf[i + 8];
-          console.log("format: JPEG");
-          console.log("intrinsic:", `${width}x${height}`);
-          console.log("bytes:", buf.length);
+          logger.log("format: JPEG");
+          logger.log("intrinsic:", `${width}x${height}`);
+          logger.log("bytes:", buf.length);
           found = true;
           break;
         }
         i += 2 + len;
       }
       if (!found)
-        console.log(
+        logger.log(
           "format: JPEG (dimensions not found in scanned bytes)",
           "bytes:",
           buf.length,
         );
       return;
     }
-    console.log("unknown format - first bytes:", buf.slice(0, 16));
-    console.log("bytes:", buf.length);
+    logger.log("unknown format - first bytes:", buf.slice(0, 16));
+    logger.log("bytes:", buf.length);
   } catch (e) {
-    console.error("fetch failed:", e instanceof Error ? e.message : e);
+    logger.error("fetch failed:", e instanceof Error ? e.message : e);
     process.exit(1);
   }
 }

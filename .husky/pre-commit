@@ -1,0 +1,8 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Prevent committing `debugger` and run lint
+node scripts/check-no-debugger.js || exit 1
+npm run lint || exit 1
+
+exit 0

@@ -4,10 +4,11 @@ dotenv.config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
 // Supabase config will be loaded dynamically after dotenv
+import logger from "../../src/utils/logger";
 
 const jobId = process.argv[2];
 if (!jobId) {
-  console.error("Usage: npx tsx src/e2e/jobs-inspect-job.test.ts <jobId>");
+  logger.error("Usage: npx tsx src/e2e/jobs-inspect-job.test.ts <jobId>");
   process.exit(2);
 }
 
@@ -16,7 +17,7 @@ if (
   !cfg.config.env.nextPublicSupabaseUrl ||
   !cfg.config.env.supabaseServiceRoleKey
 ) {
-  console.error("Missing Supabase config in .env.local");
+  logger.error("Missing Supabase config in .env.local");
   process.exit(2);
 }
 
@@ -33,19 +34,19 @@ async function inspect(): Promise<void> {
     .limit(1);
 
   if (error) {
-    console.error("Supabase error:", error.message || error);
+    logger.error("Supabase error:", error.message || error);
     process.exit(2);
   }
 
   if (!data || data.length === 0) {
-    console.log(`No job found with id=${jobId}`);
+    logger.log(`No job found with id=${jobId}`);
     return;
   }
 
-  console.log(JSON.stringify(data[0], null, 2));
+  logger.log(JSON.stringify(data[0], null, 2));
 }
 
 inspect().catch((e) => {
-  console.error(e);
+  logger.error(e);
   process.exit(1);
 });

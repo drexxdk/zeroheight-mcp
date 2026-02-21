@@ -12,16 +12,17 @@ config({ path: ".env.local" });
 // Import config after dotenv has been loaded so `src/lib/config.ts`
 // reads the environment correctly at module initialization.
 const cfg = await import("../src/utils/config");
+import logger from "../src/utils/logger";
 
 async function main(): Promise<void> {
   if (!cfg.config.env.zeroheightMcpAccessToken) {
-    console.error(
+    logger.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
     );
     process.exit(1);
   }
 
-  console.log(`Calling clear-database (destructive) ...`);
+  logger.log(`Calling clear-database (destructive) ...`);
 
   const body = JSON.stringify({
     jsonrpc: "2.0",
@@ -47,15 +48,12 @@ async function main(): Promise<void> {
     const text = await res.text();
     try {
       const parsed = JSON.parse(text);
-      console.log(JSON.stringify(parsed, null, 2));
+      logger.log(JSON.stringify(parsed, null, 2));
     } catch {
-      console.log("Response:\n", text);
+      logger.log("Response:\n", text);
     }
   } catch (e) {
-    console.error(
-      "Request failed:",
-      e instanceof Error ? e.message : String(e),
-    );
+    logger.error("Request failed:", e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
 }

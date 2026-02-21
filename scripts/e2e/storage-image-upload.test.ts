@@ -1,6 +1,7 @@
 import { config as dotenvConfig } from "dotenv";
 import { getSupabaseClient } from "@/utils/common";
 import { isRecord } from "../../src/utils/common/typeGuards";
+import logger from "../../src/utils/logger";
 
 dotenvConfig({ path: ".env.local" });
 
@@ -36,7 +37,7 @@ async function downloadAndUpload(
     : null;
 
   if (!targetBucket) {
-    console.log(
+    logger.log(
       `Test bucket ${TEST_BUCKET} not found; skipping upload to avoid touching production bucket ${BUCKET}`,
     );
     return null as { path: string; publicUrl: string } | null;
@@ -80,30 +81,30 @@ async function run(): Promise<void> {
       "https://picsum.photos/200/200",
     ];
     for (const url of testUrls) {
-      console.log("Trying:", url);
+      logger.log("Trying:", url);
       try {
         const res = await downloadAndUpload(url, BUCKET, TEST_BUCKET);
         if (res) {
-          console.log("Uploaded:", res.path);
-          console.log("Public URL:", res.publicUrl);
+          logger.log("Uploaded:", res.path);
+          logger.log("Public URL:", res.publicUrl);
           return;
         }
-        console.log("Upload skipped (no test bucket or upload returned null)");
+        logger.log("Upload skipped (no test bucket or upload returned null)");
       } catch (err) {
-        console.error(
+        logger.error(
           "Attempt failed:",
           err instanceof Error ? err.message : err,
         );
       }
     }
-    console.error("All test uploads failed");
+    logger.error("All test uploads failed");
   } catch (err) {
-    console.error("Runner failed:", err);
+    logger.error("Runner failed:", err);
     process.exitCode = 1;
   }
 }
 
 run().catch((e) => {
-  console.error(e);
+  logger.error(e);
   process.exit(1);
 });

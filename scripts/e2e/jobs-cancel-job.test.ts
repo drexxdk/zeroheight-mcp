@@ -6,6 +6,7 @@
  */
 
 import { config as dotenvConfig } from "dotenv";
+import logger from "../../src/utils/logger";
 dotenvConfig({ path: ".env.local" });
 
 const jobId = process.argv[2];
@@ -14,18 +15,18 @@ async function runCancel(): Promise<void> {
   const cfg = await import("@/utils/config");
 
   if (!cfg.config.env.zeroheightMcpAccessToken) {
-    console.error(
+    logger.error(
       "❌ Error: ZEROHEIGHT_MCP_ACCESS_TOKEN environment variable not set",
     );
     process.exit(1);
   }
 
   if (!jobId) {
-    console.error("Usage: npx tsx src/e2e/jobs-cancel-job.test.ts <jobId>");
+    logger.error("Usage: npx tsx src/e2e/jobs-cancel-job.test.ts <jobId>");
     process.exit(2);
   }
 
-  console.log(`Calling cancel-job for id=${jobId}...`);
+  logger.log(`Calling cancel-job for id=${jobId}...`);
 
   const body = JSON.stringify({
     jsonrpc: "2.0",
@@ -50,12 +51,9 @@ async function runCancel(): Promise<void> {
 
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     const text = await res.text();
-    console.log("Response:\n", text);
+    logger.log("Response:\n", text);
   } catch (e) {
-    console.error(
-      "Request failed:",
-      e instanceof Error ? e.message : String(e),
-    );
+    logger.error("Request failed:", e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
 }

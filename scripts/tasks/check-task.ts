@@ -1,11 +1,12 @@
 #!/usr/bin/env tsx
 
 import { runTool } from "./start-task";
+import logger from "../../src/utils/logger";
 
 async function main(): Promise<void> {
   const taskId = process.argv[2];
   if (!taskId) {
-    console.error("Usage: npx tsx scripts/tasks/check-task.ts <taskId>");
+    logger.error("Usage: npx tsx scripts/tasks/check-task.ts <taskId>");
     process.exit(1);
   }
 
@@ -13,9 +14,9 @@ async function main(): Promise<void> {
     const res = await runTool("../../src/tools/tasks/get", "tasksGetTool", {
       taskId,
     });
-    console.log(JSON.stringify(res, null, 2));
+    logger.log(JSON.stringify(res, null, 2));
   } catch (e) {
-    console.error("Check task failed:", e instanceof Error ? e.message : e);
+    logger.error("Check task failed:", e instanceof Error ? e.message : e);
     process.exit(2);
   }
 }

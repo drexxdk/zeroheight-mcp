@@ -3,6 +3,7 @@ import { getClient } from "@/utils/common/supabaseClients";
 import { getSupabaseAdminClient } from "@/utils/common";
 import { performBucketClear } from "@/utils/image-utils";
 import { config } from "@/utils/config";
+import defaultLogger from "@/utils/logger";
 import { z } from "zod";
 import type { ToolDefinition } from "@/tools/toolTypes";
 
@@ -20,19 +21,22 @@ async function clearDatabase(): Promise<
   ClearAllDataResult | ReturnType<typeof createErrorResponse>
 > {
   try {
-    console.log("Clearing existing Zeroheight data...");
+    defaultLogger.log("Clearing existing Zeroheight data...");
 
     const { client: supabase, storage } = getClient();
     const adminClient = getSupabaseAdminClient();
 
-    console.log("Supabase client available:", !!supabase);
-    console.log("Supabase admin client available:", !!adminClient);
-    console.log("Admin-capable storage available:", !!storage?.listBuckets);
+    defaultLogger.log("Supabase client available:", !!supabase);
+    defaultLogger.log("Supabase admin client available:", !!adminClient);
+    defaultLogger.log(
+      "Admin-capable storage available:",
+      !!storage?.listBuckets,
+    );
 
     if (!adminClient) {
       const errMsg =
         "Supabase admin client (service role key) not configured - cannot perform destructive clear operations";
-      console.error(errMsg);
+      defaultLogger.error(errMsg);
       return createErrorResponse({ message: errMsg });
     }
 
@@ -41,39 +45,43 @@ async function clearDatabase(): Promise<
         Array.isArray(d) ? d.length : 0;
 
       // Clear images table
-      console.log("Clearing images table...");
+      defaultLogger.log("Clearing images table...");
       const { data: imagesData, error: imagesError } = await adminClient
         .from("images")
         .delete()
         .neq("id", 0);
 
       if (imagesError) {
-        console.error("Error clearing images table:", imagesError);
+        defaultLogger.error("Error clearing images table:", imagesError);
         return createErrorResponse({
           message: "Error clearing images table: " + imagesError.message,
         });
       } else {
-        console.log(`Images table cleared (${getRowCount(imagesData)} rows)`);
+        defaultLogger.log(
+          `Images table cleared (${getRowCount(imagesData)} rows)`,
+        );
       }
 
       // Clear pages table
-      console.log("Clearing pages table...");
+      defaultLogger.log("Clearing pages table...");
       const { data: pagesData, error: pagesError } = await adminClient
         .from("pages")
         .delete()
         .neq("id", 0);
 
       if (pagesError) {
-        console.error("Error clearing pages table:", pagesError);
+        defaultLogger.error("Error clearing pages table:", pagesError);
         return createErrorResponse({
           message: "Error clearing pages table: " + pagesError.message,
         });
       } else {
-        console.log(`Pages table cleared (${getRowCount(pagesData)} rows)`);
+        defaultLogger.log(
+          `Pages table cleared (${getRowCount(pagesData)} rows)`,
+        );
       }
 
       // Clear finished/terminal tasks rows
-      console.log(
+      defaultLogger.log(
         "Clearing terminal tasks rows (completed, failed, cancelled)...",
       );
       try {
@@ -82,21 +90,21 @@ async function clearDatabase(): Promise<
           .delete()
           .in("status", ["completed", "failed", "cancelled"]);
         if (jobsError) {
-          console.error("Error clearing terminal tasks:", jobsError);
+          defaultLogger.error("Error clearing terminal tasks:", jobsError);
         } else {
-          console.log(
+          defaultLogger.log(
             `Terminal tasks rows cleared (${getRowCount(jobsData)} rows)`,
           );
         }
       } catch (err) {
-        console.error("Unexpected error while clearing tasks:", err);
+        defaultLogger.error("Unexpected error while clearing tasks:", err);
       }
 
       const bucketResult = await performBucketClear({
         clientInstance: adminClient,
       });
 
-      console.log("All Zeroheight data cleared successfully");
+      defaultLogger.log("All Zeroheight data cleared successfully");
       return {
         message: "Zeroheight data cleared successfully",
         bucket: bucketResult.bucket,
@@ -114,10 +122,10 @@ async function clearDatabase(): Promise<
     }
 
     const errorMsg = "Supabase clients not available, cannot clear data";
-    console.log(errorMsg);
+    defaultLogger.log(errorMsg);
     return createErrorResponse({ message: errorMsg });
   } catch (error) {
-    console.error("Error clearing Zeroheight data:", error);
+    defaultLogger.error("Error clearing Zeroheight data:", error);
     return createErrorResponse({
       message: "Error clearing Zeroheight data: " + (error as Error).message,
     });

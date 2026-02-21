@@ -3,6 +3,7 @@
 
 // Lightweight script to render the same boxed summary used by bulkUpsert
 import "dotenv/config";
+import logger from "../src/utils/logger";
 import {
   formatSummaryBox,
   SummaryParams,
@@ -27,10 +28,10 @@ async function main(): Promise<void> {
   };
 
   const lines = formatSummaryBox({ p: params });
-  console.log(lines.join("\n"));
+  logger.log(lines.join("\n"));
 }
 
 main().catch((err) => {
-  console.error(err);
+  logger.error(err);
   process.exit(1);
 });

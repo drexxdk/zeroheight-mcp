@@ -4,6 +4,7 @@ import { extractPageData } from "./pageExtraction";
 import { tryLogin } from "@/utils/common/scraperHelpers";
 import { mapWithConcurrency } from "./concurrency";
 import { config } from "@/utils/config";
+import defaultLogger from "@/utils/logger";
 
 export function normalizeUrl({
   u,
@@ -87,12 +88,12 @@ export async function prefetchSeeds(options: {
           } as Parameters<PuppeteerPage["setCookie"]>[0];
         });
       } catch (e) {
-        console.debug("prefetch seed parsing failed:", e);
+        defaultLogger.debug("prefetch seed parsing failed:", e);
       }
       try {
         await p.close();
       } catch (e) {
-        console.debug("prefetch optional parse failed:", e);
+        defaultLogger.debug("prefetch optional parse failed:", e);
       }
     } catch (e) {
       if (logger) logger(`Root prefetch/login failed: ${String(e)}`);
@@ -120,7 +121,7 @@ export async function prefetchSeeds(options: {
                 // Puppeteer's setCookie expects CookieParam; spread basic fields
                 await p.setCookie(...cookies);
               } catch (e) {
-                console.debug("prefetch loop item parse failed:", e);
+                defaultLogger.debug("prefetch loop item parse failed:", e);
               }
             }
             await p.goto(u, {
@@ -138,9 +139,6 @@ export async function prefetchSeeds(options: {
             }
 
             // Small wait + gentle scroll to surface lazy-loaded content
-            await new Promise((r) =>
-              setTimeout(r, config.scraper.prefetch.waitMs),
-            );
             try {
               const stepPx = config.scraper.prefetch.scrollStepPx;
               const stepMs = config.scraper.prefetch.scrollStepMs;
@@ -159,6 +157,7 @@ export async function prefetchSeeds(options: {
                     document.documentElement.scrollHeight;
                   while (pos < max) {
                     window.scrollBy(0, step);
+                    // small pause between scroll steps
                     await new Promise((rr) => setTimeout(rr, stepMsArg));
                     pos += step;
                   }
@@ -171,7 +170,7 @@ export async function prefetchSeeds(options: {
                 config.scraper.prefetch.scrollStepPx,
               );
             } catch (e) {
-              console.debug("prefetch inner error:", e);
+              defaultLogger.debug("prefetch inner error:", e);
             }
 
             const fallback: PreExtracted = {
@@ -192,7 +191,7 @@ export async function prefetchSeeds(options: {
             try {
               await p.close();
             } catch (e) {
-              console.debug("prefetch finalizer error:", e);
+              defaultLogger.debug("prefetch finalizer error:", e);
             }
           }
           break; // success

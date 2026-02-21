@@ -1,6 +1,7 @@
 import { getSupabaseClient, getSupabaseAdminClient } from "../common";
 import { isRecord, getProp } from "@/utils/common/typeGuards";
 import { config } from "../config";
+import logger from "@/utils/logger";
 import type { StorageUploadResult } from "@/utils/common/scraperHelpers";
 
 type ListBucketsResult = {
@@ -152,17 +153,17 @@ export function checkProgressInvariant({
   context?: string;
 }): void {
   if (overallProgress.current > overallProgress.total) {
-    console.warn(
+    logger.warn(
       `⚠️ Progress invariant violated${context ? ` (${context})` : ""}: current (${overallProgress.current}) > total (${overallProgress.total})`,
     );
   }
   if (overallProgress.current < 0) {
-    console.warn(
+    logger.warn(
       `⚠️ Progress invariant violated${context ? ` (${context})` : ""}: current is negative (${overallProgress.current})`,
     );
   }
   if (overallProgress.total < 0) {
-    console.warn(
+    logger.warn(
       `⚠️ Progress invariant violated${context ? ` (${context})` : ""}: total is negative (${overallProgress.total})`,
     );
   }

@@ -1,10 +1,11 @@
 import { scrape } from "@/tools/scraper/scrape";
 import { isRecord } from "@/utils/common/typeGuards";
+import logger from "../../src/utils/logger";
 async function run(): Promise<void> {
   const cfg = await import("@/utils/config");
   const raw = cfg.config.scraper.scrapeTestPageUrls;
   if (!raw) {
-    console.log(
+    logger.log(
       "SKIP: SCRAPE_TEST_PAGE_URLS not set - provide comma-separated URLs to run",
     );
     process.exit(0);
@@ -15,17 +16,16 @@ async function run(): Promise<void> {
     .map((s: string) => s.trim())
     .filter(Boolean);
   if (pageUrls.length === 0) {
-    console.log("SKIP: no valid URLs provided");
+    logger.log("SKIP: no valid URLs provided");
     process.exit(0);
   }
-
-  console.log(`Running scrape-v2 on ${pageUrls.length} pages...`);
+  logger.log(`Running scrape-v2 on ${pageUrls.length} pages...`);
 
   const res = await scrape({
     rootUrl: pageUrls[0],
     password: undefined,
     pageUrls,
-    logger: (s) => console.log(s),
+    logger: (s) => logger.log(s),
   });
 
   try {
@@ -52,12 +52,12 @@ async function run(): Promise<void> {
 
     const progress = extractProgress(res);
     if (!progress) {
-      console.error("FAIL: response missing progress field");
-      console.error(res);
+      logger.error("FAIL: response missing progress field");
+      logger.error(res);
       process.exit(2);
     }
 
-    console.log("Progress from v2:", progress);
+    logger.log("Progress from v2:", progress);
 
     if (
       isRecord(progress) &&
@@ -65,23 +65,23 @@ async function run(): Promise<void> {
       typeof progress["total"] === "number"
     ) {
       if (progress["current"] === progress["total"]) {
-        console.log("PASS: progress.current === progress.total");
+        logger.log("PASS: progress.current === progress.total");
         process.exit(0);
       }
-      console.error(
+      logger.error(
         `FAIL: progress mismatch final current=${progress["current"]} total=${progress["total"]}`,
       );
       process.exit(1);
     }
-    console.error("FAIL: progress object malformed", progress);
+    logger.error("FAIL: progress object malformed", progress);
     process.exit(2);
   } catch (e) {
-    console.error("FAIL: could not parse tool response", e);
+    logger.error("FAIL: could not parse tool response", e);
     process.exit(3);
   }
 }
 
 run().catch((e) => {
-  console.error(e);
+  logger.error(e);
   process.exit(4);
 });

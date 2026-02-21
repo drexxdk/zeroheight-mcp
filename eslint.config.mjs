@@ -16,6 +16,10 @@ const eslintConfig = defineConfig([
   // Project rule: forbid direct access to `process.env` outside of config.ts
   {
     rules: {
+      // Allow `debugger` during development; we'll block it at commit-time via git hook
+      "no-debugger": "off",
+      // Disallow direct `console` usage by default; allow only in dedicated logger and tooling files via overrides
+      "no-console": "error",
       "no-restricted-properties": [
         "error",
         {
@@ -50,6 +54,13 @@ const eslintConfig = defineConfig([
     files: ["src/utils/config.ts"],
     rules: {
       "no-restricted-properties": "off",
+    },
+  },
+  // Allow limited console usage only in the central logger
+  {
+    files: ["src/utils/logger.ts"],
+    rules: {
+      "no-console": ["error", { allow: ["log", "warn", "error", "debug"] }],
     },
   },
   // Project rule: discourage casts to `Record<string, unknown>` which bypass
