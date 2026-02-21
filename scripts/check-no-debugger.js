@@ -16,8 +16,18 @@ function getStagedFiles() {
     .filter(Boolean);
 }
 
+function stripStringsAndComments(s) {
+  // Remove string literals (single, double, template) first to avoid
+  // false positives inside quoted text. Then remove block and line comments.
+  return s
+    .replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+}
+
 function fileHasDebugger(content) {
-  return /\bdebugger\b/.test(content);
+  const cleaned = stripStringsAndComments(content);
+  return /\bdebugger\b/.test(cleaned);
 }
 
 const staged = getStagedFiles();
@@ -45,7 +55,8 @@ for (const file of staged) {
     // Show matching lines
     const lines = content.split(/\r?\n/);
     lines.forEach((line, idx) => {
-      if (/\bdebugger\b/.test(line)) {
+      const cleanedLine = stripStringsAndComments(line);
+      if (/\bdebugger\b/.test(cleanedLine)) {
         console.error(`${file}:${idx + 1}: ${line.trim()}`);
       }
     });
