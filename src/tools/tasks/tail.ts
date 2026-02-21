@@ -3,6 +3,7 @@ import { createErrorResponse } from "@/utils/toolResponses";
 import { config } from "@/utils/config";
 import type { ToolDefinition } from "@/tools/toolTypes";
 import { getJobFromDb } from "./utils/jobStore";
+import { isRecord } from "@/utils/common/typeGuards";
 
 const tasksTailInput = z
   .object({
@@ -63,14 +64,7 @@ export const tasksTailTool: ToolDefinition<
         if (lines.length > cursor) {
           const newLines = lines.slice(cursor);
           cursor = lines.length;
-          return {
-            taskId: j.id,
-            status: j.status,
-            lines: newLines,
-            nextCursor: cursor,
-            finished_at: j.finished_at ?? null,
-            error: j.error ?? null,
-          };
+          return formatTailLinesResult(j, newLines, cursor);
         }
 
         if (
@@ -78,14 +72,7 @@ export const tasksTailTool: ToolDefinition<
           ["completed", "failed", "cancelled"].includes(j.status)
         ) {
           // terminal but no new lines — return terminal state
-          return {
-            taskId: j.id,
-            status: j.status,
-            lines: [],
-            nextCursor: cursor,
-            finished_at: j.finished_at ?? null,
-            error: j.error ?? null,
-          };
+          return formatTailTerminalResult(j, cursor);
         }
 
         await new Promise((r) => setTimeout(r, interval));
@@ -99,3 +86,36 @@ export const tasksTailTool: ToolDefinition<
     }
   },
 };
+
+function formatTailLinesResult(
+  j: unknown,
+  newLines: string[],
+  cursor: number,
+): TasksTailResult | ReturnType<typeof createErrorResponse> {
+  if (!isRecord(j))
+    return createErrorResponse({ message: "Invalid job record" });
+  return {
+    taskId: String(j.id),
+    status: String(j.status),
+    lines: newLines,
+    nextCursor: cursor,
+    finished_at: (j.finished_at as string) ?? null,
+    error: (j.error as string) ?? null,
+  };
+}
+
+function formatTailTerminalResult(
+  j: unknown,
+  cursor: number,
+): TasksTailResult | ReturnType<typeof createErrorResponse> {
+  if (!isRecord(j))
+    return createErrorResponse({ message: "Invalid job record" });
+  return {
+    taskId: String(j.id),
+    status: String(j.status),
+    lines: [],
+    nextCursor: cursor,
+    finished_at: (j.finished_at as string) ?? null,
+    error: (j.error as string) ?? null,
+  };
+}

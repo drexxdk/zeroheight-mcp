@@ -51,44 +51,13 @@ export const tasksResultTool: ToolDefinition<
       const poll = timeoutMs ?? config.server.pollDefaultTimeoutMs;
       const interval = config.server.pollIntervalMs;
       const start = Date.now();
-
       while (Date.now() - start < poll) {
         const j = await getJobFromDb({ jobId: taskId });
         if (!j)
           return createErrorResponse({
             message: `No task found with id=${taskId}`,
           });
-        if (TERMINAL.has(j.status)) {
-          if (
-            isRecord(j) &&
-            Object.prototype.hasOwnProperty.call(j, "result") &&
-            j.result != null
-          ) {
-            const ttl =
-              typeof requestedTtlMs === "number"
-                ? Math.min(requestedTtlMs, config.server.maxTtlMs)
-                : config.server.suggestedTtlMs;
-            return {
-              taskId: j.id,
-              status: j.status,
-              result: j.result,
-              ttl,
-            };
-          }
-          const ttl =
-            typeof requestedTtlMs === "number"
-              ? Math.min(requestedTtlMs, config.server.maxTtlMs)
-              : config.server.suggestedTtlMs;
-          return {
-            taskId: j.id,
-            status: j.status,
-            logs: j.logs ?? null,
-            started_at: j.started_at ?? null,
-            finished_at: j.finished_at ?? null,
-            error: j.error ?? null,
-            ttl,
-          };
-        }
+        if (TERMINAL.has(j.status)) return formatTaskResult(j, requestedTtlMs);
         await new Promise((r) => setTimeout(r, interval));
       }
       return createErrorResponse({
@@ -101,3 +70,41 @@ export const tasksResultTool: ToolDefinition<
     }
   },
 };
+
+function formatTaskResult(
+  j: unknown,
+  requestedTtlMs?: number,
+): TasksResultResponse | ReturnType<typeof createErrorResponse> {
+  if (!isRecord(j))
+    return createErrorResponse({ message: "Invalid job record" });
+  const ttl =
+    typeof requestedTtlMs === "number"
+      ? Math.min(requestedTtlMs, config.server.maxTtlMs)
+      : config.server.suggestedTtlMs;
+  const taskId = typeof j.id === "string" ? j.id : String(j.id);
+  const status = typeof j.status === "string" ? j.status : String(j.status);
+
+  if (Object.prototype.hasOwnProperty.call(j, "result") && j.result != null) {
+    return {
+      taskId,
+      status,
+      result: j.result,
+      ttl,
+    } as const;
+  }
+
+  const logs = typeof j.logs === "string" ? j.logs : null;
+  const started_at = typeof j.started_at === "string" ? j.started_at : null;
+  const finished_at = typeof j.finished_at === "string" ? j.finished_at : null;
+  const error = typeof j.error === "string" ? j.error : null;
+
+  return {
+    taskId,
+    status,
+    logs,
+    started_at,
+    finished_at,
+    error,
+    ttl,
+  } as const;
+}

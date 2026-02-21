@@ -19,50 +19,62 @@ export function getBlockReason(
 ): string | null {
   const rTypeLower = rType.toLowerCase();
   if (allowSetLocal.has(rTypeLower)) return null;
+
   const urlLower = reqUrl.toLowerCase();
-  let parsedHost = "";
-  let parsedPathLower = "";
-  try {
-    const p = new URL(reqUrl);
-    parsedHost = p.hostname.toLowerCase();
-    parsedPathLower = p.pathname.toLowerCase();
-  } catch {
-    parsedHost = "";
-    parsedPathLower = "";
-  }
+  const { parsedHost, parsedPathLower } = (() => {
+    try {
+      const p = new URL(reqUrl);
+      return {
+        parsedHost: p.hostname.toLowerCase(),
+        parsedPathLower: p.pathname.toLowerCase(),
+      };
+    } catch {
+      return { parsedHost: "", parsedPathLower: "" };
+    }
+  })();
 
-  if (rTypeLower === "stylesheet" || rTypeLower === "font")
-    return "blocked-resource-type";
+  if (isBlockedResourceType(rTypeLower)) return "blocked-resource-type";
+  if (hasBlockedExtension(parsedPathLower)) return "blocked-ext";
+  if (isBlockedDataUri(urlLower)) return "blocked-data-uri";
+  if (blockSetLocal.has(rTypeLower)) return "blocked-by-inspector";
+  const hostReason = hostBasedBlock(parsedHost);
+  if (hostReason) return hostReason;
+  return null;
+}
 
+function isBlockedResourceType(rTypeLower: string): boolean {
+  return rTypeLower === "stylesheet" || rTypeLower === "font";
+}
+
+function hasBlockedExtension(parsedPathLower: string): boolean {
   const imageExtRe = /\.(svg|gif|ico)(?:[?#]|$)/i;
   const fontExtRe = /\.(woff2?|ttf|otf|eot)(?:[?#]|$)/i;
   try {
-    if (imageExtRe.test(parsedPathLower) || fontExtRe.test(parsedPathLower))
-      return "blocked-ext";
+    return imageExtRe.test(parsedPathLower) || fontExtRe.test(parsedPathLower);
   } catch (e) {
     logger.debug("extension regex test failed:", e);
+    return false;
   }
+}
 
-  if (urlLower.startsWith("data:")) {
-    const m = urlLower.match(/^data:([^;,]+)[;,]/);
-    const mime = m ? m[1] : "";
-    if (
-      mime.startsWith("image/svg") ||
-      mime === "image/gif" ||
-      mime === "image/x-icon" ||
-      mime === "image/vnd.microsoft.icon" ||
-      mime.startsWith("font/") ||
-      mime.includes("woff") ||
-      mime.includes("truetype") ||
-      mime.includes("opentype")
-    ) {
-      return "blocked-data-uri";
-    }
-  }
+function isBlockedDataUri(urlLower: string): boolean {
+  if (!urlLower.startsWith("data:")) return false;
+  const m = urlLower.match(/^data:([^;,]+)[;,]/);
+  const mime = m ? m[1] : "";
+  return (
+    mime.startsWith("image/svg") ||
+    mime === "image/gif" ||
+    mime === "image/x-icon" ||
+    mime === "image/vnd.microsoft.icon" ||
+    mime.startsWith("font/") ||
+    mime.includes("woff") ||
+    mime.includes("truetype") ||
+    mime.includes("opentype")
+  );
+}
 
-  if (blockSetLocal.has(rTypeLower)) return "blocked-by-inspector";
-
-  // host-based
+function hostBasedBlock(parsedHost: string): string | null {
+  if (!parsedHost) return null;
   if (
     parsedHost === "fast.appcues.com" ||
     parsedHost.endsWith(".fast.appcues.com")
@@ -76,7 +88,6 @@ export function getBlockReason(
     parsedHost.endsWith(".api.zeroheight.com")
   )
     return "blocked-zeroheight-api";
-
   return null;
 }
 

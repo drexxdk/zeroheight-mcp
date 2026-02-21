@@ -73,7 +73,6 @@ function main(): number {
     );
     return 1;
   }
-  debugger;
   return 0;
 }
 

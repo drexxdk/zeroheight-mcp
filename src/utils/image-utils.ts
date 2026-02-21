@@ -197,63 +197,71 @@ export async function getBucketDebugInfo({
   const targetBucket = bucketName || config.storage.imageBucket;
   const buckets: string[] = [];
   let files: Array<{ name: string }> = [];
+  try {
+    const listed = await listBucketsFromClient(client).catch(() => []);
+    buckets.push(...listed);
+  } catch {
+    // ignore
+  }
 
   try {
-    // Try listing buckets (may require admin client)
-    // Try to list buckets when available on the storage client. Use the
-    // `isStorageLike` guard to ensure `storage.from` exists; some clients
-    // also expose `listBuckets` (admin-capable). Use `getProp` to access
-    // properties safely on unknown values.
-    try {
-      if (isRecord(client) && isRecord(getProp(client, "storage"))) {
-        const storage = getProp(client, "storage");
-        const listFn = getProp(storage, "listBuckets");
-        if (typeof listFn === "function") {
-          const bRes = await listFn();
-          if (isRecord(bRes)) {
-            const maybeData = getProp(bRes, "data");
-            if (Array.isArray(maybeData)) {
-              for (const elem of maybeData) {
-                if (
-                  isRecord(elem) &&
-                  typeof getProp(elem, "name") === "string"
-                ) {
-                  buckets.push(String(getProp(elem, "name")));
-                }
+    files = await listFilesInBucket(client, targetBucket).catch(() => []);
+  } catch {
+    // ignore
+  }
+
+  return { buckets, files };
+}
+
+async function listBucketsFromClient(client: unknown): Promise<string[]> {
+  const out: string[] = [];
+  try {
+    if (isRecord(client) && isRecord(getProp(client, "storage"))) {
+      const storage = getProp(client, "storage");
+      const listFn = getProp(storage, "listBuckets");
+      if (typeof listFn === "function") {
+        const bRes = await (listFn as () => Promise<unknown>)();
+        if (isRecord(bRes)) {
+          const maybeData = getProp(bRes, "data");
+          if (Array.isArray(maybeData)) {
+            for (const elem of maybeData) {
+              if (isRecord(elem) && typeof getProp(elem, "name") === "string") {
+                out.push(String(getProp(elem, "name")));
               }
             }
           }
         }
       }
-    } catch {
-      // ignore listing errors
-    }
-
-    // List files in the target bucket
-    try {
-      if (isStorageLike(client)) {
-        const storageClient = client;
-        const { data, error } = await storageClient.storage
-          .from(targetBucket)
-          .list("");
-        if (!error && Array.isArray(data)) {
-          const collected: Array<{ name: string }> = [];
-          for (const item of data) {
-            if (isRecord(item) && typeof getProp(item, "name") === "string") {
-              collected.push({ name: String(getProp(item, "name")) });
-            }
-          }
-          files = collected;
-        }
-      }
-    } catch {
-      // ignore file listing errors
     }
   } catch {
-    // ignore overall errors
+    // ignore
   }
+  return out;
+}
 
-  return { buckets, files };
+async function listFilesInBucket(
+  client: unknown,
+  targetBucket: string,
+): Promise<Array<{ name: string }>> {
+  const collected: Array<{ name: string }> = [];
+  try {
+    if (isStorageLike(client)) {
+      const storageClient = client as StorageLike;
+      const { data, error } = await storageClient.storage
+        .from(targetBucket)
+        .list("");
+      if (!error && Array.isArray(data)) {
+        for (const item of data) {
+          if (isRecord(item) && typeof getProp(item, "name") === "string") {
+            collected.push({ name: String(getProp(item, "name")) });
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return collected;
 }
 
 export async function performBucketClear({

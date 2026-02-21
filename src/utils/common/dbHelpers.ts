@@ -4,6 +4,79 @@ import type { PagesType, ImagesType } from "../../database.types";
 import { isRecord } from "@/utils/common/typeGuards";
 import { toErrorObj } from "@/utils/common/errorUtils";
 import logger from "@/utils/logger";
+import { config } from "@/utils/config";
+
+async function upsertUniquePages(
+  supabase: SupabaseClient<Database>,
+  uniquePages: Array<Pick<PagesType, "url" | "title" | "content">>,
+): Promise<Array<{ id?: number; url?: string }> | null> {
+  try {
+    let attempts = 0;
+    let upsertResult: {
+      data?: Array<{ id?: number; url?: string }> | null;
+      error?: { message?: string } | null;
+    } = { data: null, error: null };
+    while (attempts < 3) {
+      try {
+        const res = await supabase
+          .from("pages")
+          .upsert(uniquePages, { onConflict: "url" })
+          .select("id, url");
+        upsertResult = res;
+        if (!res.error) break;
+      } catch (err) {
+        upsertResult = { error: toErrorObj(err), data: null };
+      }
+      attempts++;
+      if (attempts < 3) {
+        await new Promise((r) =>
+          setTimeout(r, config.scraper.db.bulkUpsertBackoffMs),
+        );
+      }
+    }
+    if (upsertResult.error)
+      logger.error("Error bulk upserting pages:", upsertResult.error);
+    return upsertResult.data || null;
+  } catch (e) {
+    logger.error("Unexpected error upserting pages:", e);
+    return null;
+  }
+}
+
+async function insertImagesWithRetry(
+  supabase: SupabaseClient<Database>,
+  imagesToInsert: Array<{
+    page_id: number;
+    original_url: ImagesType["original_url"];
+    storage_path: ImagesType["storage_path"];
+  }>,
+): Promise<void> {
+  try {
+    let attempts = 0;
+    let insertResult: unknown = null;
+    while (attempts < 3) {
+      try {
+        const res = await supabase.from("images").insert(imagesToInsert);
+        insertResult = res;
+        if (!res.error) break;
+      } catch (err) {
+        insertResult = { error: toErrorObj(err) };
+      }
+      attempts++;
+      if (attempts < 3) {
+        await new Promise((r) =>
+          setTimeout(r, config.scraper.db.bulkUpsertBackoffMs),
+        );
+      }
+    }
+    let insertImagesError: { message?: string } | null = null;
+    if (isRecord(insertResult)) insertImagesError = insertResult.error ?? null;
+    if (insertImagesError)
+      logger.error("Error bulk inserting images:", insertImagesError);
+  } catch (e) {
+    logger.error("Unexpected error inserting images:", e);
+  }
+}
 
 export async function commitPagesAndImages(options: {
   client: SupabaseClient<Database>;
@@ -22,50 +95,7 @@ export async function commitPagesAndImages(options: {
   >();
   for (const p of pagesToUpsert) pageMap.set(p.url, p);
   const uniquePages = Array.from(pageMap.values());
-
-  let upsertedPages: Array<{ id?: number; url?: string }> | null = null;
-
-  // Use shared `toErrorObj` helper from utils
-
-  try {
-    // Manual retry loop to avoid typing issues with Postgrest builders
-    let attempts = 0;
-    let upsertResult: {
-      data?: Array<{ id?: number; url?: string }> | null;
-      error?: { message?: string } | null;
-    } = { data: null, error: null };
-    while (attempts < 3) {
-      try {
-        // Await the Postgrest response directly
-        const res = await supabase
-          .from("pages")
-          .upsert(uniquePages, { onConflict: "url" })
-          .select("id, url");
-        upsertResult = res;
-        if (!res.error) break;
-      } catch (err) {
-        upsertResult = { error: toErrorObj(err), data: null };
-      }
-      attempts++;
-      if (attempts < 3) {
-        try {
-          const { config } = await import("@/utils/config");
-          await new Promise((r) =>
-            setTimeout(r, config.scraper.db.bulkUpsertBackoffMs),
-          );
-        } catch {
-          await new Promise((r) => setTimeout(r, 500));
-        }
-      }
-    }
-
-    if (upsertResult.error) {
-      logger.error("Error bulk upserting pages:", upsertResult.error);
-    }
-    upsertedPages = upsertResult.data || null;
-  } catch (e) {
-    logger.error("Unexpected error upserting pages:", e);
-  }
+  const upsertedPages = await upsertUniquePages(supabase, uniquePages);
 
   const urlToId = new Map<string, number>();
   (upsertedPages || []).forEach((p) => {
@@ -88,41 +118,7 @@ export async function commitPagesAndImages(options: {
   }
 
   if (imagesToInsert.length > 0) {
-    try {
-      // Manual retry for image inserts
-      let attempts = 0;
-      let insertResult: { error?: { message?: string } | null } = {
-        error: null,
-      };
-      while (attempts < 3) {
-        try {
-          const res = await supabase.from("images").insert(imagesToInsert);
-          insertResult = res;
-          if (!res.error) break;
-        } catch (err) {
-          insertResult = { error: toErrorObj(err) };
-        }
-        attempts++;
-        if (attempts < 3) {
-          try {
-            const { config } = await import("@/utils/config");
-            await new Promise((r) =>
-              setTimeout(r, config.scraper.db.bulkUpsertBackoffMs),
-            );
-          } catch {
-            await new Promise((r) => setTimeout(r, 500));
-          }
-        }
-      }
-      let insertImagesError: { message?: string } | null = null;
-      if (isRecord(insertResult))
-        insertImagesError = insertResult.error ?? null;
-      if (insertImagesError) {
-        logger.error("Error bulk inserting images:", insertImagesError);
-      }
-    } catch (e) {
-      logger.error("Unexpected error inserting images:", e);
-    }
+    await insertImagesWithRetry(supabase, imagesToInsert);
   }
 
   return {

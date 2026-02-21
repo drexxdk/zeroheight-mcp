@@ -40,6 +40,7 @@ interface NavigationOption {
   label: string;
 }
 
+// eslint-disable-next-line max-lines-per-function, complexity
 export default function Home(): ReactElement {
   const [activeSection, setActiveSection] = useState("features");
   const [scrollProgress, setScrollProgress] = useState(0);

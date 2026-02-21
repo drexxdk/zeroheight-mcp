@@ -215,25 +215,160 @@ const handlerForRequest: HandlerForRequest = async (req) => {
 // Export the underlying MCP handler for reuse by the JSON wrapper route.
 export const mcpHandler = handler;
 
-// Authenticate the incoming request. For simple JSON-RPC `tools/call` calls
-// that target lightweight task tools we shortcut and call the tool handler
-// directly (avoids a full MCP roundtrip). Otherwise the request is forwarded
-// to the MCP handler.
-async function authenticatedHandler(request: NextRequest): Promise<Response> {
+async function tryHandleFastTaskCall(
+  parsed: Record<string, unknown>,
+): Promise<Response | undefined> {
+  const params = isRecord(parsed?.["params"]) ? parsed!["params"] : undefined;
+  const toolName =
+    typeof params?.["name"] === "string" ? params!["name"] : undefined;
+  const args = isRecord(params?.["arguments"]) ? params!["arguments"] : {};
+
+  const taskTools = new Set([
+    tasksGetTool.title,
+    tasksResultTool.title,
+    tasksListTool.title,
+    tasksCancelTool.title,
+    testTaskTool.title,
+    tasksTailTool.title,
+  ]);
+
+  if (!(toolName && taskTools.has(toolName))) return undefined;
+
+  try {
+    const createFastHandler = <S extends import("zod").ZodTypeAny>(tool: {
+      handler: (a: import("zod").infer<S>) => Promise<unknown>;
+      inputSchema: S;
+    }) => {
+      return async (a?: unknown) => {
+        const parsedInput = tool.inputSchema.safeParse(a);
+        if (!parsedInput.success) throw new Error("Invalid input");
+        return tool.handler(parsedInput.data);
+      };
+    };
+
+    const toolMap: Record<string, (a?: unknown) => Promise<unknown>> = {
+      [tasksGetTool.title]: createFastHandler(tasksGetTool),
+      [tasksResultTool.title]: createFastHandler(tasksResultTool),
+      [tasksListTool.title]: createFastHandler(tasksListTool),
+      [tasksCancelTool.title]: createFastHandler(tasksCancelTool),
+      [testTaskTool.title]: createFastHandler(testTaskTool),
+      [tasksTailTool.title]: createFastHandler(tasksTailTool),
+    };
+
+    const handlerFn = toolMap[toolName];
+    const result = await handlerFn(args);
+
+    let rpcResult: unknown;
+    if (
+      isRecord(result) &&
+      Object.prototype.hasOwnProperty.call(result, "task")
+    ) {
+      rpcResult = result;
+    } else {
+      rpcResult = normalizeToToolResponse(result);
+    }
+
+    const rpc = {
+      jsonrpc: "2.0",
+      id: parsed["id"] ?? null,
+      result: rpcResult,
+    };
+    return new Response(JSON.stringify(rpc), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const rpc = {
+      jsonrpc: "2.0",
+      id: parsed["id"] ?? null,
+      error: { code: -32000, message: msg },
+    };
+    return new Response(JSON.stringify(rpc), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+async function handleGetHeadForwarding(
+  request: NextRequest,
+  forwardedHeaders: Headers,
+  handlerFn: (req: Request) => Promise<Response>,
+): Promise<Response | undefined> {
+  logger.debug("[mcp] forwarding GET/HEAD to handler", {
+    method: request.method,
+    url: request.url,
+    accept: forwardedHeaders.get("accept"),
+  });
+  try {
+    const res = await handlerFn(request as unknown as Request);
+    if (res && res.status === 405) {
+      logger.debug(
+        "[mcp] handler returned 405 for GET/HEAD — attempting POST fallback",
+      );
+      const rpc = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        params: {},
+      });
+      const forwardedPostHeaders = new Headers(forwardedHeaders);
+      forwardedPostHeaders.set("content-type", "application/json");
+      forwardedPostHeaders.set("accept", "application/json, text/event-stream");
+
+      const postResp = await handlerFn(
+        new Request(request.url, {
+          method: "POST",
+          headers: forwardedPostHeaders,
+          body: rpc,
+        }),
+      );
+      const postCt = postResp.headers.get("content-type") || "";
+      if (postCt.includes("text/event-stream")) return postResp;
+
+      const json = await postResp.text();
+      const stream = new ReadableStream({
+        start(controller) {
+          const sse = `event: message\ndata: ${json}\n\n`;
+          controller.enqueue(new TextEncoder().encode(sse));
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
+    return res;
+  } catch (err) {
+    logger.error("[mcp] handler threw while handling GET/HEAD:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const rpc = {
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32000, message: `Handler error: ${msg}` },
+    };
+    return new Response(JSON.stringify(rpc), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+async function authenticateAndParse(request: NextRequest): Promise<{
+  isValid: boolean;
+  error?: string;
+  bodyText: string | null;
+  contentType: string;
+  parsed: Record<string, unknown> | null;
+}> {
   const auth = authenticateRequest({ request });
 
-  if (!auth.isValid) {
-    return new Response(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        error: { code: -32600, message: auth.error },
-        id: null,
-      }),
-      { status: 401, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
-  // Read the request body once (text) so it can be reused when forwarding.
   let bodyText: string | null = null;
   try {
     bodyText = await request.text();
@@ -247,85 +382,43 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
     parsed = parseJsonText(bodyText);
   }
 
-  // If this is a single JSON-RPC `tools/call` targeting a task tool, handle it
-  // directly here and return a JSON-RPC response. This keeps the fast-path
-  // small and predictable.
+  return {
+    isValid: auth.isValid,
+    error: auth.error,
+    bodyText,
+    contentType,
+    parsed,
+  };
+}
+
+// Authenticate the incoming request. For simple JSON-RPC `tools/call` calls
+// that target lightweight task tools we shortcut and call the tool handler
+// directly (avoids a full MCP roundtrip). Otherwise the request is forwarded
+// to the MCP handler.
+async function authenticatedHandler(request: NextRequest): Promise<Response> {
+  const {
+    isValid,
+    error,
+    bodyText,
+    contentType: _contentType,
+    parsed,
+  } = await authenticateAndParse(request);
+
+  if (!isValid) {
+    return new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32600, message: error },
+        id: null,
+      }),
+      { status: 401, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  // Fast-path for lightweight task tools; delegate to helper
   if (parsed && parsed["method"] === "tools/call") {
-    const params = isRecord(parsed?.["params"]) ? parsed!["params"] : undefined;
-    const toolName =
-      typeof params?.["name"] === "string" ? params!["name"] : undefined;
-    const args = isRecord(params?.["arguments"]) ? params!["arguments"] : {};
-
-    const taskTools = new Set([
-      tasksGetTool.title,
-      tasksResultTool.title,
-      tasksListTool.title,
-      tasksCancelTool.title,
-      testTaskTool.title,
-      tasksTailTool.title,
-    ]);
-
-    if (toolName && taskTools.has(toolName)) {
-      try {
-        const createFastHandler = <S extends import("zod").ZodTypeAny>(tool: {
-          handler: (a: import("zod").infer<S>) => Promise<unknown>;
-          inputSchema: S;
-        }) => {
-          return async (a?: unknown) => {
-            const parsedInput = tool.inputSchema.safeParse(a);
-            if (!parsedInput.success) throw new Error("Invalid input");
-            return tool.handler(parsedInput.data);
-          };
-        };
-
-        const toolMap: Record<string, (a?: unknown) => Promise<unknown>> = {
-          [tasksGetTool.title]: createFastHandler(tasksGetTool),
-          [tasksResultTool.title]: createFastHandler(tasksResultTool),
-          [tasksListTool.title]: createFastHandler(tasksListTool),
-          [tasksCancelTool.title]: createFastHandler(tasksCancelTool),
-          [testTaskTool.title]: createFastHandler(testTaskTool),
-          [tasksTailTool.title]: createFastHandler(tasksTailTool),
-        };
-
-        const handlerFn = toolMap[toolName];
-        const result = await handlerFn(args);
-
-        // If the tool returned a structured task object (SEP-1686), forward
-        // it directly as the JSON-RPC `result` so callers receive typed task
-        // metadata. Otherwise normalize into a ToolResponse for backward
-        // compatibility with tools that return raw values or errors.
-        let rpcResult: unknown;
-        if (
-          isRecord(result) &&
-          Object.prototype.hasOwnProperty.call(result, "task")
-        ) {
-          rpcResult = result;
-        } else {
-          rpcResult = normalizeToToolResponse(result);
-        }
-
-        const rpc = {
-          jsonrpc: "2.0",
-          id: parsed["id"] ?? null,
-          result: rpcResult,
-        };
-        return new Response(JSON.stringify(rpc), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        const rpc = {
-          jsonrpc: "2.0",
-          id: parsed["id"] ?? null,
-          error: { code: -32000, message: msg },
-        };
-        return new Response(JSON.stringify(rpc), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-    }
+    const fast = await tryHandleFastTaskCall(parsed);
+    if (fast) return fast;
   }
 
   // When forwarding to the MCP handler, recreate a Request with the same
@@ -350,72 +443,12 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
       accept: forwardedHeaders.get("accept"),
     });
 
-    try {
-      const res = await handlerForRequest(request);
-
-      if (res && res.status === 405) {
-        logger.debug(
-          "[mcp] handler returned 405 for GET/HEAD — attempting POST fallback",
-        );
-
-        const rpc = JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "tools/list",
-          params: {},
-        });
-        const forwardedPostHeaders = new Headers(forwardedHeaders);
-        forwardedPostHeaders.set("content-type", "application/json");
-        forwardedPostHeaders.set(
-          "accept",
-          "application/json, text/event-stream",
-        );
-
-        const postResp = await handlerForRequest(
-          new Request(request.url, {
-            method: "POST",
-            headers: forwardedPostHeaders,
-            body: rpc,
-          }),
-        );
-
-        const postCt = postResp.headers.get("content-type") || "";
-        if (postCt.includes("text/event-stream")) {
-          return postResp;
-        }
-
-        const json = await postResp.text();
-        const stream = new ReadableStream({
-          start(controller) {
-            const sse = `event: message\ndata: ${json}\n\n`;
-            controller.enqueue(new TextEncoder().encode(sse));
-            controller.close();
-          },
-        });
-
-        return new Response(stream, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-          },
-        });
-      }
-
-      return res;
-    } catch (err) {
-      logger.error("[mcp] handler threw while handling GET/HEAD:", err);
-      const msg = err instanceof Error ? err.message : String(err);
-      const rpc = {
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32000, message: `Handler error: ${msg}` },
-      };
-      return new Response(JSON.stringify(rpc), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    const maybe = await handleGetHeadForwarding(
+      request,
+      forwardedHeaders,
+      handlerForRequest,
+    );
+    if (maybe) return maybe;
   }
 
   // For non-GET methods, reconstruct a Request with the same body so the MCP handler can read it.

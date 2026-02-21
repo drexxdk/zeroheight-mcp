@@ -4,10 +4,8 @@
 // Lightweight script to render the same boxed summary used by bulkUpsert
 import "dotenv/config";
 import logger from "../src/utils/logger";
-import {
-  formatSummaryBox,
-  SummaryParams,
-} from "../src/tools/scraper/utils/bulkUpsert";
+import { formatSummaryBox } from "../src/tools/scraper/utils/bulkUpsert";
+import type { SummaryParams } from "../src/tools/scraper/utils/bulkUpsertHelpers";
 
 async function main(): Promise<void> {
   const params: SummaryParams = {

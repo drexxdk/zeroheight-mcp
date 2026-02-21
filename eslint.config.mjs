@@ -19,7 +19,7 @@ const eslintConfig = defineConfig([
   {
     plugins: {
       "eslint-comments": eslintComments,
-      "import": eslintImport,
+      import: eslintImport,
     },
     rules: {
       // Allow `debugger` during development; we'll block it at commit-time via git hook
@@ -64,7 +64,7 @@ const eslintConfig = defineConfig([
       "import/no-extraneous-dependencies": [
         "error",
         {
-          "devDependencies": [
+          devDependencies: [
             "**/__tests__/**",
             "**/*.test.*",
             "scripts/**",
@@ -73,13 +73,16 @@ const eslintConfig = defineConfig([
             "eslint.config.mjs",
             "vitest.config.ts",
             "**/*.config.*",
-            "scripts/**"
-          ]
-        }
+            "scripts/**",
+          ],
+        },
       ],
       // Complexity thresholds
-      "complexity": ["warn", 15],
-      "max-lines-per-function": ["warn", { "max": 200, "skipComments": true, "skipBlankLines": true }],
+      complexity: ["warn", 15],
+      "max-lines-per-function": [
+        "warn",
+        { max: 200, skipComments: true, skipBlankLines: true },
+      ],
       // Forbid the use of TypeScript `@ts-` comment directives (e.g. @ts-ignore)
       // Tests are allowed to opt-out via an override below.
       "@typescript-eslint/ban-ts-comment": [
