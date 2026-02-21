@@ -97,15 +97,23 @@ export const config = {
       finalWaitMs: 200,
       scrollStepPx: 800,
     },
+    login: {
+      // Wait after submitting login form (ms)
+      postSubmitWaitMs: 2000,
+    },
     viewport: {
       width: 1280,
       height: 1024,
       navWaitUntil: "networkidle2" as NavWaitUntil,
       navTimeoutMs: 30000,
+      // Debug-specific navigation timeout (used by inspection scripts)
+      debugNavTimeoutMs: 60000,
     },
     retry: {
       maxAttempts: 3,
       retryBaseMs: 250,
+      // Default retry delay used by generic retry helpers (ms)
+      defaultDelayMs: 500,
       retryFactor: 2,
     },
     contentMaxChars: 10000,
@@ -121,18 +129,17 @@ export const config = {
       bulkUpsertBackoffMs: 500,
       defaultConcurrency: 4,
     },
-    scrollFallbackPx: 800,
     log: {
       sampleSize: 12,
-      linkSample: 6,
     },
     defaultHashTruncate: 8,
     scrapeTestPageUrls: "",
   },
   image: {
     maxDim: 600,
-    jpegQuality: 80,
     webpQuality: 80,
+    // Timeouts for remote image operations (ms)
+    requestTimeoutMs: 10000,
     upload: {
       retries: 3,
       backoffFactor: 2,
@@ -143,12 +150,24 @@ export const config = {
   },
   storage: {
     imageBucket: "images",
+    // Number of items to request when listing a storage bucket
+    listLimit: 1000,
+    // Batch size used when deleting files from storage
+    deleteBatchSize: 100,
     storageCacheControlSec: 3600,
     fileSizeLimitBytes: 10485760,
   },
   server: {
     rateLimitTokens: 60,
     mcpUrl: "http://localhost:3000/api/mcp",
+    // Default timeouts (ms) used by tailing and long-tail scripts/tools
+    defaultTimeoutMs: 30000,
+    longTailTimeoutMs: 300000,
+    // Polling and TTL defaults for tasks/tools
+    pollIntervalMs: 5000,
+    pollDefaultTimeoutMs: 60000,
+    suggestedTtlMs: 60000,
+    maxTtlMs: 60 * 60 * 1000,
   },
   hashing: {
     jobIdRandomStart: 2,
@@ -156,7 +175,9 @@ export const config = {
     testRunIdRandomLen: 4,
   },
   tuning: {
-    scraperDbQueryLimit: 1000,
     imageUtilsSampleLimit: 50,
+    // Short delays used by scripts/tests (ms)
+    shortDelayMs: 1000,
+    testTaskTickMs: 1000,
   },
 };

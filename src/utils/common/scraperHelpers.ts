@@ -10,7 +10,14 @@ export async function tryLogin(options: {
   if (!passwordInput) return;
   await passwordInput.type(password);
   await page.keyboard.press("Enter");
-  await new Promise((r) => setTimeout(r, 2000));
+  try {
+    const { config } = await import("@/utils/config");
+    await new Promise((r) =>
+      setTimeout(r, config.scraper.login.postSubmitWaitMs),
+    );
+  } catch {
+    await new Promise((r) => setTimeout(r, 2000));
+  }
 }
 
 export async function retryAsync<T>(options: {
@@ -18,7 +25,20 @@ export async function retryAsync<T>(options: {
   retries?: number;
   delayMs?: number;
 }): Promise<T> {
-  const { fn, retries = 3, delayMs = 500 } = options;
+  const { fn } = options;
+  let { retries, delayMs } = options as { retries?: number; delayMs?: number };
+  try {
+    const { config } = await import("@/utils/config");
+    retries =
+      typeof retries === "number" ? retries : config.scraper.retry.maxAttempts;
+    delayMs =
+      typeof delayMs === "number"
+        ? delayMs
+        : config.scraper.retry.defaultDelayMs;
+  } catch {
+    retries = typeof retries === "number" ? retries : 3;
+    delayMs = typeof delayMs === "number" ? delayMs : 500;
+  }
   let lastError: unknown;
   for (let i = 0; i < retries; i++) {
     try {

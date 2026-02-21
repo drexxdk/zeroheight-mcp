@@ -1,10 +1,7 @@
 import { getSupabaseAdminClient } from "@/utils/common";
 import { getJobFromDb } from "./utils/jobStore";
-import {
-  mapStatusToSep,
-  SERVER_SUGGESTED_TTL_MS,
-  SERVER_MAX_TTL_MS,
-} from "./utils";
+import { mapStatusToSep } from "./utils";
+import { config } from "@/utils/config";
 import { z } from "zod";
 import { createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
@@ -52,8 +49,8 @@ export const tasksGetTool: ToolDefinition<
 
       const ttl =
         typeof requestedTtlMs === "number"
-          ? Math.min(requestedTtlMs, SERVER_MAX_TTL_MS)
-          : SERVER_SUGGESTED_TTL_MS;
+          ? Math.min(requestedTtlMs, config.server.maxTtlMs)
+          : config.server.suggestedTtlMs;
       const res = {
         task: {
           taskId: j.id,
@@ -62,7 +59,7 @@ export const tasksGetTool: ToolDefinition<
           createdAt: j.created_at ?? null,
           lastUpdatedAt: j.finished_at ?? j.started_at ?? null,
           ttl,
-          pollInterval: 5000,
+          pollInterval: config.server.pollIntervalMs,
         },
       };
       return res;

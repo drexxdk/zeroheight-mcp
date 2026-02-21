@@ -7,7 +7,8 @@ import {
   getJobFromDb,
   claimJobById,
 } from "./utils/jobStore";
-import { mapStatusToSep, SERVER_SUGGESTED_TTL_MS } from "./utils";
+import { mapStatusToSep } from "./utils";
+import { config } from "@/utils/config";
 import type { ToolDefinition } from "@/tools/toolTypes";
 import type { TasksGetResult } from "./types";
 
@@ -82,7 +83,9 @@ export const testTaskTool: ToolDefinition<
               jobId,
               line: `tick ${i}/${totalSeconds}`,
             });
-            await new Promise((res) => setTimeout(res, 1000));
+            await new Promise((res) =>
+              setTimeout(res, config.tuning.testTaskTickMs),
+            );
           }
           await appendJobLog({ jobId, line: "Test task completed" });
           await finishJob({
@@ -110,8 +113,8 @@ export const testTaskTool: ToolDefinition<
           statusMessage: "Test task is now in progress.",
           createdAt,
           lastUpdatedAt: null,
-          ttl: SERVER_SUGGESTED_TTL_MS,
-          pollInterval: 5000,
+          ttl: config.server.suggestedTtlMs,
+          pollInterval: config.server.pollIntervalMs,
         },
       };
       return taskResponse;

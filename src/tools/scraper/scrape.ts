@@ -26,7 +26,7 @@ import {
   finishJob,
   getJobFromDb,
 } from "../tasks/utils/jobStore";
-import { mapStatusToSep, SERVER_SUGGESTED_TTL_MS } from "../tasks/utils";
+import { mapStatusToSep } from "../tasks/utils";
 import { tryLogin } from "@/utils/common/scraperHelpers";
 import type { TasksGetResult } from "../tasks/types";
 
@@ -153,12 +153,11 @@ export async function scrape({
     const restrictToSeeds = !!(pageUrls && pageUrls.length > 0);
 
     const { client: db } = getClient();
-    const imagesTable = "images";
     const loggedInHostnames = new Set<string>();
     let allExistingImageUrls = new Set<string>();
     try {
       const { data: allExistingImages } = await db!
-        .from(imagesTable)
+        .from("images")
         .select("original_url");
       allExistingImageUrls = new Set(
         (allExistingImages || []).map((img: Record<string, unknown>) => {
@@ -752,8 +751,8 @@ export const scrapeTool: ToolDefinition<
         statusMessage: "Scraping is now in progress.",
         createdAt: startedAt,
         lastUpdatedAt: null,
-        ttl: SERVER_SUGGESTED_TTL_MS,
-        pollInterval: 5000,
+        ttl: config.server.suggestedTtlMs,
+        pollInterval: config.server.pollIntervalMs,
       },
     };
     // Return the structured `task` object directly; MCP registration will

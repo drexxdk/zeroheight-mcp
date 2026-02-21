@@ -14,8 +14,12 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
-  const timeoutMsArg = Number(process.argv[3] ?? "300000"); // default 5 minutes
-  const timeoutMs = Number.isFinite(timeoutMsArg) ? timeoutMsArg : 300000;
+  const { config } = await import("../../src/utils/config");
+  const defaultTimeout = config.server.longTailTimeoutMs;
+  const timeoutMsArg = Number(process.argv[3] ?? String(defaultTimeout)); // default 5 minutes
+  const timeoutMs = Number.isFinite(timeoutMsArg)
+    ? timeoutMsArg
+    : defaultTimeout;
 
   const { tasksResultTool } = await import("../../src/tools/tasks");
   for (const jobId of ids) {

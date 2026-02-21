@@ -71,16 +71,14 @@ export const queryDataTool: ToolDefinition<
 
     let pages: PageData[] = [];
 
-    const pagesTable = "pages";
-
     if (search) {
       // Use separate queries to avoid complex OR conditions that can cause parsing issues
       const titleQuery = supabase
-        .from(pagesTable)
+        .from("pages")
         .select("id, title, url, content, images (original_url, storage_path)")
         .ilike("title", `%${search}%`);
       const contentQuery = supabase
-        .from(pagesTable)
+        .from("pages")
         .select("id, title, url, content, images (original_url, storage_path)")
         .ilike("content", `%${search}%`);
 
@@ -114,7 +112,7 @@ export const queryDataTool: ToolDefinition<
     } else if (url) {
       // Query by URL
       const { data: urlPages, error: urlError } = await supabase
-        .from(pagesTable)
+        .from("pages")
         .select("id, title, url, content, images (original_url, storage_path)")
         .eq("url", url)
         .limit(effectiveLimit);
@@ -130,7 +128,7 @@ export const queryDataTool: ToolDefinition<
     } else {
       // Get all pages with limit
       const { data: allPages, error: allError } = await supabase
-        .from(pagesTable)
+        .from("pages")
         .select("id, title, url, content, images (original_url, storage_path)")
         .limit(effectiveLimit);
 

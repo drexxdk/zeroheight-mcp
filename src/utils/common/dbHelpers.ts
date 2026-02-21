@@ -23,7 +23,6 @@ export async function commitPagesAndImages(options: {
 
   let upsertedPages: Array<{ id?: number; url?: string }> | null = null;
   try {
-    const pagesTable = "pages";
     // Manual retry loop to avoid typing issues with Postgrest builders
     let attempts = 0;
     let upsertResult: {
@@ -34,7 +33,7 @@ export async function commitPagesAndImages(options: {
       try {
         // Await the Postgrest response directly
         const res = await supabase
-          .from(pagesTable)
+          .from("pages")
           .upsert(uniquePages, { onConflict: "url" })
           .select("id, url");
         upsertResult = res;
@@ -43,7 +42,16 @@ export async function commitPagesAndImages(options: {
         upsertResult = { error: err, data: null };
       }
       attempts++;
-      if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
+      if (attempts < 3) {
+        try {
+          const { config } = await import("@/utils/config");
+          await new Promise((r) =>
+            setTimeout(r, config.scraper.db.bulkUpsertBackoffMs),
+          );
+        } catch {
+          await new Promise((r) => setTimeout(r, 500));
+        }
+      }
     }
 
     if (upsertResult.error) {
@@ -76,20 +84,28 @@ export async function commitPagesAndImages(options: {
 
   if (imagesToInsert.length > 0) {
     try {
-      const imagesTable = "images";
       // Manual retry for image inserts
       let attempts = 0;
       let insertResult: { error?: unknown | null } = { error: null };
       while (attempts < 3) {
         try {
-          const res = await supabase.from(imagesTable).insert(imagesToInsert);
+          const res = await supabase.from("images").insert(imagesToInsert);
           insertResult = res;
           if (!res.error) break;
         } catch (err) {
           insertResult = { error: err };
         }
         attempts++;
-        if (attempts < 3) await new Promise((r) => setTimeout(r, 500));
+        if (attempts < 3) {
+          try {
+            const { config } = await import("@/utils/config");
+            await new Promise((r) =>
+              setTimeout(r, config.scraper.db.bulkUpsertBackoffMs),
+            );
+          } catch {
+            await new Promise((r) => setTimeout(r, 500));
+          }
+        }
       }
       let insertImagesError: unknown | null = null;
       if (isRecord(insertResult))

@@ -1,6 +1,7 @@
 import { getSupabaseAdminClient } from "@/utils/common";
 import { getJobFromDb } from "./utils/jobStore";
-import { TERMINAL, SERVER_SUGGESTED_TTL_MS, SERVER_MAX_TTL_MS } from "./utils";
+import { TERMINAL } from "./utils";
+import { config } from "@/utils/config";
 import { z } from "zod";
 import { createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
@@ -47,8 +48,8 @@ export const tasksResultTool: ToolDefinition<
       const admin = getSupabaseAdminClient();
       if (!admin)
         return createErrorResponse({ message: "Admin client not configured" });
-      const poll = timeoutMs ?? 60000;
-      const interval = 5000;
+      const poll = timeoutMs ?? config.server.pollDefaultTimeoutMs;
+      const interval = config.server.pollIntervalMs;
       const start = Date.now();
 
       while (Date.now() - start < poll) {
@@ -65,8 +66,8 @@ export const tasksResultTool: ToolDefinition<
           ) {
             const ttl =
               typeof requestedTtlMs === "number"
-                ? Math.min(requestedTtlMs, SERVER_MAX_TTL_MS)
-                : SERVER_SUGGESTED_TTL_MS;
+                ? Math.min(requestedTtlMs, config.server.maxTtlMs)
+                : config.server.suggestedTtlMs;
             return {
               taskId: j.id,
               status: j.status,
@@ -76,8 +77,8 @@ export const tasksResultTool: ToolDefinition<
           }
           const ttl =
             typeof requestedTtlMs === "number"
-              ? Math.min(requestedTtlMs, SERVER_MAX_TTL_MS)
-              : SERVER_SUGGESTED_TTL_MS;
+              ? Math.min(requestedTtlMs, config.server.maxTtlMs)
+              : config.server.suggestedTtlMs;
           return {
             taskId: j.id,
             status: j.status,

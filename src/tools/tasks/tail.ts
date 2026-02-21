@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createErrorResponse } from "@/utils/toolResponses";
+import { config } from "@/utils/config";
 import type { ToolDefinition } from "@/tools/toolTypes";
 import { getJobFromDb } from "./utils/jobStore";
 
@@ -23,11 +24,12 @@ export type TasksTailResult = {
 
 export const tasksTailTool: ToolDefinition<
   typeof tasksTailInput,
-  TasksTailResult | { taskId: string; status: string; lines: string[]; nextCursor: number } | ReturnType<typeof createErrorResponse>
+  | TasksTailResult
+  | { taskId: string; status: string; lines: string[]; nextCursor: number }
+  | ReturnType<typeof createErrorResponse>
 > = {
   title: "TASKS_tail",
-  description:
-    "Tail logs for a taskId (polls DB and returns new log lines).",
+  description: "Tail logs for a taskId (polls DB and returns new log lines).",
   inputSchema: tasksTailInput,
   outputSchema: z.object({
     taskId: z.string(),
@@ -39,15 +41,22 @@ export const tasksTailTool: ToolDefinition<
   }),
   handler: async ({ taskId, sinceLine, timeoutMs, intervalMs }) => {
     try {
-      const poll = typeof timeoutMs === "number" ? timeoutMs : 30000;
-      const interval = typeof intervalMs === "number" ? Math.max(200, intervalMs) : 1000;
+      const poll =
+        typeof timeoutMs === "number"
+          ? timeoutMs
+          : config.server.defaultTimeoutMs;
+      const interval =
+        typeof intervalMs === "number" ? Math.max(200, intervalMs) : 1000;
       const start = Date.now();
 
       let cursor = typeof sinceLine === "number" ? sinceLine : 0;
 
       while (Date.now() - start < poll) {
         const j = await getJobFromDb({ jobId: taskId });
-        if (!j) return createErrorResponse({ message: `No task found with id=${taskId}` });
+        if (!j)
+          return createErrorResponse({
+            message: `No task found with id=${taskId}`,
+          });
 
         const raw = j.logs ?? "";
         const lines = raw === "" ? [] : String(raw).split(/\r?\n/);
@@ -64,7 +73,10 @@ export const tasksTailTool: ToolDefinition<
           };
         }
 
-        if (j.status && ["completed", "failed", "cancelled"].includes(j.status)) {
+        if (
+          j.status &&
+          ["completed", "failed", "cancelled"].includes(j.status)
+        ) {
           // terminal but no new lines — return terminal state
           return {
             taskId: j.id,
@@ -81,7 +93,9 @@ export const tasksTailTool: ToolDefinition<
 
       return { taskId, status: "running", lines: [], nextCursor: cursor };
     } catch (e) {
-      return createErrorResponse({ message: String(e instanceof Error ? e.message : e) });
+      return createErrorResponse({
+        message: String(e instanceof Error ? e.message : e),
+      });
     }
   },
 };

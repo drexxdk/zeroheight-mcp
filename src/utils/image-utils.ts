@@ -14,7 +14,8 @@ export async function downloadImage({
   void filename;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutMs = config.image.requestTimeoutMs;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs); // image request timeout
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
 
@@ -82,12 +83,11 @@ export async function clearStorageBucket({
     let allFiles: string[] = [];
     let continuationToken: string | null = null;
 
-    const targetBucket =
-      bucketName || config.storage.imageBucket || "zeroheight-images";
+    const targetBucket = bucketName || config.storage.imageBucket;
 
     do {
       const { data, error } = await client.storage.from(targetBucket).list("", {
-        limit: 1000,
+        limit: config.storage.listLimit,
         offset: continuationToken ? parseInt(continuationToken) : 0,
       });
 
@@ -100,7 +100,9 @@ export async function clearStorageBucket({
         const fileNames = data.map((file: { name: string }) => file.name);
         allFiles = allFiles.concat(fileNames);
         continuationToken =
-          data.length === 1000 ? allFiles.length.toString() : null;
+          data.length === config.storage.listLimit
+            ? allFiles.length.toString()
+            : null;
       } else {
         continuationToken = null;
       }
@@ -113,7 +115,7 @@ export async function clearStorageBucket({
       console.log(`Found ${allFiles.length} files to delete`);
 
       // Delete files in batches
-      const batchSize = 100;
+      const batchSize = config.storage.deleteBatchSize;
       for (let i = 0; i < allFiles.length; i += batchSize) {
         const batch = allFiles.slice(i, i + batchSize);
 
@@ -150,8 +152,7 @@ export async function getBucketDebugInfo({
   client: ReturnType<typeof createClient<Database>>;
   bucketName?: string;
 }): Promise<{ buckets: string[]; files: Array<{ name: string }> }> {
-  const targetBucket =
-    bucketName || config.storage.imageBucket || "zeroheight-images";
+  const targetBucket = bucketName || config.storage.imageBucket;
   const buckets: string[] = [];
   let files: Array<{ name: string }> = [];
 

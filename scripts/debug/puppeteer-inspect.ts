@@ -129,7 +129,9 @@ async function main(): Promise<void> {
   );
 
   try {
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+    const cfg = await import("../../src/utils/config");
+    const navTimeout = cfg.config.scraper.viewport.debugNavTimeoutMs ?? 60000;
+    await page.goto(url, { waitUntil: "networkidle2", timeout: navTimeout });
     // Attempt to login using project password if available
     try {
       const cfg = await import("../../src/utils/config");
@@ -155,7 +157,8 @@ async function main(): Promise<void> {
   }
 
   // give a short grace period for late responses
-  await new Promise((res) => setTimeout(res, 1000));
+  const cfg2 = await import("../../src/utils/config");
+  await new Promise((res) => setTimeout(res, cfg2.config.tuning.shortDelayMs));
 
   const summary = {
     url,

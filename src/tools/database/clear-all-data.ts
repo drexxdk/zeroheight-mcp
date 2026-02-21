@@ -37,15 +37,13 @@ async function clearDatabase(): Promise<
     }
 
     if (supabase) {
-      const imagesTable = "images";
-      const pagesTable = "pages";
       const getRowCount = (d: unknown): number =>
         Array.isArray(d) ? d.length : 0;
 
       // Clear images table
       console.log("Clearing images table...");
       const { data: imagesData, error: imagesError } = await adminClient
-        .from(imagesTable)
+        .from("images")
         .delete()
         .neq("id", 0);
 
@@ -61,7 +59,7 @@ async function clearDatabase(): Promise<
       // Clear pages table
       console.log("Clearing pages table...");
       const { data: pagesData, error: pagesError } = await adminClient
-        .from(pagesTable)
+        .from("pages")
         .delete()
         .neq("id", 0);
 
