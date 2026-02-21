@@ -5,6 +5,27 @@ import type { Database } from "../database.schema";
 import { config } from "./config";
 import logger from "@/utils/logger";
 
+type StorageLike = {
+  storage: {
+    listBuckets?: () => Promise<{ data?: unknown; error?: unknown }>;
+    from: (bucket: string) => {
+      list: (
+        path?: string,
+        options?: unknown,
+      ) => Promise<{ data?: unknown; error?: unknown }>;
+      remove: (items: string[]) => Promise<{ error?: unknown }>;
+    };
+  };
+};
+
+export function isStorageLike(x: unknown): x is StorageLike {
+  if (!isRecord(x)) return false;
+  const storage = getProp(x, "storage");
+  if (!isRecord(storage)) return false;
+  const from = getProp(storage, "from");
+  return typeof from === "function";
+}
+
 export async function downloadImage({
   url,
   filename,
@@ -76,7 +97,7 @@ export async function clearStorageBucket({
   client,
   bucketName,
 }: {
-  client: ReturnType<typeof createClient<Database>>;
+  client: ReturnType<typeof createClient<Database>> | StorageLike;
   bucketName?: string;
 }): Promise<{ deletedCount: number; deleteErrors: StorageDeleteError[] }> {
   try {
@@ -87,25 +108,39 @@ export async function clearStorageBucket({
     const targetBucket = bucketName || config.storage.imageBucket;
 
     do {
-      const { data, error } = await client.storage.from(targetBucket).list("", {
-        limit: config.storage.listLimit,
-        offset: continuationToken ? parseInt(continuationToken) : 0,
-      });
+      if (isStorageLike(client)) {
+        const storageClient = client;
+        const { data, error } = await storageClient.storage
+          .from(targetBucket)
+          .list("", {
+            limit: config.storage.listLimit,
+            offset: continuationToken ? parseInt(continuationToken) : 0,
+          });
 
-      if (error) {
-        logger.error("Error listing files:", error);
-        break;
-      }
+        if (error) {
+          logger.error("Error listing files:", error);
+          break;
+        }
 
-      if (data) {
-        const fileNames = data.map((file: { name: string }) => file.name);
-        allFiles = allFiles.concat(fileNames);
-        continuationToken =
-          data.length === config.storage.listLimit
-            ? allFiles.length.toString()
-            : null;
+        if (Array.isArray(data)) {
+          const fileNames = data
+            .filter(
+              (item): item is Record<string, unknown> =>
+                isRecord(item) && typeof getProp(item, "name") === "string",
+            )
+            .map((file) => String(getProp(file, "name")));
+          allFiles = allFiles.concat(fileNames);
+          continuationToken =
+            data.length === config.storage.listLimit
+              ? allFiles.length.toString()
+              : null;
+        } else {
+          continuationToken = null;
+        }
       } else {
-        continuationToken = null;
+        // can't list without a storage client
+        logger.warn("No storage client available to list files");
+        break;
       }
     } while (continuationToken);
 
@@ -120,21 +155,27 @@ export async function clearStorageBucket({
       for (let i = 0; i < allFiles.length; i += batchSize) {
         const batch = allFiles.slice(i, i + batchSize);
 
-        const { error: deleteError } = await client.storage
-          .from(targetBucket)
-          .remove(batch);
+        if (isStorageLike(client)) {
+          const storageClient = client;
+          const { error: deleteError } = await storageClient.storage
+            .from(targetBucket)
+            .remove(batch);
 
-        if (deleteError) {
-          logger.error(
-            `Error deleting batch ${i / batchSize + 1}:`,
-            deleteError,
-          );
-          deleteErrors.push({ batch: i / batchSize + 1, error: deleteError });
+          if (deleteError) {
+            logger.error(
+              `Error deleting batch ${i / batchSize + 1}:`,
+              deleteError,
+            );
+            deleteErrors.push({ batch: i / batchSize + 1, error: deleteError });
+          } else {
+            deletedCount += batch.length;
+            logger.log(
+              `Deleted batch ${i / batchSize + 1} (${batch.length} files)`,
+            );
+          }
         } else {
-          deletedCount += batch.length;
-          logger.log(
-            `Deleted batch ${i / batchSize + 1} (${batch.length} files)`,
-          );
+          logger.warn("No storage client available to remove files");
+          break;
         }
       }
     }
@@ -150,7 +191,7 @@ export async function getBucketDebugInfo({
   client,
   bucketName,
 }: {
-  client: ReturnType<typeof createClient<Database>>;
+  client: ReturnType<typeof createClient<Database>> | StorageLike;
   bucketName?: string;
 }): Promise<{ buckets: string[]; files: Array<{ name: string }> }> {
   const targetBucket = bucketName || config.storage.imageBucket;
@@ -159,49 +200,51 @@ export async function getBucketDebugInfo({
 
   try {
     // Try listing buckets (may require admin client)
+    // Try to list buckets when available on the storage client. Use the
+    // `isStorageLike` guard to ensure `storage.from` exists; some clients
+    // also expose `listBuckets` (admin-capable). Use `getProp` to access
+    // properties safely on unknown values.
     try {
-      if (
-        isRecord(client) &&
-        isRecord(client.storage) &&
-        typeof client.storage["listBuckets"] === "function"
-      ) {
-        try {
-          const fn = client.storage["listBuckets"];
-          if (typeof fn === "function") {
-            const bRes = await (fn as (...a: unknown[]) => Promise<unknown>)();
-            if (isRecord(bRes)) {
-              const maybeData = getProp(bRes, "data");
-              if (Array.isArray(maybeData)) {
-                for (const elem of maybeData) {
-                  if (
-                    isRecord(elem) &&
-                    typeof getProp(elem, "name") === "string"
-                  ) {
-                    buckets.push(String(getProp(elem, "name")));
-                  }
+      if (isRecord(client) && isRecord(getProp(client, "storage"))) {
+        const storage = getProp(client, "storage");
+        const listFn = getProp(storage, "listBuckets");
+        if (typeof listFn === "function") {
+          const bRes = await listFn();
+          if (isRecord(bRes)) {
+            const maybeData = getProp(bRes, "data");
+            if (Array.isArray(maybeData)) {
+              for (const elem of maybeData) {
+                if (
+                  isRecord(elem) &&
+                  typeof getProp(elem, "name") === "string"
+                ) {
+                  buckets.push(String(getProp(elem, "name")));
                 }
               }
             }
           }
-        } catch {
-          // ignore bucket listing errors
         }
       }
     } catch {
-      // ignore listing guard failures
+      // ignore listing errors
     }
 
     // List files in the target bucket
     try {
-      const { data, error } = await client.storage.from(targetBucket).list("");
-      if (!error && Array.isArray(data)) {
-        const collected: Array<{ name: string }> = [];
-        for (const item of data) {
-          if (isRecord(item) && typeof getProp(item, "name") === "string") {
-            collected.push({ name: String(getProp(item, "name")) });
+      if (isStorageLike(client)) {
+        const storageClient = client;
+        const { data, error } = await storageClient.storage
+          .from(targetBucket)
+          .list("");
+        if (!error && Array.isArray(data)) {
+          const collected: Array<{ name: string }> = [];
+          for (const item of data) {
+            if (isRecord(item) && typeof getProp(item, "name") === "string") {
+              collected.push({ name: String(getProp(item, "name")) });
+            }
           }
+          files = collected;
         }
-        files = collected;
       }
     } catch {
       // ignore file listing errors
@@ -223,7 +266,7 @@ export async function performBucketClear({
   foundFiles: string[];
   availableBuckets: string[];
   deletedCount: number;
-  deleteErrors: unknown[];
+  deleteErrors: StorageDeleteError[];
 }> {
   const { getSupabaseClient } = await import("./common");
   const bucketName = config.storage.imageBucket || undefined;
@@ -233,9 +276,8 @@ export async function performBucketClear({
   const maybeClient = getSupabaseClient();
 
   // Prefer the explicitly provided client instance, otherwise fall back to the global client
-  const storageClientToUse = (clientInstance || maybeClient) as ReturnType<
-    typeof createClient<Database>
-  > | null;
+  const storageClientToUse: ReturnType<typeof createClient<Database>> | null =
+    clientInstance || maybeClient;
 
   const buckets: string[] = [];
   const files: Array<{ name: string }> = [];
@@ -257,7 +299,10 @@ export async function performBucketClear({
   }
 
   // proceed with clearing the bucket
-  let deleteSummary: { deletedCount: number; deleteErrors: unknown[] } = {
+  let deleteSummary: {
+    deletedCount: number;
+    deleteErrors: StorageDeleteError[];
+  } = {
     deletedCount: 0,
     deleteErrors: [],
   };

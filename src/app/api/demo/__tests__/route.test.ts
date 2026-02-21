@@ -1,7 +1,7 @@
 /// <reference types="vitest/globals" />
 import { POST } from "../route";
 
-function makeRequest(body: unknown): Request {
+function makeRequest(body?: Record<string, unknown>): Request {
   const init: RequestInit = {
     method: "POST",
     headers: { "content-type": "application/json" },

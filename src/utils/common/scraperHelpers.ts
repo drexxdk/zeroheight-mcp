@@ -26,7 +26,7 @@ export async function retryAsync<T>(options: {
   delayMs?: number;
 }): Promise<T> {
   const { fn } = options;
-  let { retries, delayMs } = options as { retries?: number; delayMs?: number };
+  let { retries, delayMs } = options;
   try {
     const { config } = await import("@/utils/config");
     retries =
@@ -92,7 +92,7 @@ export async function uploadWithRetry(options: {
   }
 }
 
-export type SupabaseResult<T = unknown> = {
+export type SupabaseResult<T = Record<string, unknown>> = {
   data?: T | null;
   error?: { message?: string } | null;
 };
@@ -100,13 +100,15 @@ export type SupabaseResult<T = unknown> = {
 export type SupabaseClientMinimal = {
   from: (table: string) => {
     upsert: (
-      rows: unknown,
+      rows: Array<Record<string, unknown>>,
       opts?: { onConflict?: string },
     ) => {
       select: (
         sel: string,
       ) => Promise<SupabaseResult<Array<Record<string, unknown>>>>;
     };
-    insert: (rows: unknown) => Promise<SupabaseResult<unknown>>;
+    insert: (
+      rows: Array<Record<string, unknown>>,
+    ) => Promise<SupabaseResult<Array<Record<string, unknown>>>>;
   };
 };

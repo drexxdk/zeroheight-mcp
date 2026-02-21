@@ -5,12 +5,13 @@ import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
 import logger from "@/utils/logger";
 import { isRecord, getProp } from "../../../utils/common/typeGuards";
+import { toErrorObj } from "@/utils/common/errorUtils";
 
 type DbClient = ReturnType<typeof getClient>["client"];
 
 type UpsertPagesRes = {
   data?: Array<{ id?: number; url?: string }>;
-  error?: unknown;
+  error?: { message?: string } | null;
 };
 // InsertRes type not needed
 
@@ -88,6 +89,8 @@ export async function bulkUpsertPagesAndImages(options: {
     const chunk = uniquePages.slice(i, i + pageChunkSize);
     let attempts = 0;
     let chunkResult: UpsertPagesRes | null = null;
+    // use shared toErrorObj helper
+
     while (attempts < config.scraper.retry.maxAttempts) {
       try {
         if (!options.dryRun) {
@@ -115,12 +118,12 @@ export async function bulkUpsertPagesAndImages(options: {
             }
             chunkResult = {
               data: normalizedData,
-              error: getProp(maybe, "error"),
+              error: toErrorObj(getProp(maybe, "error")),
             };
           } else {
-            chunkResult = { error: maybe };
+            chunkResult = { error: toErrorObj(maybe) };
           }
-          if (!chunkResult.error) break;
+          if (chunkResult && !chunkResult.error) break;
         } else {
           // Dry run: pretend upsert succeeded and generate ids
           chunkResult = {
@@ -129,7 +132,7 @@ export async function bulkUpsertPagesAndImages(options: {
           break;
         }
       } catch (err) {
-        chunkResult = { error: err };
+        chunkResult = { error: toErrorObj(err) };
       }
       attempts++;
       if (attempts < config.scraper.retry.maxAttempts)

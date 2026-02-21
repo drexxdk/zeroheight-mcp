@@ -152,9 +152,8 @@ async function main(): Promise<void> {
 
       // If the tool exposes an outputSchema, validate the direct handler
       // response against it so tests exercise the same runtime checks.
-      const outputSchema = (
-        tasksGetTool as unknown as { outputSchema?: ZodTypeAny }
-      ).outputSchema as ZodTypeAny | undefined;
+      const outputSchema = (tasksGetTool as { outputSchema?: ZodTypeAny })
+        .outputSchema as ZodTypeAny | undefined;
       let directRec: Record<string, unknown> | undefined;
       if (outputSchema) {
         const parsed = outputSchema.safeParse(direct);

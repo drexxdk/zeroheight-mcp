@@ -31,7 +31,11 @@ export function ToolCard({
   iconColor,
   className = "",
 }: ToolCardProps): ReactElement {
-  const colors = colorMap[iconColor as keyof typeof colorMap] || colorMap.blue;
+  function isIconColor(v: unknown): v is keyof typeof colorMap {
+    return typeof v === "string" && v in colorMap;
+  }
+
+  const colors = isIconColor(iconColor) ? colorMap[iconColor] : colorMap.blue;
 
   return (
     <div

@@ -73,9 +73,9 @@ export async function prefetchSeeds(options: {
         // Collect cookies to set on seed pages to reuse session
         const raw = await p.cookies();
         cookies = raw.map((c) => {
-          let sameSite: string | undefined = undefined;
+          let sameSite: "Strict" | "Lax" | "None" | undefined = undefined;
           const ss = isRecord(c) ? c["sameSite"] : undefined;
-          if (typeof ss === "string") sameSite = ss;
+          if (ss === "Strict" || ss === "Lax" || ss === "None") sameSite = ss;
           return {
             name: c.name,
             value: c.value,
@@ -85,7 +85,7 @@ export async function prefetchSeeds(options: {
             httpOnly: c.httpOnly,
             secure: c.secure,
             sameSite,
-          } as Parameters<PuppeteerPage["setCookie"]>[0];
+          };
         });
       } catch (e) {
         defaultLogger.debug("prefetch seed parsing failed:", e);

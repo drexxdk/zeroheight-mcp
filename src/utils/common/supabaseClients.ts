@@ -50,7 +50,27 @@ export function getClient(): {
           upsert: true,
           contentType: "image/webp",
         });
-      return res as unknown as StorageUploadResult;
+      // Normalize runtime result into our `StorageUploadResult` shape
+      if (isRecord(res)) {
+        const dataRaw = getProp(res, "data");
+        const errorRaw = getProp(res, "error");
+        const dataOut = isRecord(dataRaw)
+          ? {
+              path:
+                typeof getProp(dataRaw, "path") === "string"
+                  ? String(getProp(dataRaw, "path"))
+                  : undefined,
+            }
+          : null;
+        const errorOut =
+          isRecord(errorRaw) && typeof getProp(errorRaw, "message") === "string"
+            ? { message: String(getProp(errorRaw, "message")) }
+            : errorRaw
+              ? { message: String(errorRaw) }
+              : null;
+        return { data: dataOut, error: errorOut };
+      }
+      return { data: null, error: { message: String(res) } };
     },
     // list/create buckets are only available with admin privileges
     listBuckets: admin
@@ -103,11 +123,17 @@ export function getClient(): {
             const maybeCreate = getProp(maybeStorage, "createBucket");
             let res: unknown;
             if (typeof maybeCreate === "function") {
-              // Call the runtime function; narrow the call site with a typed invocation
-              // (we avoid assuming the exact client signature at compile time)
-              res = await (
-                maybeCreate as (...a: unknown[]) => Promise<unknown>
-              )(name, opts);
+              // Call the runtime function; narrow the call site with a concrete
+              // function type to avoid `any` or double-casts.
+              type CreateBucketFn = (
+                n: string,
+                o?: {
+                  public?: boolean;
+                  allowedMimeTypes?: string[] | null;
+                  fileSizeLimit?: number | null;
+                },
+              ) => Promise<unknown>;
+              res = await (maybeCreate as CreateBucketFn)(name, opts);
             } else {
               return {
                 data: null,

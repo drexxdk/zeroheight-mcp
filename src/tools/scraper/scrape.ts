@@ -16,6 +16,7 @@ import { processPageAndImages } from "./utils/processPageAndImages";
 import prefetchSeeds, { normalizeUrl } from "./utils/prefetch";
 import { config } from "@/utils/config";
 import defaultLogger from "@/utils/logger";
+import { isRecord, getProp } from "@/utils/common/typeGuards";
 import {
   bulkUpsertPagesAndImages,
   formatSummaryBox,
@@ -160,10 +161,13 @@ export async function scrape({
       const { data: allExistingImages } = await db!
         .from("images")
         .select("original_url");
+      const existingArray = Array.isArray(allExistingImages)
+        ? allExistingImages.filter(isRecord)
+        : [];
       allExistingImageUrls = new Set(
-        (allExistingImages || []).map((img: Record<string, unknown>) => {
+        existingArray.map((img) => {
           let normalizedUrl = "";
-          const original = img["original_url"];
+          const original = getProp(img, "original_url");
           if (typeof original === "string") normalizedUrl = original;
           try {
             const u = new URL(normalizedUrl);
@@ -196,7 +200,50 @@ export async function scrape({
         logger,
       });
 
-      for (const [k, v] of seedMap) preExtractedMap.set(k, v as PreExtracted);
+      for (const [k, v] of seedMap) {
+        // Normalize prefetched seed entries into the expected `PreExtracted` shape
+        const title =
+          typeof getProp(v, "title") === "string"
+            ? String(getProp(v, "title"))
+            : "";
+        const content =
+          typeof getProp(v, "content") === "string"
+            ? String(getProp(v, "content"))
+            : "";
+        const supportedImagesRaw = getProp(v, "supportedImages");
+        const supportedImages: ExtractedImage[] = Array.isArray(
+          supportedImagesRaw,
+        )
+          ? supportedImagesRaw.filter(
+              (it): it is ExtractedImage =>
+                isRecord(it) && typeof getProp(it, "src") === "string",
+            )
+          : [];
+        const normRaw = getProp(v, "normalizedImages");
+        const normalizedImages = Array.isArray(normRaw)
+          ? normRaw
+              .map((it) =>
+                isRecord(it) && typeof getProp(it, "src") === "string"
+                  ? {
+                      src: String(getProp(it, "src")),
+                      alt: String(getProp(it, "alt") ?? ""),
+                    }
+                  : null,
+              )
+              .filter((x): x is { src: string; alt: string } => x !== null)
+          : [];
+        const pageLinksRaw = getProp(v, "pageLinks");
+        const pageLinks = Array.isArray(pageLinksRaw)
+          ? pageLinksRaw.filter((p): p is string => typeof p === "string")
+          : [];
+        preExtractedMap.set(k, {
+          title,
+          content,
+          supportedImages,
+          normalizedImages,
+          pageLinks,
+        });
+      }
 
       // If we provided a password and prefetchSeeds ran, assume we've logged
       // into the project hostname so workers don't repeatedly try to login.
@@ -251,8 +298,8 @@ export async function scrape({
       }).catch(() => fallbackRoot);
 
       const anchors: string[] = await p
-        .$$eval("a[href]", (links) =>
-          links.map((a) => (a as HTMLAnchorElement).href).filter(Boolean),
+        .$$eval("a[href]", (links: Array<{ href?: string }>) =>
+          links.map((a) => a.href || "").filter(Boolean),
         )
         .catch(() => []);
 
@@ -638,7 +685,6 @@ export async function scrape({
 
 import type { ToolDefinition } from "@/tools/toolTypes";
 import type { ToolResponse } from "@/utils/toolResponses";
-import { isRecord, getProp } from "../../utils/common/typeGuards";
 
 const scrapeInput = z.object({
   pageUrls: z.array(z.string()).optional(),

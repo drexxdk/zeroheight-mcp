@@ -5,6 +5,8 @@ import { performBucketClear } from "@/utils/image-utils";
 import { config } from "@/utils/config";
 import defaultLogger from "@/utils/logger";
 import { z } from "zod";
+import { isRecord, getProp } from "@/utils/common/typeGuards";
+import { toErrorObj } from "@/utils/common/errorUtils";
 import type { ToolDefinition } from "@/tools/toolTypes";
 
 export type ClearAllDataResult = {
@@ -113,10 +115,21 @@ async function clearDatabase(): Promise<
         availableBuckets: bucketResult.availableBuckets,
         deletedCount: bucketResult.deletedCount,
         deleteErrors: Array.isArray(bucketResult.deleteErrors)
-          ? (bucketResult.deleteErrors as Array<{
-              file: string;
-              error: string;
-            }>)
+          ? bucketResult.deleteErrors.map((e) => {
+              if (isRecord(e)) {
+                const file =
+                  typeof getProp(e, "file") === "string"
+                    ? String(getProp(e, "file"))
+                    : typeof getProp(e, "name") === "string"
+                      ? String(getProp(e, "name"))
+                      : "unknown";
+                const errVal = getProp(e, "error");
+                const norm = toErrorObj(errVal);
+                const errorMsg = norm?.message ?? String(errVal ?? "");
+                return { file, error: errorMsg };
+              }
+              return { file: "unknown", error: String(e) };
+            })
           : undefined,
       };
     }
@@ -126,8 +139,9 @@ async function clearDatabase(): Promise<
     return createErrorResponse({ message: errorMsg });
   } catch (error) {
     defaultLogger.error("Error clearing Zeroheight data:", error);
+    const msg = error instanceof Error ? error.message : String(error);
     return createErrorResponse({
-      message: "Error clearing Zeroheight data: " + (error as Error).message,
+      message: "Error clearing Zeroheight data: " + msg,
     });
   }
 }

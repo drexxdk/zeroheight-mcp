@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../database.schema";
 import type { PagesType, ImagesType } from "../../database.types";
 import { isRecord } from "@/utils/common/typeGuards";
+import { toErrorObj } from "@/utils/common/errorUtils";
 import logger from "@/utils/logger";
 
 export async function commitPagesAndImages(options: {
@@ -23,12 +24,15 @@ export async function commitPagesAndImages(options: {
   const uniquePages = Array.from(pageMap.values());
 
   let upsertedPages: Array<{ id?: number; url?: string }> | null = null;
+
+  // Use shared `toErrorObj` helper from utils
+
   try {
     // Manual retry loop to avoid typing issues with Postgrest builders
     let attempts = 0;
     let upsertResult: {
       data?: Array<{ id?: number; url?: string }> | null;
-      error?: unknown | null;
+      error?: { message?: string } | null;
     } = { data: null, error: null };
     while (attempts < 3) {
       try {
@@ -40,7 +44,7 @@ export async function commitPagesAndImages(options: {
         upsertResult = res;
         if (!res.error) break;
       } catch (err) {
-        upsertResult = { error: err, data: null };
+        upsertResult = { error: toErrorObj(err), data: null };
       }
       attempts++;
       if (attempts < 3) {
@@ -87,14 +91,16 @@ export async function commitPagesAndImages(options: {
     try {
       // Manual retry for image inserts
       let attempts = 0;
-      let insertResult: { error?: unknown | null } = { error: null };
+      let insertResult: { error?: { message?: string } | null } = {
+        error: null,
+      };
       while (attempts < 3) {
         try {
           const res = await supabase.from("images").insert(imagesToInsert);
           insertResult = res;
           if (!res.error) break;
         } catch (err) {
-          insertResult = { error: err };
+          insertResult = { error: toErrorObj(err) };
         }
         attempts++;
         if (attempts < 3) {
@@ -108,7 +114,7 @@ export async function commitPagesAndImages(options: {
           }
         }
       }
-      let insertImagesError: unknown | null = null;
+      let insertImagesError: { message?: string } | null = null;
       if (isRecord(insertResult))
         insertImagesError = insertResult.error ?? null;
       if (insertImagesError) {

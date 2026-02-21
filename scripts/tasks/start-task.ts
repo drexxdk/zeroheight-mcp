@@ -41,7 +41,7 @@ export async function runTool(
       return res;
     }
     logger.log("Structured result:", JSON.stringify(parsed.data, null, 2));
-    return parsed.data as unknown;
+    return parsed.data;
   }
 
   const res: ToolResponse = normalizeToToolResponse(raw);

@@ -2,7 +2,10 @@
   "cSpell.words": [
     "modelcontextprotocol",
     "networkidle",
+    "Postgrest",
     "Supabase",
+    "Upserted",
+    "upserting",
     "zeroheight"
   ],
   "css.lint.unknownAtRules": "ignore",

@@ -1,7 +1,15 @@
-import { NextRequest } from "next/server";
 import { config } from "./config";
 
-export function authenticateRequest({ request }: { request: NextRequest }): {
+type NextRequestLike = {
+  headers: { get: (k: string) => string | null };
+  nextUrl?: { searchParams: URLSearchParams };
+};
+
+export function authenticateRequest({
+  request,
+}: {
+  request: NextRequestLike;
+}): {
   isValid: boolean;
   error?: string;
 } {
@@ -10,7 +18,7 @@ export function authenticateRequest({ request }: { request: NextRequest }): {
   // Check for API key in headers or query parameters
   const authHeader = request.headers.get("authorization");
   const apiKeyHeader = request.headers.get("x-api-key");
-  const apiKeyQuery = request.nextUrl.searchParams.get("api_key");
+  const apiKeyQuery = request.nextUrl?.searchParams.get("api_key");
 
   const providedKey =
     authHeader?.replace("Bearer ", "") || apiKeyHeader || apiKeyQuery;

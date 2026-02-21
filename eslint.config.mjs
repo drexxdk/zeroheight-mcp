@@ -48,6 +48,21 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/explicit-module-boundary-types": ["error"],
       // Forbid use of `any` to improve type safety
       "@typescript-eslint/no-explicit-any": "error",
+      // Discourage general use of `as`/type assertions; prefer proper typing or runtime checks.
+      // This is enforced as an error to prevent introducing new assertions.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "TSAsExpression",
+          message:
+            "Avoid using `as` type assertions to bypass TypeScript. Prefer proper types, runtime guards, or small typed fixtures.",
+        },
+        {
+          selector: "TSTypeAssertion",
+          message:
+            "Avoid using `(<Type>value)` style type assertions. Prefer proper types or runtime validation instead.",
+        },
+      ],
     },
   },
   {

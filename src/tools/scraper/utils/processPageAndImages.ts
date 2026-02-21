@@ -1,7 +1,7 @@
 import type { Page } from "puppeteer";
-import { extractPageData, ExtractedImage } from "./pageExtraction";
+import { extractPageData } from "./pageExtraction";
 import { processImagesForPage } from "./pageProcessors";
-import type { ImagesType, PagesType } from "@/database.types";
+import type { ImagesType } from "@/database.types";
 
 export type OverallProgress = {
   current: number;
@@ -132,19 +132,16 @@ export async function processPageAndImages(
   });
 
   const pageUpsert = {
-    url: usedLink as PagesType["url"],
+    url: usedLink,
     title: pageTitle,
     content: pageContent,
   };
 
   const processedPageEntry = {
-    url: usedLink as PagesType["url"],
+    url: usedLink,
     title: pageTitle,
     content: pageContent,
-    images: supportedImages.map((img: ExtractedImage) => ({
-      src: img.src,
-      alt: img.alt,
-    })),
+    images: supportedImages.map((img) => ({ src: img.src, alt: img.alt })),
   };
 
   return {

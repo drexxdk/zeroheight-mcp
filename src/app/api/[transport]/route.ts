@@ -34,15 +34,23 @@ const handler = createMcpHandler(
     // Wrap a tool handler and coerce its result into a `ToolResponse` so the
     // MCP server receives a consistent shape regardless of the handler's raw
     // return value.
-    const wrapTool = <T>(tool: {
-      handler: (a: T) => Promise<unknown>;
+    const wrapTool = <S extends import("zod").ZodTypeAny>(tool: {
+      handler: (a: import("zod").infer<S>) => Promise<unknown>;
+      inputSchema: S;
       outputSchema?: import("zod").ZodTypeAny;
     }) => {
       return async (args: unknown): Promise<ToolResponse> => {
-        const res = await tool.handler(args as T);
-        // If the tool provided an outputSchema, validate the result before
-        // normalization. If validation fails, return an error ToolResponse.
         try {
+          const parsedIn = tool.inputSchema.safeParse(args);
+          if (!parsedIn.success) {
+            return createErrorResponse({
+              message: "Tool input failed validation",
+            });
+          }
+          const res = await tool.handler(parsedIn.data);
+
+          // If the tool provided an outputSchema, validate the result before
+          // normalization. If validation fails, return an error ToolResponse.
           if (tool.outputSchema) {
             const parsed = tool.outputSchema.safeParse(res);
             if (!parsed.success) {
@@ -55,14 +63,12 @@ const handler = createMcpHandler(
               });
             }
           }
-        } catch (e) {
-          logger.error("Error validating tool output:", e);
-          return createErrorResponse({
-            message: "Tool output validation error",
-          });
-        }
 
-        return normalizeToToolResponse(res);
+          return normalizeToToolResponse(res);
+        } catch (e) {
+          logger.error("wrapTool error:", e);
+          return createErrorResponse({ message: "Tool execution error" });
+        }
       };
     };
     server.registerTool(
@@ -261,17 +267,24 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
 
     if (toolName && taskTools.has(toolName)) {
       try {
-        const wrapHandler = <T>(h: (a: T) => Promise<unknown>) => {
-          return async (a?: unknown): Promise<unknown> => h(a as T);
+        const createFastHandler = <S extends import("zod").ZodTypeAny>(tool: {
+          handler: (a: import("zod").infer<S>) => Promise<unknown>;
+          inputSchema: S;
+        }) => {
+          return async (a?: unknown) => {
+            const parsed = tool.inputSchema.safeParse(a);
+            if (!parsed.success) throw new Error("Invalid input");
+            return tool.handler(parsed.data);
+          };
         };
 
         const toolMap: Record<string, (a?: unknown) => Promise<unknown>> = {
-          [tasksGetTool.title]: wrapHandler(tasksGetTool.handler),
-          [tasksResultTool.title]: wrapHandler(tasksResultTool.handler),
-          [tasksListTool.title]: wrapHandler(tasksListTool.handler),
-          [tasksCancelTool.title]: wrapHandler(tasksCancelTool.handler),
-          [testTaskTool.title]: wrapHandler(testTaskTool.handler),
-          [tasksTailTool.title]: wrapHandler(tasksTailTool.handler),
+          [tasksGetTool.title]: createFastHandler(tasksGetTool),
+          [tasksResultTool.title]: createFastHandler(tasksResultTool),
+          [tasksListTool.title]: createFastHandler(tasksListTool),
+          [tasksCancelTool.title]: createFastHandler(tasksCancelTool),
+          [testTaskTool.title]: createFastHandler(testTaskTool),
+          [tasksTailTool.title]: createFastHandler(tasksTailTool),
         };
 
         const handlerFn = toolMap[toolName];
@@ -317,7 +330,7 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
 
   // When forwarding to the MCP handler, recreate a Request with the same
   // body and headers so the handler can consume it normally.
-  const forwardedHeaders = new Headers(request.headers as HeadersInit);
+  const forwardedHeaders = new Headers(request.headers);
   // Ensure the handler sees both JSON and SSE acceptable so it will
   // produce a JSON response for tools/list while remaining compatible
   // with streaming transports.

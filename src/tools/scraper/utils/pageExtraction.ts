@@ -1,6 +1,7 @@
 import type { Page } from "puppeteer";
 import { config } from "@/utils/config";
 import logger from "@/utils/logger";
+import { isRecord, getProp } from "@/utils/common/typeGuards";
 
 export type ExtractedImage = {
   src: string;
@@ -35,9 +36,9 @@ export async function extractPageData({
     )
     .catch(async () => {
       return page
-        .$eval("body", (body) => {
+        .$eval("body", (body: HTMLElement) => {
           const clone = body.cloneNode(true) as HTMLElement;
-          const navs = clone.querySelectorAll(
+          const navs = (clone as Element).querySelectorAll(
             "nav, header, .navigation, .header, .sidebar",
           );
           navs.forEach((nav) => nav.remove());
@@ -102,10 +103,10 @@ export async function extractPageData({
 
   const bgImages = await page.$$eval(
     "*",
-    (elements, imagesLength) => {
+    (elements: Element[], imagesLength) => {
       return elements
-        .map((el, index) => {
-          const style = window.getComputedStyle(el as Element);
+        .map((el: Element, index) => {
+          const style = window.getComputedStyle(el);
           const bg = style.backgroundImage;
           if (bg && bg.startsWith("url(")) {
             let url = bg.slice(4, -1).replace(/['"]+/g, "");
@@ -120,9 +121,25 @@ export async function extractPageData({
     images.length,
   );
 
-  const allImages = [...images, ...bgImages].filter(
-    Boolean,
-  ) as ExtractedImage[];
+  const allImagesRaw = [...images, ...bgImages].filter(Boolean);
+  const allImages: ExtractedImage[] = allImagesRaw
+    .filter(isRecord)
+    .map((it) => {
+      const src =
+        typeof getProp(it, "src") === "string"
+          ? String(getProp(it, "src"))
+          : "";
+      const alt =
+        typeof getProp(it, "alt") === "string"
+          ? String(getProp(it, "alt"))
+          : "";
+      const index =
+        typeof getProp(it, "index") === "number"
+          ? Number(getProp(it, "index"))
+          : undefined;
+      return { src, alt, index };
+    })
+    .filter((img) => typeof img.src === "string" && img.src.startsWith("http"));
 
   // Normalize image URLs to prevent duplicates from signed URLs
   const normalizedImages = allImages.map((img) => {

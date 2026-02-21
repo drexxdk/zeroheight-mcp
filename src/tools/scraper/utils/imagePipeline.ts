@@ -84,8 +84,8 @@ export async function processAndUploadImage(options: {
     });
     if (uploadRes.error) {
       const e = uploadRes.error;
-      const msg = e instanceof Error ? e.message : String(e);
-      return { uploaded: false, error: msg || "upload_failed" };
+      const msg = String(e) || "upload_failed";
+      return { uploaded: false, error: msg };
     }
     const path = uploadRes.path;
     if (!path) return { uploaded: false, error: "no_path_returned" };

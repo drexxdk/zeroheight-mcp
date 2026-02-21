@@ -2,17 +2,13 @@
 import { z } from "zod";
 import { parseAndValidateJson } from "../apiHelpers";
 
-function makeReq(body: unknown): Request {
-  return {
-    text: async () => (body === undefined ? "" : JSON.stringify(body)),
+function makeReq(body?: Record<string, unknown>): Request {
+  const init: RequestInit = {
     method: "POST",
-    headers: {
-      get: (name: string) => {
-        void name;
-        return undefined;
-      },
-    },
-  } as unknown as Request;
+    body: body === undefined ? "" : JSON.stringify(body),
+    headers: {},
+  };
+  return new Request("http://localhost", init);
 }
 
 describe("parseAndValidateJson", () => {

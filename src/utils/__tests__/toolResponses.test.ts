@@ -23,9 +23,12 @@ describe("toolResponses", () => {
   });
 
   test("normalizeToToolResponse preserves ToolResponse-like input and stringifies non-text items", () => {
-    const input = {
+    type ToolLike = {
+      content: Array<{ type: string; text?: string } | Record<string, unknown>>;
+    };
+    const input: ToolLike = {
       content: [{ type: "text", text: "ok" }, { foo: "bar" }],
-    } as unknown;
+    };
     const res = normalizeToToolResponse(input);
     expect(res.content.length).toBe(2);
     expect(res.content[0].text).toBe("ok");

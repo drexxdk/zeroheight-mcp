@@ -7,6 +7,13 @@ import logger from "@/utils/logger";
 
 export type JobRecord = TasksType;
 
+function isJobRecord(obj: unknown): obj is JobRecord {
+  if (!isRecord(obj)) return false;
+  const id = getProp(obj, "id");
+  const status = getProp(obj, "status");
+  return typeof id === "string" && typeof status === "string";
+}
+
 export async function createJobInDb({
   name,
   args,
@@ -129,7 +136,15 @@ export async function claimNextJob(): Promise<JobRecord | null> {
       .order("created_at", { ascending: true })
       .limit(1);
     if (error || !rows || rows.length === 0) return null;
-    const job = rows[0] as JobRecord;
+    const maybeRow = rows[0];
+    if (!isJobRecord(maybeRow)) {
+      logger.warn(
+        "claimNextJob: row returned from DB did not match JobRecord shape",
+        { row: maybeRow },
+      );
+      return null;
+    }
+    const job = maybeRow;
     const { error: updErr } = await supabase
       .from("tasks")
       .update({ started_at: new Date().toISOString() })
@@ -139,11 +154,11 @@ export async function claimNextJob(): Promise<JobRecord | null> {
       return null;
     }
     return {
-      ...(job as JobRecord),
+      ...job,
       // maintain SEP `working` status; mark started_at locally
       status: "working",
       started_at: new Date().toISOString(),
-    } as JobRecord;
+    };
   } catch (e) {
     logger.error("claimNextJob error:", e);
     return null;
@@ -167,7 +182,13 @@ export async function claimJobById({
       .select()
       .maybeSingle();
     if (error || !data) return null;
-    return { ...(data as JobRecord), status: "running" } as JobRecord;
+    if (!isJobRecord(data)) {
+      logger.warn("claimJobById: returned data did not match JobRecord shape", {
+        data,
+      });
+      return null;
+    }
+    return { ...data, status: "running" };
   } catch (e) {
     logger.error("claimJobById error:", e);
     return null;
@@ -246,7 +267,8 @@ export async function finishJob({
     }
     if (
       existingData &&
-      (existingData as { status?: string }).status === "cancelled"
+      typeof getProp(existingData, "status") === "string" &&
+      String(getProp(existingData, "status")) === "cancelled"
     ) {
       return;
     }
@@ -328,7 +350,11 @@ export async function getJobFromDb({
       logger.error("getJobFromDb error:", error);
       return null;
     }
-    return data as JobRecord | null;
+    if (isJobRecord(data)) return data;
+    logger.warn("getJobFromDb: returned data did not match JobRecord shape", {
+      data,
+    });
+    return null;
   } catch (e) {
     logger.error("getJobFromDb failed:", e);
     return null;

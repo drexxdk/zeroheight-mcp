@@ -1,19 +1,12 @@
 /// <reference types="vitest/globals" />
 import { getBucketDebugInfo, clearStorageBucket } from "../image-utils";
-import type { Database } from "../../database.schema";
-
-type SupabaseClient = ReturnType<
-  typeof import("@supabase/supabase-js").createClient<Database>
->;
 
 type FakeClient = {
   storage: {
-    listBuckets?: () => Promise<{ data: Array<{ name: string }> } | unknown>;
+    listBuckets?: () => Promise<{ data: Array<{ name: string }>; error: null }>;
     from: (bucket: string) => {
-      list: () => Promise<
-        { data: Array<{ name: string }>; error: null } | unknown
-      >;
-      remove: (items: string[]) => Promise<{ error: null } | unknown>;
+      list: () => Promise<{ data: Array<{ name: string }>; error: null }>;
+      remove: (items: string[]) => Promise<{ error: null }>;
     };
   };
 };
@@ -21,7 +14,7 @@ type FakeClient = {
 function makeFakeClient(listResult: Array<{ name: string }>): FakeClient {
   return {
     storage: {
-      listBuckets: async () => ({ data: [{ name: "b1" }] }),
+      listBuckets: async () => ({ data: [{ name: "b1" }], error: null }),
       from: (bucket: string) => ({
         list: async () => ({ data: listResult, error: null }),
         remove: async (items: string[]) => {
@@ -38,7 +31,7 @@ describe("image-utils storage helpers", () => {
   test("getBucketDebugInfo collects buckets and files", async () => {
     const client = makeFakeClient([{ name: "f1" }]);
     const res = await getBucketDebugInfo({
-      client: client as unknown as SupabaseClient,
+      client,
       bucketName: "my-bucket",
     });
     expect(res.buckets).toContain("b1");
@@ -51,7 +44,7 @@ describe("image-utils storage helpers", () => {
       Array.from({ length: 3 }, (_, i) => ({ name: `file${i}` })),
     );
     const out = await clearStorageBucket({
-      client: client as unknown as SupabaseClient,
+      client,
       bucketName: "my-bucket",
     });
     expect(out.deletedCount).toBe(3);

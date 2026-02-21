@@ -16,6 +16,22 @@
 
 - **Note to Copilot (agent-specific)**: You are the repository assistant. When editing or generating TypeScript code in this project, never emit the `any` type. Prefer concrete types, generated DB types (`src/database.schema.ts` / `src/database.types.ts`), `unknown` with runtime checks, or explicit unions. If you cannot determine an appropriate type, ask the user instead of using `any`.
 
+### Never use double-cast bypasses (`as unknown as Type`)
+
+- **Priority**: High
+- **Action**: Do not use double-casts like `as unknown as SomeType` to bypass TypeScript's type system. Avoid forcing types by casting through `unknown` or other intermediate casts.
+- **Rationale**: Double-casts silently defeat the compiler's guarantees and make code brittle and unsafe. They hide type mismatches that should be addressed with proper typing, runtime checks, or small, well-typed test fixtures.
+- **Preferred alternatives**:
+  - Create a minimal, explicit typed fixture or helper function that constructs a value matching the required type (for tests, use narrow mock types or `Partial<T>` with explicit fields).
+  - Use `unknown` only at boundaries where you perform runtime validation before asserting a concrete type.
+  - Define small interfaces or use `as const` where appropriate instead of coercing large objects.
+  - When testing request-like objects, prefer creating a lightweight typed mock implementing the required interface (for example, a small `NextRequest`-shaped object) rather than double-casting.
+
+**Examples**:
+
+- Bad: `const req = someObject as unknown as NextRequest;`
+- Good: `const req: Partial<NextRequest> = { headers: { get: () => "x" } }; authenticateRequest({ request: req as NextRequest });`
+
 ### Always fix ESLint errors
 
 - **Priority**: High
