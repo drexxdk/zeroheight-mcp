@@ -41,7 +41,7 @@ export function normalizeToToolResponse(result: unknown): ToolResponse {
           ) {
             return { type: "text", text: it.text };
           }
-          return { type: "text", text: JSON.stringify(it) };
+          return { type: "text", text: JSON.stringify(it, null, 2) };
         },
       );
       return { content: normalized };

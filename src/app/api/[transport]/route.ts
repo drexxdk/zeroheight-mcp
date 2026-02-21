@@ -22,6 +22,7 @@ import {
   createErrorResponse,
 } from "@/utils/toolResponses";
 import { isRecord } from "../../../utils/common/typeGuards";
+import { parseJsonText } from "@/utils/server/apiHelpers";
 import logger from "@/utils/logger";
 
 const handler = createMcpHandler(
@@ -237,12 +238,7 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
   const contentType = request.headers.get("content-type") || "";
   let parsed: Record<string, unknown> | null = null;
   if (contentType.includes("application/json") && bodyText) {
-    try {
-      const p = JSON.parse(bodyText);
-      if (isRecord(p)) parsed = p;
-    } catch {
-      parsed = null;
-    }
+    parsed = parseJsonText(bodyText);
   }
 
   // If this is a single JSON-RPC `tools/call` targeting a task tool, handle it

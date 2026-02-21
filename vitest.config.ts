@@ -1,0 +1,19 @@
+import { defineConfig } from "vitest/config";
+import path from "path";
+
+export default defineConfig({
+  resolve: {
+    alias: [
+      { find: /^@\//, replacement: path.resolve(__dirname, "src") + "/" },
+      { find: "@", replacement: path.resolve(__dirname, "src") },
+    ],
+  },
+  test: {
+    environment: "node",
+    globals: true,
+    setupFiles: [],
+    include: ["src/**/*.test.{ts,tsx}"],
+    exclude: ["**/scripts/**"],
+    coverage: { provider: "v8" },
+  },
+});

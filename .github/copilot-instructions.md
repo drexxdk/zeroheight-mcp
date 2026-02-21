@@ -133,12 +133,27 @@
 - Use meaningful variable and function names
 - Add comments for complex logic
 
+### Always follow ESLint config file
+
+- **Priority**: High
+- **Action**: Always obey the rules defined in `eslint.config.mjs` (root of the repository) when creating or editing files. Before committing, run `npx eslint .` and fix or ask about any reported issues. Do not add temporary `console.log` or other rule-violating code to make tests pass — follow the configuration.
+- **Rationale**: Keeps code consistent, avoids CI failures, and ensures automated lint rules are respected.
+
 ### Interaction Guidelines
 
 - **Don't suggest follow-up commands**: Only suggest or execute follow-up commands when explicitly asked, or when it's necessary to complete the current task
 - **Focus on requested actions**: Complete the user's specific request without adding unsolicited suggestions for next steps
 
 - **Run tools via MCP by default**: When a user asks you to "run", "call", or "invoke" a tool, assume they mean the MCP-exposed tool and call it through the MCP server API unless they explicitly specify that they mean a local script from the `scripts/` folder or say "run locally". Always confirm if there's ambiguity.
+
+### Tooling & Repository Changes
+
+- **Priority**: High
+- **Action**: Do not add, modify, or remove repository-level scripts or helper tooling (files under `scripts/`, changes to `package.json` scripts, test-runner helpers, CI helpers, etc.) without explicitly asking the user for permission first.
+- **Action**: Do not create temporary diagnostic scripts or helpers committed to the repository unless the user explicitly authorizes this; prefer in-memory diagnostics or asking the user to run commands locally.
+- **Action**: If you must add a helper file with the user's permission, place it in a clearly named temporary path (for example `scripts/.tmp/`) and remove it before committing. Document the reason in the commit message and the PR description.
+- **Action**: Before committing any change, run the standard checks and fix problems: `npx eslint .` (fix where safe), `npm run build` (or `npx -y tsc --noEmit`) and `npm run test` (or a targeted subset). If any check fails and automatic fix is not safe, ask the user for guidance instead of committing broken code.
+- **Rationale**: These rules prevent accidental repository pollution, keep CI/Dev environments stable, and ensure edits follow the project's standards.
 
 ### Database Schema & Types
 

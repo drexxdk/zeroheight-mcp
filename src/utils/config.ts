@@ -60,8 +60,26 @@ const mapped = {
 export type Env = z.infer<typeof envSchema>;
 
 let parsedEnv: Env;
+// In test environments (Vitest or NODE_ENV=test) provide harmless defaults
+// so unit tests can import `config` without requiring real credentials.
+const isTest = process.env.VITEST === "true" || process.env.NODE_ENV === "test";
 try {
-  parsedEnv = envSchema.parse(mapped);
+  if (isTest) {
+    const testDefaults = {
+      zeroheightMcpAccessToken:
+        mapped.zeroheightMcpAccessToken ?? "test-zeroheight-token",
+      supabaseServiceRoleKey:
+        mapped.supabaseServiceRoleKey ?? "test-supabase-role",
+      supabaseAccessToken: mapped.supabaseAccessToken ?? "test-supabase-access",
+      nextPublicSupabaseUrl:
+        mapped.nextPublicSupabaseUrl ?? "http://localhost:54321",
+      zeroheightProjectUrl: mapped.zeroheightProjectUrl ?? "http://localhost",
+      zeroheightProjectPassword: mapped.zeroheightProjectPassword,
+    };
+    parsedEnv = envSchema.parse(testDefaults);
+  } else {
+    parsedEnv = envSchema.parse(mapped);
+  }
 } catch (e) {
   // Provide a clearer error message for missing/invalid envs
   if (e instanceof z.ZodError) {

@@ -114,7 +114,7 @@ export default function Home(): ReactElement {
       <header className="sticky top-0 z-50 border-b border-slate-700 bg-slate-900/95 backdrop-blur-sm">
         {/* Scroll Progress Bar */}
         <motion.div
-          className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500 origin-left"
+          className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-cyan-500 to-blue-500 origin-left"
           style={{ scaleX: scrollProgress / 100 }}
           transition={{ duration: 0.1 }}
         />
@@ -243,7 +243,7 @@ export default function Home(): ReactElement {
         transition={{ duration: 1 }}
       >
         <motion.div
-          className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900/30 to-purple-900/40"
+          className="absolute inset-0 bg-linear-to-br from-slate-900 via-blue-900/30 to-purple-900/40"
           animate={{
             backgroundPosition: ["0% 0%", "100% 100%"],
           }}
@@ -253,7 +253,7 @@ export default function Home(): ReactElement {
             repeatType: "reverse",
           }}
         ></motion.div>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-purple-600/10"></div>
+        <div className="absolute inset-0 bg-linear-to-r from-blue-600/10 via-transparent to-purple-600/10"></div>
         <motion.div
           className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl"
           animate={{
@@ -289,7 +289,7 @@ export default function Home(): ReactElement {
             >
               Zeroheight Design System
               <motion.span
-                className="block bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent"
+                className="block bg-linear-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent"
                 animate={{
                   backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
                 }}
@@ -326,7 +326,7 @@ export default function Home(): ReactElement {
               >
                 <Link
                   href="#tools"
-                  className="transform rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-10 py-4 text-lg font-semibold text-white shadow-2xl transition-all duration-300 hover:from-cyan-600 hover:to-blue-700 hover:shadow-cyan-500/25 flex items-center"
+                  className="transform rounded-xl bg-linear-to-r from-cyan-500 to-blue-600 px-10 py-4 text-lg font-semibold text-white shadow-2xl transition-all duration-300 hover:from-cyan-600 hover:to-blue-700 hover:shadow-cyan-500/25 flex items-center"
                 >
                   Get Started
                 </Link>
@@ -1480,7 +1480,7 @@ Scraping completed successfully`}</pre>
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
       >
-        <FaArrowRight className="h-5 w-5 rotate-[-90deg]" />
+        <FaArrowRight className="h-5 w-5 -rotate-90" />
       </motion.button>
 
       {/* Footer */}

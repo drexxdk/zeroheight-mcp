@@ -1,5 +1,10 @@
 {
-  "cSpell.words": ["networkidle", "Supabase", "zeroheight"],
+  "cSpell.words": [
+    "modelcontextprotocol",
+    "networkidle",
+    "Supabase",
+    "zeroheight"
+  ],
   "css.lint.unknownAtRules": "ignore",
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -14,4 +19,3 @@
   // Ensure ESLint and TS validate common file types
   "eslint.validate": ["javascript", "typescript", "typescriptreact"]
 }
-

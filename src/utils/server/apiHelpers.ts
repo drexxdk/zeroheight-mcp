@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextRequest } from "next/server";
 import { isRecord } from "../common/typeGuards";
+import { z } from "zod";
 
 type Bucket = { tokens: number; lastRefill: number };
 
@@ -106,5 +107,47 @@ export async function auditRequest({
     // don't let auditing break the request flow
     // log via central logger for consistency
     logger.error("auditRequest error", err);
+  }
+}
+
+export async function parseAndValidateJson<T>(
+  req: Request,
+  schema: z.ZodType<T>,
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  try {
+    const txt = await req.text();
+    if (!txt) return { ok: false, error: "Empty body" };
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(txt);
+    } catch {
+      return { ok: false, error: "Invalid JSON" };
+    }
+
+    const result = schema.safeParse(parsed);
+    if (result.success) return { ok: true, data: result.data };
+
+    const details = result.error.issues
+      .map((e: z.ZodIssue) => `${e.path.join(".") || "<root>"}: ${e.message}`)
+      .join("; ");
+
+    logger.warn("Request validation failed", { details });
+    return { ok: false, error: details };
+  } catch (err) {
+    logger.error("parseAndValidateJson error", err);
+    return { ok: false, error: "internal_error" };
+  }
+}
+
+export function parseJsonText(
+  txt: string | null | undefined,
+): Record<string, unknown> | null {
+  if (!txt) return null;
+  try {
+    const p = JSON.parse(txt);
+    return isRecord(p) ? p : null;
+  } catch {
+    return null;
   }
 }
