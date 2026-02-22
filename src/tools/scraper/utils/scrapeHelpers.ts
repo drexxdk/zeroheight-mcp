@@ -13,6 +13,7 @@ import { normalizeUrl } from "./prefetch";
 import {
   reserve as reserveGlobally,
   incPages as incPagesGlobally,
+  incRedirects as incRedirectsGlobally,
   getProgressSnapshot,
 } from "@/utils/common/progress";
 import { config } from "@/utils/config";
@@ -86,6 +87,13 @@ export async function navigateAndResolveProcessingLink(args: {
   let processingLink = link;
   if (final && final !== link) {
     redirects.set(link, final);
+    try {
+      // Increment the global redirect counter so the summary can report it.
+      // Use the progress singleton wrapper to keep counters centralized.
+      incRedirectsGlobally();
+    } catch {
+      // best-effort: don't fail page processing for metrics update
+    }
     processingLink = final;
   }
 
@@ -693,6 +701,7 @@ export async function performBulkUpsertSummary(
         providedCount: providedCountVal,
         pagesAnalyzed:
           providedCountVal > 0 ? providedCountVal : totalUniquePages,
+        pagesRedirected: getProgressSnapshot().pagesRedirected || 0,
         imagesProcessed: getProgressSnapshot().imagesProcessed || 0,
         insertedCount: insertedCountVal,
         updatedCount: updatedCountVal,

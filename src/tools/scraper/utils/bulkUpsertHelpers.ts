@@ -408,6 +408,7 @@ async function fetchDbRowsForIntersection(
 export type SummaryParams = Readonly<{
   providedCount: number;
   pagesAnalyzed: number;
+  pagesRedirected: number;
   imagesProcessed: number;
   insertedCount: number;
   updatedCount: number;
@@ -474,6 +475,11 @@ export function buildSummaryParams(opts: {
         ? providedCount
         : totalUniquePages + pagesFailed;
 
+  const pagesRedirected =
+    typeof progressSnap.pagesRedirected === "number"
+      ? progressSnap.pagesRedirected
+      : 0;
+
   const imagesProcessed =
     typeof progressSnap.imagesProcessed === "number" &&
     progressSnap.imagesProcessed > 0
@@ -495,6 +501,7 @@ export function buildSummaryParams(opts: {
   return {
     providedCount,
     pagesAnalyzed,
+    pagesRedirected,
     imagesProcessed,
     insertedCount,
     updatedCount,

@@ -11,6 +11,7 @@ async function main(): Promise<void> {
   const params: SummaryParams = {
     providedCount: 2,
     pagesAnalyzed: 2,
+    pagesRedirected: 0,
     imagesProcessed: 0,
     insertedCount: 0,
     updatedCount: 2,

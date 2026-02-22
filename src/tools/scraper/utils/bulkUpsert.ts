@@ -207,8 +207,18 @@ export function formatSummaryBox({ p }: { p: SummaryParams }): string[] {
   lines.push(`Pages analyzed: ${p.pagesAnalyzed}`);
   lines.push(`Pages inserted: ${p.insertedCount}`);
   lines.push(`Pages updated:  ${p.updatedCount}`);
-  lines.push(`Pages skipped:  ${p.skippedCount}`);
+  if (p.skippedCount > 0 && p.providedCount > 0)
+    lines.push(`Pages skipped:  ${p.skippedCount} (provided links)`);
+  else lines.push(`Pages skipped:  ${p.skippedCount}`);
   lines.push(`Pages failed:   ${p.pagesFailed}`);
+  // If we have an empty DB (no updates) and no page errors, show the
+  // expected relationship between analyzed/inserted/redirected pages so
+  // it's easy to verify where discrepancies come from.
+  if (p.providedCount > 0 && p.pagesFailed === 0 && p.updatedCount === 0) {
+    const expected = p.insertedCount + (p.pagesRedirected || 0);
+    lines.push(`Pages analyzed expected (inserted + redirected): ${expected}`);
+  }
+  lines.push(`Pages redirected: ${p.pagesRedirected}`);
   lines.push("");
   lines.push("");
   lines.push(`Images found: ${p.uniqueTotalImages} (unique)`);

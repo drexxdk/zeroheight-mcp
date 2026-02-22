@@ -7,6 +7,8 @@ type ProgressSnapshot = {
   total: number;
   pagesProcessed: number;
   imagesProcessed: number;
+  pagesRedirected: number;
+  pagesExternalIgnored: number;
 };
 
 class ProgressService {
@@ -15,6 +17,8 @@ class ProgressService {
     total: 0,
     pagesProcessed: 0,
     imagesProcessed: 0,
+    pagesRedirected: 0,
+    pagesExternalIgnored: 0,
   };
 
   // last values printed to console — we never print a lower value than these
@@ -79,6 +83,27 @@ class ProgressService {
     if (n <= 0) return;
     this.state.imagesProcessed += n;
     this.print("📷", `Images processed ${this.state.imagesProcessed}`);
+  }
+
+  // Increment the global redirect counter (number of times a navigated
+  // link resolved to a different final URL). This is used to report how
+  // many processed links were redirects.
+  incRedirects(n = 1): void {
+    if (n <= 0) return;
+    // keep it simple for now; mirror incPages behavior for printing
+    this.state.pagesRedirected += n;
+    this.print("🔁", `Redirects encountered ${this.state.pagesRedirected}`);
+  }
+
+  // Increment the global external/ignored pages counter (links that
+  // resolved to a different hostname and were not processed).
+  incExternalIgnored(n = 1): void {
+    if (n <= 0) return;
+    this.state.pagesExternalIgnored += n;
+    this.print(
+      "🚫",
+      `External pages ignored ${this.state.pagesExternalIgnored}`,
+    );
   }
 
   // Mark a normalized image URL as processed. Returns true if this call
@@ -165,6 +190,12 @@ export const progress = {
   get imagesProcessed(): number {
     return service.snapshot().imagesProcessed;
   },
+  get pagesRedirected(): number {
+    return service.snapshot().pagesRedirected;
+  },
+  get pagesExternalIgnored(): number {
+    return service.snapshot().pagesExternalIgnored;
+  },
 };
 
 export const reserve = (n = 1, reason?: string): void =>
@@ -174,6 +205,9 @@ export const incPages = (n = 1): void => service.incPages(n);
 export const incImages = (n = 1): void => service.incImages(n);
 export const markImageProcessed = (url: string): boolean =>
   service.markImageProcessed(url);
+export const incRedirects = (n = 1): void => service.incRedirects(n);
+export const incExternalIgnored = (n = 1): void =>
+  service.incExternalIgnored(n);
 export const getProgressSnapshot = (): ProgressSnapshot => service.snapshot();
 
 export default service;
