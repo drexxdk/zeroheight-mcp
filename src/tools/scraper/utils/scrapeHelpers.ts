@@ -1,5 +1,6 @@
 import defaultLogger from "@/utils/logger";
 import { getClient } from "@/utils/common/supabaseClients";
+import type { BulkUpsertResult } from "./bulkUpsert";
 import { formatSummaryBox, bulkUpsertPagesAndImages } from "./bulkUpsert";
 import type { ImagesType, PagesType } from "@/database.types";
 import type { OverallProgress } from "./processPageAndImages";
@@ -7,15 +8,16 @@ import type { ExtractedImage } from "./pageExtraction";
 import type { SummaryParams } from "./bulkUpsertHelpers";
 import type { Page, Browser } from "puppeteer";
 import { tryLogin } from "@/utils/common/scraperHelpers";
+import { getProp } from "@/utils/common/typeGuards";
 import { extractPageData } from "./pageExtraction";
 import { processPageAndImages } from "./processPageAndImages";
 import { normalizeUrl } from "./prefetch";
-import {
-  reserve as reserveGlobally,
-  incPages as incPagesGlobally,
-  incRedirects as incRedirectsGlobally,
+import progressService, {
   getProgressSnapshot,
+  upsertItem,
+  getItems,
 } from "@/utils/common/progress";
+import { normalizeImageUrl } from "./imageHelpers";
 import { config } from "@/utils/config";
 
 type PreExtracted = {
@@ -32,6 +34,95 @@ export function formatPathForConsole(u: string): string {
     return `${parsed.pathname}${parsed.search}` || "/";
   } catch {
     return u;
+  }
+}
+
+async function tryLoginIfNeeded(opts: {
+  page: Page;
+  rootUrl: string;
+  password?: string;
+  logger?: (s: string) => void;
+  loggedInHostnames: Set<string>;
+  formatLinkForConsole: (u: string) => string;
+  link: string;
+}): Promise<void> {
+  const {
+    page,
+    rootUrl,
+    password,
+    logger,
+    loggedInHostnames,
+    formatLinkForConsole,
+    link,
+  } = opts;
+  if (!password) return;
+  const host = new URL(rootUrl).hostname;
+  if (loggedInHostnames.has(host)) return;
+  try {
+    await tryLogin({ page, password });
+    loggedInHostnames.add(host);
+    if (logger)
+      logger(`Login attempt complete on ${formatLinkForConsole(link)}`);
+  } catch (e) {
+    if (logger)
+      logger(
+        `Login attempt failed on ${formatLinkForConsole(link)}: ${String(e)}`,
+      );
+  }
+}
+
+function recordRedirectItem(
+  link: string,
+  final: string,
+  redirects: Map<string, string>,
+): void {
+  redirects.set(link, final);
+  try {
+    upsertItem({
+      url: link,
+      type: "page",
+      status: "redirected",
+      finalUrl: final,
+    });
+  } catch {
+    try {
+      progressService.incRedirects(1);
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+function markPagesExternal(
+  processingLink: string,
+  link: string,
+  hostname: string,
+  logger: ((s: string) => void) | undefined,
+  processed: Set<string>,
+): void {
+  if (logger)
+    logger(`Skipping external host ${processingLink} (allowed: ${hostname})`);
+  processed.add(processingLink);
+  if (processingLink !== link) processed.add(link);
+  try {
+    upsertItem({ url: processingLink, type: "page", status: "external" });
+    if (processingLink !== link)
+      upsertItem({ url: link, type: "page", status: "external" });
+  } catch {
+    try {
+      progressService.incPages(1);
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    const s = getProgressSnapshot();
+    if (s.current > s.total)
+      defaultLogger.warn(
+        `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+      );
+  } catch {
+    // ignore
   }
 }
 
@@ -65,35 +156,21 @@ export async function navigateAndResolveProcessingLink(args: {
     timeout: config.scraper.viewport.navTimeoutMs,
   });
 
-  if (password) {
-    const host = new URL(rootUrl).hostname;
-    if (!loggedInHostnames.has(host)) {
-      try {
-        await tryLogin({ page, password });
-        loggedInHostnames.add(host);
-        if (logger)
-          logger(`Login attempt complete on ${formatLinkForConsole(link)}`);
-      } catch (e) {
-        if (logger)
-          logger(
-            `Login attempt failed on ${formatLinkForConsole(link)}: ${String(e)}`,
-          );
-      }
-    }
-  }
+  await tryLoginIfNeeded({
+    page,
+    rootUrl,
+    password,
+    logger,
+    loggedInHostnames,
+    formatLinkForConsole,
+    link,
+  });
 
   const finalRaw = page.url();
   const final = normalizeUrl({ u: finalRaw, base: rootUrl });
   let processingLink = link;
   if (final && final !== link) {
-    redirects.set(link, final);
-    try {
-      // Increment the global redirect counter so the summary can report it.
-      // Use the progress singleton wrapper to keep counters centralized.
-      incRedirectsGlobally();
-    } catch {
-      // best-effort: don't fail page processing for metrics update
-    }
+    recordRedirectItem(link, final, redirects);
     processingLink = final;
   }
 
@@ -101,23 +178,7 @@ export async function navigateAndResolveProcessingLink(args: {
   try {
     const procHost = new URL(processingLink).hostname;
     if (procHost !== hostname) {
-      if (logger)
-        logger(
-          `Skipping external host ${processingLink} (allowed: ${hostname})`,
-        );
-      processed.add(processingLink);
-      if (processingLink !== link) processed.add(link);
-      // Increment pages processed via singleton and mirror invariant warning.
-      incPagesGlobally();
-      try {
-        const s = getProgressSnapshot();
-        if (s.current > s.total)
-          defaultLogger.warn(
-            `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
-          );
-      } catch {
-        // ignore
-      }
+      markPagesExternal(processingLink, link, hostname, logger, processed);
       return null;
     }
   } catch {
@@ -222,26 +283,53 @@ export async function extractAndProcessPage(args: {
   }
 
   if (supportedImages.length > 0) {
-    // Reserve slots in the singleton progress service
-    reserveGlobally(supportedImages.length, "reserve images for page-v2");
-    try {
-      const s = getProgressSnapshot();
-      if (s.current > s.total)
-        checkProgressInvariant(
-          { current: s.current, total: s.total } as unknown as OverallProgress,
-          "reserve images for page-v2",
+    await (async function reserveImageItems() {
+      try {
+        for (const img of supportedImages) {
+          try {
+            const normalized = normalizeImageUrl({ src: img.src });
+            upsertItem({ url: normalized, type: "image", status: "pending" });
+          } catch {
+            upsertItem({
+              url: String(img.src || ""),
+              type: "image",
+              status: "pending",
+            });
+          }
+        }
+      } catch {
+        // fallback to coarse reservation if per-image upserts fail
+        try {
+          progressService.reserve(
+            supportedImages.length,
+            "reserve images for page-v2",
+          );
+        } catch {
+          // ignore
+        }
+      }
+      try {
+        const s = getProgressSnapshot();
+        if (s.current > s.total)
+          checkProgressInvariant(
+            {
+              current: s.current,
+              total: s.total,
+            } as unknown as OverallProgress,
+            "reserve images for page-v2",
+          );
+      } catch {
+        // ignore
+      }
+      try {
+        logProgress(
+          "📷",
+          `Reserved ${supportedImages.length} images for ${formatPathForConsole(processingLink)} (+${supportedImages.length})`,
         );
-    } catch {
-      // ignore
-    }
-    try {
-      logProgress(
-        "📷",
-        `Reserved ${supportedImages.length} images for ${formatPathForConsole(processingLink)} (+${supportedImages.length})`,
-      );
-    } catch {
-      // best-effort
-    }
+      } catch {
+        // best-effort
+      }
+    })();
   }
 
   const {
@@ -316,9 +404,7 @@ export function postProcessPageResults(args: {
     skipped: number;
     failed: number;
   };
-  uniqueAllImageUrls: Set<string>;
-  uniqueAllowedImageUrls: Set<string>;
-  uniqueUnsupportedImageUrls: Set<string>;
+  // image sets removed - progress items are the source of truth
   // allExistingImageUrls not required here
   progress: OverallProgress;
   processed: Set<string>;
@@ -341,9 +427,7 @@ export function postProcessPageResults(args: {
     pagesToUpsert,
     processedPages,
     imagesStats,
-    uniqueAllImageUrls,
-    uniqueAllowedImageUrls,
-    uniqueUnsupportedImageUrls,
+    // removed
     processed,
   } = args;
 
@@ -357,26 +441,24 @@ export function postProcessPageResults(args: {
         return false;
       }
     });
-  if (!restrictToSeeds) {
-    const added = enqueueLinks(allowed);
-    logProgress(
-      "🔗",
-      `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}${added ? ` (+${added})` : ""}`,
-    );
-  } else {
-    logProgress(
-      "🔗",
-      `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}`,
-    );
-  }
+  (function reportDiscoveredLinks() {
+    if (!restrictToSeeds) {
+      const added = enqueueLinks(allowed);
+      logProgress(
+        "🔗",
+        `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}${added ? ` (+${added})` : ""}`,
+      );
+    } else {
+      logProgress(
+        "🔗",
+        `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}`,
+      );
+    }
+  })();
 
-  updateImageSets(
-    uniqueAllImageUrls,
-    uniqueAllowedImageUrls,
-    uniqueUnsupportedImageUrls,
-    retNorm,
-    retSupported,
-  );
+  // Image sets are now derived from progress items; individual images
+  // were recorded above with `upsertItem`, so no runtime set updates
+  // are required here.
 
   pagesToUpsert.push(pageUpsert);
   processedPages.push(processedPageEntry);
@@ -385,7 +467,16 @@ export function postProcessPageResults(args: {
   imagesStats.skipped += imgStats.skipped || 0;
   imagesStats.failed += imgStats.failed || 0;
 
-  incPagesGlobally();
+  // Upsert the page item as processed
+  try {
+    upsertItem({ url: processingLink, type: "page", status: "processed" });
+  } catch {
+    try {
+      progressService.incPages(1);
+    } catch {
+      // ignore
+    }
+  }
   try {
     const s = getProgressSnapshot();
     if (s.current > s.total)
@@ -398,21 +489,38 @@ export function postProcessPageResults(args: {
   processed.add(processingLink);
   if (processingLink !== pageUpsert.url) processed.add(pageUpsert.url);
   logProgress("✅", `Processed ${formatLinkForConsole(processingLink)}`);
-}
 
-export function updateImageSets(
-  uniqueAllImageUrls: Set<string>,
-  uniqueAllowedImageUrls: Set<string>,
-  uniqueUnsupportedImageUrls: Set<string>,
-  retNorm: Array<{ src: string; alt: string }> | undefined,
-  retSupported: Array<{ src: string; alt: string }> | undefined,
-): void {
-  for (const img of retNorm || []) uniqueAllImageUrls.add(img.src);
-  for (const img of retNorm || []) {
-    if ((retSupported || []).find((s: { src: string }) => s.src === img.src))
-      uniqueAllowedImageUrls.add(img.src);
-    else uniqueUnsupportedImageUrls.add(img.src);
-  }
+  // Record discovered images as progress items so summaries can be derived
+  // from the progress service. Mark supported images as pending so they
+  // will be counted when processed; mark unsupported images as skipped.
+  (function recordDiscoveredImages() {
+    try {
+      const supportedSet = new Set((retSupported || []).map((s) => s.src));
+      for (const img of retNorm || []) {
+        try {
+          if (supportedSet.has(img.src)) {
+            upsertItem({
+              url: img.src,
+              type: "image",
+              status: "pending",
+              reason: "supported",
+            });
+          } else {
+            upsertItem({
+              url: img.src,
+              type: "image",
+              status: "skipped",
+              reason: "unsupported",
+            });
+          }
+        } catch {
+          // best-effort
+        }
+      }
+    } catch {
+      // best-effort
+    }
+  })();
 }
 
 export async function processLinkForWorker(args: {
@@ -435,9 +543,7 @@ export async function processLinkForWorker(args: {
     skipped: number;
     failed: number;
   };
-  uniqueAllImageUrls: Set<string>;
-  uniqueAllowedImageUrls: Set<string>;
-  uniqueUnsupportedImageUrls: Set<string>;
+  // image sets removed - compute categories from progress items instead
   allExistingImageUrls: Set<string>;
   loggedInHostnames: Set<string>;
   redirects: Map<string, string>;
@@ -460,9 +566,7 @@ export async function processLinkForWorker(args: {
     pagesToUpsert,
     processedPages,
     imagesStats,
-    uniqueAllImageUrls,
-    uniqueAllowedImageUrls,
-    uniqueUnsupportedImageUrls,
+    // removed
     allExistingImageUrls,
     loggedInHostnames,
     redirects,
@@ -534,9 +638,6 @@ export async function processLinkForWorker(args: {
     pagesToUpsert,
     processedPages,
     imagesStats,
-    uniqueAllImageUrls,
-    uniqueAllowedImageUrls,
-    uniqueUnsupportedImageUrls,
     progress,
     processed,
   });
@@ -617,9 +718,10 @@ export async function performBulkUpsertSummary(
   const {
     pagesToUpsert,
     pendingImageRecords,
-    uniqueAllowedImageUrls,
-    uniqueAllImageUrls,
-    uniqueUnsupportedImageUrls,
+    // prefer provided sets but derive from progress if not available
+    uniqueAllowedImageUrls: _uniqueAllowedImageUrls,
+    uniqueAllImageUrls: _uniqueAllImageUrls,
+    uniqueUnsupportedImageUrls: _uniqueUnsupportedImageUrls,
     allExistingImageUrls,
     imagesStats,
     pagesFailed,
@@ -628,8 +730,37 @@ export async function performBulkUpsertSummary(
     dryRun,
   } = args;
 
-  try {
-    const { client: dbClient } = getClient();
+  // Derive image sets from the progress items so the progress service
+  // remains the single source of truth. If callers supplied sets, prefer
+  // them, otherwise use derived sets.
+  const items = getItems();
+  const imageItems = items.filter((it) => it.type === "image");
+  const derivedUniqueAll = new Set(imageItems.map((i) => i.url));
+  const derivedUniqueAllowed = new Set(
+    imageItems.filter((i) => i.reason === "supported").map((i) => i.url),
+  );
+  const derivedUniqueUnsupported = new Set(
+    imageItems.filter((i) => i.reason === "unsupported").map((i) => i.url),
+  );
+
+  const uniqueAll = _uniqueAllImageUrls ?? derivedUniqueAll;
+  const uniqueAllowed = _uniqueAllowedImageUrls ?? derivedUniqueAllowed;
+  const uniqueUnsupported =
+    _uniqueUnsupportedImageUrls ?? derivedUniqueUnsupported;
+
+  // Normalize inputs
+  const normalizeInputs = (): {
+    normalizedPages: Array<{
+      url: string;
+      title: string;
+      content: string | null;
+    }>;
+    normalizedPending: Array<{
+      pageUrl: string;
+      original_url: string;
+      storage_path: string;
+    }>;
+  } => {
     const normalizedPages = pagesToUpsert.map((p) => ({
       url: String(p.url),
       title: typeof p.title === "string" ? p.title : "",
@@ -640,94 +771,142 @@ export async function performBulkUpsertSummary(
       original_url: String(r.original_url),
       storage_path: String(r.storage_path),
     }));
-    const res = await bulkUpsertPagesAndImages({
+    return { normalizedPages, normalizedPending };
+  };
+
+  const tryCallBulk = async (dry: boolean): Promise<BulkUpsertResult> => {
+    const { client: dbClient } = getClient();
+    const { normalizedPages, normalizedPending } = normalizeInputs();
+    return await bulkUpsertPagesAndImages({
       db: dbClient!,
       pagesToUpsert: normalizedPages,
       pendingImageRecords: normalizedPending,
-      uniqueAllowedImageUrls,
-      uniqueAllImageUrls,
-      uniqueUnsupportedImageUrls,
+      uniqueAllowedImageUrls: uniqueAllowed,
+      uniqueAllImageUrls: uniqueAll,
+      uniqueUnsupportedImageUrls: uniqueUnsupported,
       allExistingImageUrls,
       imagesStats,
       pagesFailed,
       providedCount,
-      dryRun: dryRun || false,
+      dryRun: dry,
     });
+  };
+
+  try {
+    const res = await tryCallBulk(!!dryRun);
     if (res.lines && res.lines.length) printSummaryLines(res.lines, logger);
     return res.lines;
   } catch (e) {
     defaultLogger.warn("V2 bulkUpsert failed:", e);
-    // Try a dry run summary attempt
-    try {
-      const { client: dbClient } = getClient();
-      const normalizedPages = pagesToUpsert.map((p) => ({
-        url: String(p.url),
-        title: typeof p.title === "string" ? p.title : "",
-        content: typeof p.content === "string" ? p.content : null,
-      }));
-      const normalizedPending = pendingImageRecords.map((r) => ({
-        pageUrl: String(r.pageUrl),
-        original_url: String(r.original_url),
-        storage_path: String(r.storage_path),
-      }));
-      const res = await bulkUpsertPagesAndImages({
-        db: dbClient!,
-        pagesToUpsert: normalizedPages,
-        pendingImageRecords: normalizedPending,
-        uniqueAllowedImageUrls,
-        uniqueAllImageUrls,
-        uniqueUnsupportedImageUrls,
-        allExistingImageUrls,
-        imagesStats,
-        pagesFailed,
-        providedCount,
-        dryRun: true,
-      });
-      if (res.lines && res.lines.length) printSummaryLines(res.lines, logger);
-      return res.lines;
-    } catch {
-      const uniquePageMap = new Map<string, (typeof pagesToUpsert)[number]>();
-      for (const p of pagesToUpsert) uniquePageMap.set(String(p.url), p);
-      const totalUniquePages = uniquePageMap.size;
-      const providedCountVal = providedCount;
-      const insertedCountVal = totalUniquePages;
-      const updatedCountVal = 0;
-      const skippedCountVal =
-        providedCountVal > 0
-          ? Math.max(0, providedCountVal - totalUniquePages)
-          : 0;
-
-      const params: SummaryParams = {
-        providedCount: providedCountVal,
-        pagesAnalyzed:
-          providedCountVal > 0 ? providedCountVal : totalUniquePages,
-        pagesRedirected: getProgressSnapshot().pagesRedirected || 0,
-        imagesProcessed: getProgressSnapshot().imagesProcessed || 0,
-        insertedCount: insertedCountVal,
-        updatedCount: updatedCountVal,
-        skippedCount: skippedCountVal,
-        pagesFailed: pagesFailed,
-        uniqueTotalImages: uniqueAllImageUrls.size,
-        uniqueUnsupported: uniqueUnsupportedImageUrls.size,
-        uniqueAllowed: uniqueAllowedImageUrls.size,
-        imagesUploadedCount: imagesStats.uploaded,
-        uniqueSkipped: Array.from(uniqueAllowedImageUrls).filter((u) =>
-          allExistingImageUrls.has(u),
-        ).length,
-        imagesFailed: imagesStats.failed,
-        imagesDbInsertedCount: pendingImageRecords.length,
-        imagesAlreadyAssociatedCount: Array.from(uniqueAllowedImageUrls).filter(
-          (u) => allExistingImageUrls.has(u),
-        ).length,
-      };
-      const boxed = formatSummaryBox({ p: params });
-      if (boxed && boxed.length) {
-        printSummaryLines(boxed, logger);
-        return boxed;
-      }
-      return undefined;
-    }
   }
+  // Try a dry run summary attempt
+  try {
+    const res = await tryCallBulk(true);
+    if (res.lines && res.lines.length) printSummaryLines(res.lines, logger);
+    return res.lines;
+  } catch {
+    const { normalizedPages, normalizedPending } = normalizeInputs();
+    return computeFallbackSummary({
+      pagesToUpsert: normalizedPages,
+      pendingImageRecords: normalizedPending,
+      uniqueAll,
+      uniqueAllowed,
+      uniqueUnsupported,
+      allExistingImageUrls,
+      imagesStats,
+      pagesFailed,
+      providedCount,
+      logger,
+    });
+  }
+}
+
+function computeFallbackSummary(args: {
+  pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
+  pendingImageRecords: Array<{
+    pageUrl: string;
+    original_url: string;
+    storage_path: string;
+  }>;
+  uniqueAll: Set<string>;
+  uniqueAllowed: Set<string>;
+  uniqueUnsupported: Set<string>;
+  allExistingImageUrls: Set<string>;
+  imagesStats: {
+    processed: number;
+    uploaded: number;
+    skipped: number;
+    failed: number;
+  };
+  pagesFailed: number;
+  providedCount: number;
+  logger?: (s: string) => void;
+}): string[] | undefined {
+  const {
+    pagesToUpsert,
+    pendingImageRecords,
+    uniqueAll,
+    uniqueAllowed,
+    uniqueUnsupported,
+    allExistingImageUrls,
+    imagesStats,
+    pagesFailed,
+    providedCount,
+    logger,
+  } = args;
+
+  const uniquePageMap = new Map<string, (typeof pagesToUpsert)[number]>();
+  for (const p of pagesToUpsert) uniquePageMap.set(String(p.url), p);
+  const totalUniquePages = uniquePageMap.size;
+  const providedCountVal = providedCount;
+  const insertedCountVal = totalUniquePages;
+  const updatedCountVal = 0;
+  const skippedCountVal =
+    providedCountVal > 0 ? Math.max(0, providedCountVal - totalUniquePages) : 0;
+
+  const derivedUniqueTotalImages = uniqueAll.size;
+
+  const uniqueAllowedCount =
+    uniqueAllowed && uniqueAllowed.size > 0
+      ? uniqueAllowed.size
+      : getItems()
+          .filter((i) => i.type === "image" && i.status === "processed")
+          .map((i) => i.url)
+          .filter((v, idx, arr) => arr.indexOf(v) === idx).length;
+
+  const uniqueUnsupportedCount =
+    uniqueUnsupported && uniqueUnsupported.size > 0
+      ? uniqueUnsupported.size
+      : Math.max(0, derivedUniqueTotalImages - uniqueAllowedCount);
+
+  const params: SummaryParams = {
+    providedCount: providedCountVal,
+    pagesAnalyzed: providedCountVal > 0 ? providedCountVal : totalUniquePages,
+    pagesRedirected: getProgressSnapshot().pagesRedirected || 0,
+    imagesProcessed: getProgressSnapshot().imagesProcessed || 0,
+    insertedCount: insertedCountVal,
+    updatedCount: updatedCountVal,
+    skippedCount: skippedCountVal,
+    pagesFailed: pagesFailed,
+    uniqueTotalImages: derivedUniqueTotalImages,
+    uniqueUnsupported: uniqueUnsupportedCount,
+    uniqueAllowed: uniqueAllowedCount,
+    imagesUploadedCount: imagesStats.uploaded,
+    uniqueSkipped: Array.from(uniqueAllowed).filter((u) =>
+      allExistingImageUrls.has(u),
+    ).length,
+    imagesFailed: imagesStats.failed,
+    imagesDbInsertedCount: pendingImageRecords.length,
+    imagesAlreadyAssociatedCount: Array.from(uniqueAllowed).filter((u) =>
+      allExistingImageUrls.has(u),
+    ).length,
+  };
+  const boxed = formatSummaryBox({ p: params });
+  if (boxed && boxed.length) {
+    printSummaryLines(boxed, logger);
+    return boxed;
+  }
+  return undefined;
 }
 
 function printSummaryLines(
@@ -776,9 +955,38 @@ export async function logSummaryAndClose(args: {
     progress,
   } = args;
 
+  const normalizedPages = pagesToUpsert.map((p) => ({
+    url:
+      typeof getProp(p, "url") === "string"
+        ? String(getProp(p, "url"))
+        : String(p.url ?? ""),
+    title:
+      typeof getProp(p, "title") === "string"
+        ? String(getProp(p, "title"))
+        : "",
+    content:
+      typeof getProp(p, "content") === "string"
+        ? String(getProp(p, "content"))
+        : null,
+  }));
+  const normalizedPending = pendingImageRecords.map((r) => ({
+    pageUrl:
+      typeof getProp(r, "pageUrl") === "string"
+        ? String(getProp(r, "pageUrl"))
+        : String(getProp(r, "pageUrl") ?? ""),
+    original_url:
+      typeof getProp(r, "original_url") === "string"
+        ? String(getProp(r, "original_url"))
+        : String(getProp(r, "original_url") ?? ""),
+    storage_path:
+      typeof getProp(r, "storage_path") === "string"
+        ? String(getProp(r, "storage_path"))
+        : String(getProp(r, "storage_path") ?? ""),
+  }));
+
   await performBulkUpsertSummary({
-    pagesToUpsert,
-    pendingImageRecords,
+    pagesToUpsert: normalizedPages,
+    pendingImageRecords: normalizedPending,
     uniqueAllowedImageUrls,
     uniqueAllImageUrls,
     uniqueUnsupportedImageUrls,

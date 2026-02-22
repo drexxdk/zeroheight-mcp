@@ -1,30 +1,16 @@
 /// <reference types="vitest/globals" />
-import {
-  createProgressBar,
-  increment,
-  reserve,
-  getProgressSnapshot,
-} from "../progress";
-
-describe("createProgressBar", () => {
-  test("renders filled and empty blocks proportionally", () => {
-    const bar = createProgressBar({ current: 5, total: 10, width: 10 });
-    // 5 filled, 5 empty
-    expect(bar).toMatch(/^\[█{5}░{5}\]$/);
-  });
-
-  test("guards against total=0 without throwing", () => {
-    const bar = createProgressBar({ current: 0, total: 0, width: 8 });
-    expect(bar).toMatch(/^\[.{8}\]$/);
-  });
-});
+import { upsertItem, getProgressSnapshot } from "../progress";
 
 describe("progress singleton", () => {
   test("increment increases current and auto-reserves total", () => {
     // snapshot before
     const before = getProgressSnapshot();
-    // start one unit of work
-    increment("test-increment");
+    // start one unit of work by upserting a started item
+    upsertItem({
+      url: `test-start-${Date.now()}`,
+      type: "page",
+      status: "started",
+    });
     const after = getProgressSnapshot();
     expect(after.current).toBe(before.current + 1);
     expect(after.total).toBeGreaterThanOrEqual(after.current);
@@ -32,7 +18,16 @@ describe("progress singleton", () => {
 
   test("reserve increases total", () => {
     const before = getProgressSnapshot();
-    reserve(2, "test-reserve");
+    upsertItem({
+      url: `test-reserve-${Date.now()}-1`,
+      type: "page",
+      status: "pending",
+    });
+    upsertItem({
+      url: `test-reserve-${Date.now()}-2`,
+      type: "page",
+      status: "pending",
+    });
     const after = getProgressSnapshot();
     expect(after.total).toBe(before.total + 2);
   });

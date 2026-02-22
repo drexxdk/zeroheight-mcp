@@ -8,10 +8,9 @@ import {
   checkProgressInvariant,
 } from "@/utils/common/supabaseClients";
 import progressService, {
-  progress as globalProgress,
-  reserve as reserveProgress,
-  increment as startProgress,
   getProgressSnapshot,
+  upsertItem,
+  getItems,
 } from "@/utils/common/progress";
 import type { PagesType, ImagesType } from "@/database.types";
 import type { OverallProgress } from "./utils/processPageAndImages";
@@ -45,9 +44,6 @@ export type ScrapeResult = {
 async function finalizeScrape({
   pagesToUpsert,
   pendingImageRecords,
-  uniqueAllowedImageUrls,
-  uniqueAllImageUrls,
-  uniqueUnsupportedImageUrls,
   allExistingImageUrls,
   imagesStats,
   pagesFailed,
@@ -63,9 +59,6 @@ async function finalizeScrape({
     original_url: ImagesType["original_url"];
     storage_path: ImagesType["storage_path"];
   }>;
-  uniqueAllowedImageUrls: Set<string>;
-  uniqueAllImageUrls: Set<string>;
-  uniqueUnsupportedImageUrls: Set<string>;
   allExistingImageUrls: Set<string>;
   imagesStats: {
     processed: number;
@@ -80,6 +73,18 @@ async function finalizeScrape({
   rootUrl: string;
   progress: OverallProgress;
 }): Promise<ScrapeResult> {
+  // Derive unique image sets from the progress items so the progress
+  // service is the single source of truth for image categories.
+  const items = getItems();
+  const imageItems = items.filter((it) => it.type === "image");
+  const uniqueAllImageUrls = new Set(imageItems.map((i) => i.url));
+  const uniqueAllowedImageUrls = new Set(
+    imageItems.filter((i) => i.reason === "supported").map((i) => i.url),
+  );
+  const uniqueUnsupportedImageUrls = new Set(
+    imageItems.filter((i) => i.reason === "unsupported").map((i) => i.url),
+  );
+
   return await logSummaryAndClose({
     pagesToUpsert,
     pendingImageRecords,
@@ -267,9 +272,7 @@ async function processLinkUnit(
       skipped: number;
       failed: number;
     };
-    uniqueAllImageUrls: Set<string>;
-    uniqueAllowedImageUrls: Set<string>;
-    uniqueUnsupportedImageUrls: Set<string>;
+
     allExistingImageUrls: Set<string>;
     loggedInHostnames: Set<string>;
     redirects: Map<string, string>;
@@ -292,8 +295,8 @@ async function processLinkUnit(
     // Mark this work unit as started so the visible `current` increases
     // immediately (prevents showing 0/total while starting work).
     try {
-      startProgress(`start:${opts.formatLinkForConsole(link)}`);
       try {
+        upsertItem({ url: link, type: "page", status: "started" });
         const s = getProgressSnapshot();
         if (s.current > s.total)
           opts.checkProgressInvariant(
@@ -322,9 +325,6 @@ async function processLinkUnit(
           pagesToUpsert: opts.pagesToUpsert,
           processedPages: opts.processedPages,
           imagesStats: opts.imagesStats,
-          uniqueAllImageUrls: opts.uniqueAllImageUrls,
-          uniqueAllowedImageUrls: opts.uniqueAllowedImageUrls,
-          uniqueUnsupportedImageUrls: opts.uniqueUnsupportedImageUrls,
           allExistingImageUrls: opts.allExistingImageUrls,
           loggedInHostnames: opts.loggedInHostnames,
           redirects: opts.redirects,
@@ -384,9 +384,7 @@ async function runWorkerForScrape(options: {
     skipped: number;
     failed: number;
   };
-  uniqueAllImageUrls: Set<string>;
-  uniqueAllowedImageUrls: Set<string>;
-  uniqueUnsupportedImageUrls: Set<string>;
+
   allExistingImageUrls: Set<string>;
   loggedInHostnames: Set<string>;
   redirects: Map<string, string>;
@@ -426,9 +424,6 @@ async function runWorkerForScrape(options: {
           pagesToUpsert: options.pagesToUpsert,
           processedPages: options.processedPages,
           imagesStats: options.imagesStats,
-          uniqueAllImageUrls: options.uniqueAllImageUrls,
-          uniqueAllowedImageUrls: options.uniqueAllowedImageUrls,
-          uniqueUnsupportedImageUrls: options.uniqueUnsupportedImageUrls,
           allExistingImageUrls: options.allExistingImageUrls,
           loggedInHostnames: options.loggedInHostnames,
           redirects: options.redirects,
@@ -480,9 +475,7 @@ async function startWorkersForScrape(options: {
     skipped: number;
     failed: number;
   };
-  uniqueAllImageUrls: Set<string>;
-  uniqueAllowedImageUrls: Set<string>;
-  uniqueUnsupportedImageUrls: Set<string>;
+
   allExistingImageUrls: Set<string>;
   loggedInHostnames: Set<string>;
   redirects: Map<string, string>;
@@ -512,9 +505,6 @@ async function startWorkersForScrape(options: {
         pagesToUpsert: options.pagesToUpsert,
         processedPages: options.processedPages,
         imagesStats: options.imagesStats,
-        uniqueAllImageUrls: options.uniqueAllImageUrls,
-        uniqueAllowedImageUrls: options.uniqueAllowedImageUrls,
-        uniqueUnsupportedImageUrls: options.uniqueUnsupportedImageUrls,
         allExistingImageUrls: options.allExistingImageUrls,
         loggedInHostnames: options.loggedInHostnames,
         redirects: options.redirects,
@@ -601,7 +591,7 @@ function makeQueueHelpers(opts: {
     rdirs: redirectsLocal,
     proc: processedLocal,
     wtrs: waitersLocal,
-    prog: progressLocal,
+    prog: _progressLocal,
     touchLastActivity,
     onDequeue,
   } = opts;
@@ -616,9 +606,19 @@ function makeQueueHelpers(opts: {
       }
     }
     if (added.length) {
-      if (typeof opts.reserveLinks === "function")
-        opts.reserveLinks(added.length);
-      else progressLocal.total += added.length;
+      // Create per-URL pending items so totals reflect the exact set of URLs.
+      // Avoid creating generic reserved placeholders which inflate `total`.
+      try {
+        for (const a of added)
+          upsertItem({ url: a, type: "page", status: "pending" });
+      } catch {
+        // best-effort fallback to numeric reservation via service
+        try {
+          progressService.reserve(added.length, "enqueueLinks:fallback");
+        } catch {
+          // ignore
+        }
+      }
       touchLastActivity();
       while (waitersLocal.length && queueLocal.length) {
         const w = waitersLocal.shift()!;
@@ -671,8 +671,8 @@ export async function scrape({
     let inProgressCount = 0;
     let lastActivity = Date.now();
 
-    // Use singleton progress service (single source of truth)
-    const progress = globalProgress;
+    // Capture a start-of-run snapshot of progress (use snapshot API)
+    const progress = getProgressSnapshot();
 
     // Collectors for bulk upsert
     const pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">> =
@@ -684,9 +684,6 @@ export async function scrape({
     }> = [];
     const imagesStats = { processed: 0, uploaded: 0, skipped: 0, failed: 0 };
     let pagesFailed = 0;
-    const uniqueAllImageUrls = new Set<string>();
-    const uniqueUnsupportedImageUrls = new Set<string>();
-    const uniqueAllowedImageUrls = new Set<string>();
 
     const processedPages: Array<ProcessedPage> = [];
 
@@ -708,7 +705,14 @@ export async function scrape({
 
     const reserveLocal = (n: number, context?: string): void => {
       try {
-        reserveProgress(n, context);
+        for (let i = 0; i < n; i += 1) {
+          upsertItem({
+            url: `__reserved__${Date.now()}_${Math.floor(Math.random() * 1e9)}`,
+            type: "page",
+            status: "pending",
+            reason: context,
+          });
+        }
       } catch {
         // best-effort
       }
@@ -735,6 +739,12 @@ export async function scrape({
       },
       onDequeue: (item: string) => {
         inProgressCount++;
+        // Mark the dequeued link as started in the progress items
+        try {
+          upsertItem({ url: item, type: "page", status: "started" });
+        } catch {
+          // best-effort
+        }
         // Log that an item was dequeued but do not mark it completed yet.
         try {
           logProgress("⏳", `Dequeued ${formatUrlForConsole(item)}`);
@@ -782,9 +792,6 @@ export async function scrape({
       pagesToUpsert,
       processedPages,
       imagesStats,
-      uniqueAllImageUrls,
-      uniqueAllowedImageUrls,
-      uniqueUnsupportedImageUrls,
       allExistingImageUrls,
       loggedInHostnames,
       redirects,
@@ -830,22 +837,27 @@ export async function scrape({
     await Promise.all(workers);
 
     // Finalize: bulk upsert, close browser, return result
+    // Use end-of-run snapshot as the source of truth for processed counts.
+    const finalSnap = getProgressSnapshot();
+    const finalImagesStats = {
+      processed: finalSnap.imagesProcessed,
+      uploaded: imagesStats.uploaded,
+      skipped: imagesStats.skipped,
+      failed: imagesStats.failed,
+    };
     return await finalizeScrape({
       pagesToUpsert,
       pendingImageRecords,
-      uniqueAllowedImageUrls,
-      uniqueAllImageUrls,
-      uniqueUnsupportedImageUrls,
       // Pass the immutable pre-run snapshot so the summary reflects the
       // database state at start-of-run.
       allExistingImageUrls: preExistingImageUrls,
-      imagesStats,
+      imagesStats: finalImagesStats,
       pagesFailed,
       providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
       logger,
       browser,
       rootUrl,
-      progress,
+      progress: finalSnap,
     });
   } catch (err) {
     if (err instanceof JobCancelled) return { message: "Job cancelled" };

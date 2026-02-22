@@ -1,6 +1,7 @@
 import { scrape } from "@/tools/scraper/scrape";
 import { isRecord } from "@/utils/common/typeGuards";
 import logger from "../../src/utils/logger";
+import { getProgressSnapshot } from "@/utils/common/progress";
 
 // load env and config dynamically inside `run` so path aliases resolve
 
@@ -69,14 +70,20 @@ async function run(): Promise<void> {
       typeof progress["current"] === "number" &&
       typeof progress["total"] === "number"
     ) {
-      if (progress["current"] === progress["total"]) {
-        logger.log("PASS: progress.current === progress.total");
-        process.exit(0);
+      try {
+        const snap = getProgressSnapshot();
+        if (snap.current === snap.total) {
+          logger.log("PASS: snapshot.current === snapshot.total");
+          process.exit(0);
+        }
+        logger.error(
+          `FAIL: snapshot mismatch final current=${snap.current} total=${snap.total}`,
+        );
+        process.exit(1);
+      } catch (e) {
+        logger.error("FAIL: could not read progress snapshot", e);
+        process.exit(3);
       }
-      logger.error(
-        `FAIL: progress mismatch final current=${progress["current"]} total=${progress["total"]}`,
-      );
-      process.exit(1);
     }
     logger.error("FAIL: progress object malformed", progress);
     process.exit(2);

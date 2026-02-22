@@ -6,20 +6,8 @@ import { processAndUploadImage } from "./imagePipeline";
 import { mapWithConcurrency } from "./concurrency";
 import { config } from "@/utils/config";
 import logger from "@/utils/logger";
-import {
-  increment,
-  incImages,
-  getProgressSnapshot,
-  markImageProcessed,
-} from "@/utils/common/progress";
+import { getProgressSnapshot, upsertItem } from "@/utils/common/progress";
 import { formatPathForConsole } from "./scrapeHelpers";
-
-export type Progress = {
-  current: number;
-  total: number;
-  pagesProcessed: number;
-  imagesProcessed: number;
-};
 
 export type LogProgressFn = (icon: string, message: string) => void;
 
@@ -37,7 +25,6 @@ export async function processImagesForPage(options: {
   supportedImages: Array<{ src: string; alt: string; originalSrc?: string }>;
   link: string;
   storage: StorageHelper;
-  overallProgress: Progress;
   allExistingImageUrls: Set<string>;
   pendingImageRecords: Array<{
     pageUrl: string;
@@ -88,8 +75,14 @@ export async function processImagesForPage(options: {
 
       // Mark image processing as started so the overall `current` reflects
       // active work units immediately instead of waiting for completion.
+      let imageKey = String(img.src || "");
       try {
-        increment(`image:${img.src.split("/").pop()}`);
+        imageKey = normalizeImageUrl({ src: img.src });
+      } catch {
+        imageKey = String(img.src || "");
+      }
+      try {
+        upsertItem({ url: imageKey, type: "image", status: "started" });
         try {
           const s = getProgressSnapshot();
           if (s.current > s.total) {
@@ -114,9 +107,20 @@ export async function processImagesForPage(options: {
         // Count this image as processed (it consumed a reserved slot)
         // Delegate uniqueness/counting to the central ProgressService.
         try {
-          markImageProcessed(String(img.src || ""));
+          const key = normalizeImageUrl
+            ? normalizeImageUrl({ src: String(img.src || "") })
+            : String(img.src || "");
+          upsertItem({ url: key, type: "image", status: "processed" });
         } catch {
-          incImages();
+          try {
+            upsertItem({
+              url: String(img.src || ""),
+              type: "image",
+              status: "processed",
+            });
+          } catch {
+            // best-effort
+          }
         }
         try {
           const s = getProgressSnapshot();
@@ -134,9 +138,13 @@ export async function processImagesForPage(options: {
       if (allExistingImageUrls.has(normalizedSrc)) {
         logProgress("🚫", "Skipping image - already processed");
         try {
-          markImageProcessed(normalizedSrc);
+          upsertItem({
+            url: normalizedSrc,
+            type: "image",
+            status: "processed",
+          });
         } catch {
-          incImages();
+          // best-effort
         }
         try {
           const s = getProgressSnapshot();
@@ -156,9 +164,13 @@ export async function processImagesForPage(options: {
       if (inProgress.has(normalizedSrc)) {
         logProgress("⏭️", "Skipping duplicate image in-progress");
         try {
-          markImageProcessed(normalizedSrc);
+          upsertItem({
+            url: normalizedSrc,
+            type: "image",
+            status: "processed",
+          });
         } catch {
-          incImages();
+          // best-effort
         }
         try {
           const s = getProgressSnapshot();
@@ -195,9 +207,13 @@ export async function processImagesForPage(options: {
         // increment the global counter the first time we encounter this
         // normalized URL across the entire scraper run.
         try {
-          markImageProcessed(normalizedSrc);
+          upsertItem({
+            url: normalizedSrc,
+            type: "image",
+            status: "processed",
+          });
         } catch {
-          incImages();
+          // best-effort
         }
       }
       if (result && result.uploaded)

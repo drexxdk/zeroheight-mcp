@@ -1,8 +1,27 @@
-// previous progress helpers (refactored)
+// Items-based progress tracker
 
 import defaultLogger from "../logger";
 
-type ProgressSnapshot = {
+export type ItemType = "page" | "image";
+export type ItemStatus =
+  | "pending"
+  | "started"
+  | "processed"
+  | "redirected"
+  | "external"
+  | "failed"
+  | "skipped";
+
+export type ProgressItem = {
+  url: string; // unique key for the item
+  type: ItemType;
+  status: ItemStatus;
+  finalUrl?: string; // if redirected
+  reason?: string; // failure or external reason
+  updatedAt: number;
+};
+
+export type ProgressSnapshot = {
   current: number;
   total: number;
   pagesProcessed: number;
@@ -10,144 +29,242 @@ type ProgressSnapshot = {
   pagesRedirected: number;
   pagesExternalIgnored: number;
 };
-
 class ProgressService {
-  private state: ProgressSnapshot = {
-    current: 0,
-    total: 0,
-    pagesProcessed: 0,
-    imagesProcessed: 0,
-    pagesRedirected: 0,
-    pagesExternalIgnored: 0,
-  };
-
-  // last values printed to console — we never print a lower value than these
+  private items = new Map<string, ProgressItem>();
   private lastPrinted = { current: 0, total: 0 };
-  // Track normalized image URLs that have been counted so far so the
-  // ProgressService is the single source of truth for image counts.
-  private processedImageUrls = new Set<string>();
+  private reservedCounter = 0;
 
-  // public API -----------------------------------------------------------
-  getCurrent(): number {
-    return this.state.current;
-  }
-
-  getTotal(): number {
-    return this.state.total;
-  }
-
-  // Visible (clamped) values used for logging/externally-read progress so
-  // printed numbers never appear to decrease even if internal state lags
-  getVisibleCurrent(): number {
-    return Math.max(this.state.current, this.lastPrinted.current);
-  }
-
-  getVisibleTotal(): number {
-    return Math.max(
-      this.state.total,
-      this.getVisibleCurrent(),
-      this.lastPrinted.total,
+  // Helper to determine whether a status is terminal (counts towards "current")
+  private isFinal(status: ItemStatus): boolean {
+    return (
+      status === "processed" ||
+      status === "redirected" ||
+      status === "external" ||
+      status === "failed" ||
+      status === "skipped"
     );
   }
 
-  // Reserve increases the total (e.g. discovered links or reserved images)
+  // Upsert an item by URL. Ensures there is only one item per URL.
+  upsertItem({
+    url,
+    type,
+    status,
+    finalUrl,
+    reason,
+  }: {
+    url: string;
+    type: ItemType;
+    status: ItemStatus;
+    finalUrl?: string;
+    reason?: string;
+  }): ProgressItem {
+    if (!url) throw new Error("url is required for progress item");
+    const now = Date.now();
+    const existing = this.items.get(url);
+    if (existing) {
+      // Avoid downgrading an item's status. Only apply the new status
+      // if it represents the same or a later/terminal state.
+      const rank = (s: ItemStatus): number => {
+        switch (s) {
+          case "pending":
+            return 0;
+          case "started":
+            return 1;
+          case "processed":
+          case "redirected":
+          case "external":
+          case "failed":
+          case "skipped":
+            return 2;
+          default:
+            return 0;
+        }
+      };
+      const existingRank = rank(existing.status);
+      const newRank = rank(status);
+
+      const appliedStatus = newRank >= existingRank ? status : existing.status;
+      const merged: ProgressItem = {
+        ...existing,
+        status: appliedStatus,
+        finalUrl: finalUrl ?? existing.finalUrl,
+        reason: reason ?? existing.reason,
+        updatedAt: now,
+      };
+      this.items.set(url, merged);
+      // Only log a change if something meaningful changed
+      if (
+        merged.status !== existing.status ||
+        merged.finalUrl !== existing.finalUrl ||
+        merged.reason !== existing.reason
+      ) {
+        this.printChange(merged);
+      }
+      return merged;
+    }
+
+    const item: ProgressItem = {
+      url,
+      type,
+      status,
+      finalUrl,
+      reason,
+      updatedAt: now,
+    };
+    this.items.set(url, item);
+    this.printChange(item, true);
+    return item;
+  }
+
+  // Convenience to set status only if item exists or create it if not
+  setItemStatus(
+    url: string,
+    status: ItemStatus,
+    opts?: { finalUrl?: string; reason?: string; type?: ItemType },
+  ): ProgressItem {
+    return this.upsertItem({
+      url,
+      type: opts?.type ?? "page",
+      status,
+      finalUrl: opts?.finalUrl,
+      reason: opts?.reason,
+    });
+  }
+
+  // Return a snapshot of counts
+  snapshot(): ProgressSnapshot {
+    let pagesProcessed = 0;
+    let imagesProcessed = 0;
+    let pagesRedirected = 0;
+    let pagesExternalIgnored = 0;
+    // `current` reflects work that has been started or finished.
+    // Count any non-pending item (including `started`) as in-progress/completed.
+    let current = 0;
+    for (const item of this.items.values()) {
+      if (item.status !== "pending") current += 1;
+      if (item.type === "page") {
+        if (item.status === "processed") pagesProcessed += 1;
+        if (item.status === "redirected") pagesRedirected += 1;
+        if (item.status === "external") pagesExternalIgnored += 1;
+      }
+      if (item.type === "image" && item.status === "processed")
+        imagesProcessed += 1;
+    }
+
+    return {
+      current,
+      total: this.items.size,
+      pagesProcessed,
+      imagesProcessed,
+      pagesRedirected,
+      pagesExternalIgnored,
+    };
+  }
+
+  // Create reserved placeholder items to mimic previous reserve() behaviour.
   reserve(n = 1, reason?: string): void {
     if (n <= 0) return;
-    this.state.total += n;
+    for (let i = 0; i < n; i += 1) {
+      const url = `__reserved__${Date.now()}_${this.reservedCounter++}`;
+      this.upsertItem({ url, type: "page", status: "pending", reason });
+    }
     this.print("📦", `${reason ?? "Reserved work"} (+${n})`);
   }
 
-  // Called when a worker starts a unit of work. This immediately increases current.
+  // Start a unit of work. If a URL is provided treat it as the started item.
   start(context?: string): void {
-    this.state.current += 1;
-    // If a worker starts a unit that wasn't previously reserved, ensure
-    // `total` never falls behind `current`. We auto-reserve the delta so
-    // the console invariants remain monotonic and meaningful.
-    if (this.state.total < this.state.current) {
-      const delta = this.state.current - this.state.total;
-      this.state.total = this.state.current;
-      this.print("📦", `Auto-reserved to match started tasks (+${delta})`);
+    if (context && context.startsWith("http")) {
+      this.setItemStatus(context, "started", { type: "page" });
+      this.print("🔎", `Starting ${context}`);
+      return;
     }
-
+    // otherwise, consume one reserved placeholder and mark started
+    const reserved = Array.from(this.items.values()).find(
+      (i) => i.url.startsWith("__reserved__") && i.status === "pending",
+    );
+    if (reserved) {
+      this.setItemStatus(reserved.url, "started");
+      this.print("🔎", `Starting reserved work`);
+      return;
+    }
+    // no reserved placeholders — create one and start it
+    const url = `__reserved__${Date.now()}_${this.reservedCounter++}`;
+    this.upsertItem({ url, type: "page", status: "started" });
     this.print("🔎", `Starting ${context ?? "work"}`);
   }
 
-  // Completion counters — should NOT decrement `current`.
+  // Backwards-compatible incremental counters that create items where possible
   incPages(n = 1): void {
     if (n <= 0) return;
-    this.state.pagesProcessed += n;
-    this.print("📄", `Pages processed ${this.state.pagesProcessed}`);
+    for (let i = 0; i < n; i += 1) {
+      const url = `__page_counted__${Date.now()}_${this.reservedCounter++}`;
+      this.upsertItem({ url, type: "page", status: "processed" });
+    }
+    const snap = this.snapshot();
+    this.print("📄", `Pages processed ${snap.pagesProcessed}`);
   }
 
   incImages(n = 1): void {
     if (n <= 0) return;
-    this.state.imagesProcessed += n;
-    this.print("📷", `Images processed ${this.state.imagesProcessed}`);
+    for (let i = 0; i < n; i += 1) {
+      const url = `__image_counted__${Date.now()}_${this.reservedCounter++}`;
+      this.upsertItem({ url, type: "image", status: "processed" });
+    }
+    const snap = this.snapshot();
+    this.print("📷", `Images processed ${snap.imagesProcessed}`);
   }
 
-  // Increment the global redirect counter (number of times a navigated
-  // link resolved to a different final URL). This is used to report how
-  // many processed links were redirects.
   incRedirects(n = 1): void {
     if (n <= 0) return;
-    // keep it simple for now; mirror incPages behavior for printing
-    this.state.pagesRedirected += n;
-    this.print("🔁", `Redirects encountered ${this.state.pagesRedirected}`);
+    for (let i = 0; i < n; i += 1) {
+      const url = `__redirected__${Date.now()}_${this.reservedCounter++}`;
+      this.upsertItem({ url, type: "page", status: "redirected" });
+    }
+    this.print(
+      "🔁",
+      `Redirects encountered ${this.snapshot().pagesRedirected}`,
+    );
   }
 
-  // Increment the global external/ignored pages counter (links that
-  // resolved to a different hostname and were not processed).
   incExternalIgnored(n = 1): void {
     if (n <= 0) return;
-    this.state.pagesExternalIgnored += n;
+    for (let i = 0; i < n; i += 1) {
+      const url = `__external__${Date.now()}_${this.reservedCounter++}`;
+      this.upsertItem({ url, type: "page", status: "external" });
+    }
     this.print(
       "🚫",
-      `External pages ignored ${this.state.pagesExternalIgnored}`,
+      `External pages ignored ${this.snapshot().pagesExternalIgnored}`,
     );
   }
 
-  // Mark a normalized image URL as processed. Returns true if this call
-  // caused the global images counter to increase (i.e. the URL was seen
-  // for the first time), otherwise false.
+  // Mark an image URL as processed; returns true if newly added or newly processed
   markImageProcessed(url: string): boolean {
     if (!url) return false;
-    try {
-      if (this.processedImageUrls.has(url)) return false;
-      this.processedImageUrls.add(url);
-      this.incImages(1);
-      return true;
-    } catch {
+    const existing = this.items.get(url);
+    if (
+      existing &&
+      existing.type === "image" &&
+      existing.status === "processed"
+    )
       return false;
-    }
+    this.upsertItem({ url, type: "image", status: "processed" });
+    return true;
   }
 
-  snapshot(): ProgressSnapshot {
-    // return a shallow copy so callers cannot mutate internal state
-    return { ...this.state };
-  }
-
-  // Internal printing --------------------------------------------------
+  // Internal printing with monotonic guarantees
   private print(icon: string, message: string): void {
-    // Ensure printed values are monotonic (never decrease in the console)
-    const visibleCurrent = Math.max(
-      this.state.current,
-      this.lastPrinted.current,
-    );
-    // total must be at least visibleCurrent when printing so ratios make sense
+    const snap = this.snapshot();
+    const visibleCurrent = Math.max(snap.current, this.lastPrinted.current);
     const visibleTotal = Math.max(
-      this.state.total,
+      snap.total,
       visibleCurrent,
       this.lastPrinted.total,
     );
 
     const bar = this.renderBar(visibleCurrent, visibleTotal);
-    // Single-line debug-style output used across the scraper
-    // Use console.debug so the logger can be filtered; other code previously used [debug] prefixes
-    // Keep the output concise and monotonic.
-    // Example: [██████░░░░░░] [3/10] 🔎 Starting https://...
     try {
-      // update lastPrinted only after successful formatting to keep monotonic guarantee
-      // Always show the progress bar to the user, not just in debug mode.
       defaultLogger.log(
         `[${bar}] [${visibleCurrent}/${visibleTotal}] ${icon} ${message}`,
       );
@@ -158,6 +275,14 @@ class ProgressService {
       );
       this.lastPrinted.total = Math.max(this.lastPrinted.total, visibleTotal);
     }
+  }
+
+  private printChange(item: ProgressItem, isNew = false): void {
+    const icon = isNew ? "➕" : "🔁";
+    const msgParts = [`${item.type}`, item.url, item.status];
+    if (item.finalUrl) msgParts.push(`-> ${item.finalUrl}`);
+    if (item.reason) msgParts.push(`(${item.reason})`);
+    this.print(icon, msgParts.join(" "));
   }
 
   private renderBar(current: number, total: number, width = 20): string {
@@ -171,68 +296,28 @@ class ProgressService {
   public log(icon: string, message: string): void {
     this.print(icon, message);
   }
+
+  // Expose items for callers who want to list failures or details
+  public getItems(): ProgressItem[] {
+    return Array.from(this.items.values()).sort(
+      (a, b) => a.updatedAt - b.updatedAt,
+    );
+  }
 }
 
-// Single exported instance — the one source of truth
 const service = new ProgressService();
 
-// Exported convenience helpers (preserve previous function names used across codebase)
-export const progress = {
-  get current(): number {
-    return service.getVisibleCurrent();
-  },
-  get total(): number {
-    return service.getVisibleTotal();
-  },
-  get pagesProcessed(): number {
-    return service.snapshot().pagesProcessed;
-  },
-  get imagesProcessed(): number {
-    return service.snapshot().imagesProcessed;
-  },
-  get pagesRedirected(): number {
-    return service.snapshot().pagesRedirected;
-  },
-  get pagesExternalIgnored(): number {
-    return service.snapshot().pagesExternalIgnored;
-  },
-};
-
-export const reserve = (n = 1, reason?: string): void =>
-  service.reserve(n, reason);
-export const increment = (context?: string): void => service.start(context);
-export const incPages = (n = 1): void => service.incPages(n);
-export const incImages = (n = 1): void => service.incImages(n);
-export const markImageProcessed = (url: string): boolean =>
-  service.markImageProcessed(url);
-export const incRedirects = (n = 1): void => service.incRedirects(n);
-export const incExternalIgnored = (n = 1): void =>
-  service.incExternalIgnored(n);
 export const getProgressSnapshot = (): ProgressSnapshot => service.snapshot();
 
 export default service;
-export type Progress = {
-  current: number;
-  total: number;
-  pagesProcessed?: number;
-  imagesProcessed?: number;
-};
 
-export function createProgressBar({
-  current,
-  total,
-  width = 20,
-}: {
-  current: number;
-  total: number;
-  width?: number;
-}): string {
-  // Guard against division by zero
-  const safeTotal = total <= 0 ? 1 : total;
-  const filledBars = Math.min(Math.round((current / safeTotal) * width), width);
-  const emptyBars = width - filledBars;
-  const progressBar = "█".repeat(filledBars) + "░".repeat(emptyBars);
-  return `[${progressBar}]`;
-}
+// New API: upsertItem and getItems for precise per-URL progress tracking
+export const upsertItem = (opts: {
+  url: string;
+  type: ItemType;
+  status: ItemStatus;
+  finalUrl?: string;
+  reason?: string;
+}): ProgressItem => service.upsertItem(opts);
 
-// Compatibility wrapper removed: callers should use singleton helpers exported above.
+export const getItems = (): ProgressItem[] => service.getItems();

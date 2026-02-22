@@ -8,5 +8,4 @@ export interface PageData {
     storage_path: string;
   }> | null;
 }
-export { createProgressBar } from "@/utils/common/progress";
-export type { Progress } from "@/utils/common/progress";
+// progress bar removed - use items-based progress tracking via progress service
