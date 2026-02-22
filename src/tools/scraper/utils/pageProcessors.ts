@@ -6,6 +6,12 @@ import { processAndUploadImage } from "./imagePipeline";
 import { mapWithConcurrency } from "./concurrency";
 import { config } from "@/utils/config";
 import logger from "@/utils/logger";
+import {
+  increment,
+  incImages,
+  getProgressSnapshot,
+} from "@/utils/common/progress";
+import { formatPathForConsole } from "./scrapeHelpers";
 
 export type Progress = {
   current: number;
@@ -48,12 +54,13 @@ export async function processImagesForPage(options: {
     supportedImages,
     link,
     storage,
-    overallProgress,
     allExistingImageUrls,
     pendingImageRecords,
     logProgress,
     shouldCancel,
   } = options;
+
+  // Use singleton increment/incImages directly; replicate invariant checks locally
 
   const concurrency = config.scraper.imageConcurrency;
   // Use module-level set so multiple concurrent page-processing tasks in the
@@ -61,30 +68,75 @@ export async function processImagesForPage(options: {
   // normalized URL.
   const inProgress = GLOBAL_IN_PROGRESS;
 
+  /* eslint-disable complexity */
   const results = await mapWithConcurrency(
     supportedImages,
     async (img) => {
       if (shouldCancel && shouldCancel()) {
         logProgress("⏹️", "Cancellation requested - stopping image processing");
         try {
-          logger.log(
-            `[${new Date().toISOString()}] Cancellation detected in processImagesForPage for page=${link}`,
+          logProgress(
+            "🕒",
+            `Cancellation detected in processImagesForPage for page=${formatPathForConsole?.(link) ?? link}`,
           );
         } catch {
           // best-effort
         }
         throw new JobCancelled();
       }
-      overallProgress.current++;
+
+      // Mark image processing as started so the overall `current` reflects
+      // active work units immediately instead of waiting for completion.
+      try {
+        increment(`image:${img.src.split("/").pop()}`);
+        try {
+          const s = getProgressSnapshot();
+          if (s.current > s.total) {
+            logger.warn(
+              `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+            );
+          }
+          if (s.current < 0) {
+            logger.warn(
+              `⚠️ Progress invariant violated: current is negative (${s.current})`,
+            );
+          }
+        } catch {
+          // ignore
+        }
+      } catch {
+        // ignore
+      }
 
       if (!(img.src && img.src.startsWith("http"))) {
-        logger.error(`❌ Invalid image source: ${img.src}`);
+        logProgress("❌", `Invalid image source: ${img.src.split("/").pop()}`);
+        // Count this image as processed (it consumed a reserved slot)
+        incImages();
+        try {
+          const s = getProgressSnapshot();
+          if (s.current > s.total)
+            logger.warn(
+              `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+            );
+        } catch {
+          // ignore
+        }
         return { processed: 0, uploaded: 0, skipped: 0, failed: 1 };
       }
 
       const normalizedSrc = normalizeImageUrl({ src: img.src });
       if (allExistingImageUrls.has(normalizedSrc)) {
         logProgress("🚫", "Skipping image - already processed");
+        incImages();
+        try {
+          const s = getProgressSnapshot();
+          if (s.current > s.total)
+            logger.warn(
+              `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+            );
+        } catch {
+          // ignore
+        }
         return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
       }
       // Avoid race where multiple concurrent tasks both see the URL as not
@@ -93,15 +145,21 @@ export async function processImagesForPage(options: {
       // uploads.
       if (inProgress.has(normalizedSrc)) {
         logProgress("⏭️", "Skipping duplicate image in-progress");
+        incImages();
+        try {
+          const s = getProgressSnapshot();
+          if (s.current > s.total)
+            logger.warn(
+              `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+            );
+        } catch {
+          // ignore
+        }
         return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
       }
       inProgress.add(normalizedSrc);
 
-      overallProgress.imagesProcessed++;
-      logProgress(
-        "📷",
-        `Processing image ${overallProgress.imagesProcessed}: ${img.src.split("/").pop()}`,
-      );
+      logProgress("📷", `Processing image: ${img.src.split("/").pop()}`);
 
       const downloadUrl = img.originalSrc || img.src;
       let result;
@@ -119,16 +177,20 @@ export async function processImagesForPage(options: {
         // Ensure we release the in-progress lock so other occurrences can be
         // considered (they will now see the URL in `allExistingImageUrls`).
         inProgress.delete(normalizedSrc);
+        // Count this image as completed (success, skip, or failure)
+        incImages();
       }
       if (result && result.uploaded)
         return { processed: 1, uploaded: 1, skipped: 0, failed: 0 };
-      logger.error(
-        `❌ Failed to process image ${img.src.split("/").pop()}: ${result.error}`,
+      logProgress(
+        "❌",
+        `Failed to process image ${img.src.split("/").pop()}: ${result?.error ?? "unknown"}`,
       );
       return { processed: 1, uploaded: 0, skipped: 0, failed: 1 };
     },
     concurrency,
   );
+  /* eslint-enable complexity */
 
   const totals = results.reduce(
     (acc, r) => {

@@ -7,7 +7,12 @@ import {
   getClient,
   checkProgressInvariant,
 } from "@/utils/common/supabaseClients";
-import { createProgressHelpers } from "./utils/shared";
+import progressService, {
+  progress as globalProgress,
+  reserve as reserveProgress,
+  increment as startProgress,
+  getProgressSnapshot,
+} from "@/utils/common/progress";
 import type { PagesType, ImagesType } from "@/database.types";
 import type { OverallProgress } from "./utils/processPageAndImages";
 import { extractPageData } from "./utils/pageExtraction";
@@ -157,7 +162,7 @@ async function prepareSeedsForScrape({
   password?: string;
   logger?: (s: string) => void;
   preExtractedMap: Map<string, PreExtracted>;
-  enqueueLinks: (links: string[]) => void;
+  enqueueLinks: (links: string[]) => number;
   loggedInHostnames: Set<string>;
 }): Promise<void> {
   if (pageUrls && pageUrls.length > 0) {
@@ -242,6 +247,119 @@ async function prepareSeedsForScrape({
   }
 }
 
+async function processLinkUnit(
+  options: {
+    // Only list the fields used by the per-link processing logic
+    rootUrl: string;
+    password?: string;
+    logger?: (s: string) => void;
+    preExtractedMap: Map<string, PreExtracted>;
+    pendingImageRecords: Array<{
+      pageUrl: string;
+      original_url: string;
+      storage_path: string;
+    }>;
+    pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
+    processedPages: Array<ProcessedPage>;
+    imagesStats: {
+      processed: number;
+      uploaded: number;
+      skipped: number;
+      failed: number;
+    };
+    uniqueAllImageUrls: Set<string>;
+    uniqueAllowedImageUrls: Set<string>;
+    uniqueUnsupportedImageUrls: Set<string>;
+    allExistingImageUrls: Set<string>;
+    loggedInHostnames: Set<string>;
+    redirects: Map<string, string>;
+    processed: Set<string>;
+    restrictToSeeds: boolean;
+    enqueueLinks: (links: string[]) => number;
+    formatLinkForConsole: (u: string) => string;
+    logProgress: (icon: string, msg: string) => void;
+    progress: OverallProgress;
+    checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
+    onLinkDone?: () => void;
+    touchLastActivity?: () => void;
+    onPageError?: (link: string, err: unknown) => void;
+  },
+  page: Page,
+  link: string,
+): Promise<void> {
+  const opts = options;
+  try {
+    // Mark this work unit as started so the visible `current` increases
+    // immediately (prevents showing 0/total while starting work).
+    try {
+      startProgress(`start:${opts.formatLinkForConsole(link)}`);
+      try {
+        const s = getProgressSnapshot();
+        if (s.current > s.total)
+          opts.checkProgressInvariant(
+            { current: s.current, total: s.total } as OverallProgress,
+            `start:${opts.formatLinkForConsole(link)}`,
+          );
+      } catch {
+        // best-effort
+      }
+    } catch {
+      // best-effort
+    }
+
+    opts.logProgress("🔎", `Starting ${opts.formatLinkForConsole(link)}`);
+
+    try {
+      try {
+        await processLinkForWorker({
+          page,
+          link,
+          rootUrl: opts.rootUrl,
+          password: opts.password,
+          logger: opts.logger,
+          preExtractedMap: opts.preExtractedMap,
+          pendingImageRecords: opts.pendingImageRecords,
+          pagesToUpsert: opts.pagesToUpsert,
+          processedPages: opts.processedPages,
+          imagesStats: opts.imagesStats,
+          uniqueAllImageUrls: opts.uniqueAllImageUrls,
+          uniqueAllowedImageUrls: opts.uniqueAllowedImageUrls,
+          uniqueUnsupportedImageUrls: opts.uniqueUnsupportedImageUrls,
+          allExistingImageUrls: opts.allExistingImageUrls,
+          loggedInHostnames: opts.loggedInHostnames,
+          redirects: opts.redirects,
+          processed: opts.processed,
+          restrictToSeeds: opts.restrictToSeeds,
+          enqueueLinks: opts.enqueueLinks,
+          formatLinkForConsole: opts.formatLinkForConsole,
+          logProgress: opts.logProgress,
+          progress: opts.progress,
+          checkProgressInvariant: opts.checkProgressInvariant,
+        });
+      } finally {
+        try {
+          opts.onLinkDone?.();
+        } catch (e) {
+          defaultLogger.debug("onLinkDone handler failed:", e);
+        }
+        try {
+          opts.touchLastActivity?.();
+        } catch (e) {
+          defaultLogger.debug("touchLastActivity handler failed:", e);
+        }
+      }
+    } catch (e) {
+      try {
+        opts.onPageError?.(link, e);
+      } catch (e2) {
+        defaultLogger.debug("onPageError handler failed:", e2);
+      }
+    }
+  } finally {
+    // no-op here; page lifecycle is managed by caller
+  }
+}
+
 async function runWorkerForScrape(options: {
   browser: Browser;
   shouldCancel?: () => boolean | Promise<boolean>;
@@ -274,19 +392,13 @@ async function runWorkerForScrape(options: {
   redirects: Map<string, string>;
   processed: Set<string>;
   restrictToSeeds: boolean;
-  enqueueLinks: (links: string[]) => void;
+  enqueueLinks: (links: string[]) => number;
   onLinkDone?: () => void;
   touchLastActivity?: () => void;
   progress: OverallProgress;
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
 }): Promise<void> {
-  const {
-    browser,
-    shouldCancel,
-    getNextLink,
-    logProgress,
-    formatLinkForConsole,
-  } = options;
+  const { browser, shouldCancel, getNextLink } = options;
   const page: Page = await browser.newPage();
   await page.setViewport({
     width: config.scraper.viewport.width,
@@ -297,59 +409,43 @@ async function runWorkerForScrape(options: {
   } catch (e) {
     defaultLogger.debug("URL parse failed while normalizing seed:", e);
   }
+
   try {
     while (true) {
       if (shouldCancel && (await Promise.resolve(shouldCancel())))
         throw new JobCancelled();
       const link = await getNextLink();
       if (!link) break;
-      logProgress("🔎", `Starting ${formatLinkForConsole(link)}`);
-      try {
-        try {
-          await processLinkForWorker({
-            page,
-            link,
-            rootUrl: options.rootUrl,
-            password: options.password,
-            logger: options.logger,
-            preExtractedMap: options.preExtractedMap,
-            pendingImageRecords: options.pendingImageRecords,
-            pagesToUpsert: options.pagesToUpsert,
-            processedPages: options.processedPages,
-            imagesStats: options.imagesStats,
-            uniqueAllImageUrls: options.uniqueAllImageUrls,
-            uniqueAllowedImageUrls: options.uniqueAllowedImageUrls,
-            uniqueUnsupportedImageUrls: options.uniqueUnsupportedImageUrls,
-            allExistingImageUrls: options.allExistingImageUrls,
-            loggedInHostnames: options.loggedInHostnames,
-            redirects: options.redirects,
-            processed: options.processed,
-            restrictToSeeds: options.restrictToSeeds,
-            enqueueLinks: options.enqueueLinks,
-            formatLinkForConsole: formatLinkForConsole,
-            logProgress: options.logProgress,
-            progress: options.progress,
-            checkProgressInvariant: options.checkProgressInvariant,
-          });
-        } finally {
-          try {
-            options.onLinkDone?.();
-          } catch (e) {
-            defaultLogger.debug("onLinkDone handler failed:", e);
-          }
-          try {
-            options.touchLastActivity?.();
-          } catch (e) {
-            defaultLogger.debug("touchLastActivity handler failed:", e);
-          }
-        }
-      } catch (e) {
-        try {
-          options.onPageError?.(link, e);
-        } catch (e2) {
-          defaultLogger.debug("onPageError handler failed:", e2);
-        }
-      }
+      await processLinkUnit(
+        {
+          rootUrl: options.rootUrl,
+          password: options.password,
+          logger: options.logger,
+          preExtractedMap: options.preExtractedMap,
+          pendingImageRecords: options.pendingImageRecords,
+          pagesToUpsert: options.pagesToUpsert,
+          processedPages: options.processedPages,
+          imagesStats: options.imagesStats,
+          uniqueAllImageUrls: options.uniqueAllImageUrls,
+          uniqueAllowedImageUrls: options.uniqueAllowedImageUrls,
+          uniqueUnsupportedImageUrls: options.uniqueUnsupportedImageUrls,
+          allExistingImageUrls: options.allExistingImageUrls,
+          loggedInHostnames: options.loggedInHostnames,
+          redirects: options.redirects,
+          processed: options.processed,
+          restrictToSeeds: options.restrictToSeeds,
+          enqueueLinks: options.enqueueLinks,
+          formatLinkForConsole: options.formatLinkForConsole,
+          logProgress: options.logProgress,
+          progress: options.progress,
+          checkProgressInvariant: options.checkProgressInvariant,
+          onLinkDone: options.onLinkDone,
+          touchLastActivity: options.touchLastActivity,
+          onPageError: options.onPageError,
+        },
+        page,
+        link,
+      );
     }
   } finally {
     try {
@@ -392,7 +488,7 @@ async function startWorkersForScrape(options: {
   redirects: Map<string, string>;
   processed: Set<string>;
   restrictToSeeds: boolean;
-  enqueueLinks: (links: string[]) => void;
+  enqueueLinks: (links: string[]) => number;
   progress: OverallProgress;
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
   onLinkDone?: () => void;
@@ -494,8 +590,9 @@ function makeQueueHelpers(opts: {
   prog: OverallProgress;
   touchLastActivity: () => void;
   onDequeue: (item: string) => void;
+  reserveLinks?: (n: number) => void;
 }): {
-  enqueueLinks: (links: string[]) => void;
+  enqueueLinks: (links: string[]) => number;
   getNextLink: () => Promise<string | null>;
 } {
   const {
@@ -508,7 +605,7 @@ function makeQueueHelpers(opts: {
     touchLastActivity,
     onDequeue,
   } = opts;
-  function enqueueLinks(links: string[]): void {
+  function enqueueLinks(links: string[]): number {
     const added: string[] = [];
     for (const l of links) {
       const effective = redirectsLocal.get(l) ?? l;
@@ -519,7 +616,9 @@ function makeQueueHelpers(opts: {
       }
     }
     if (added.length) {
-      progressLocal.total += added.length;
+      if (typeof opts.reserveLinks === "function")
+        opts.reserveLinks(added.length);
+      else progressLocal.total += added.length;
       touchLastActivity();
       while (waitersLocal.length && queueLocal.length) {
         const w = waitersLocal.shift()!;
@@ -529,6 +628,7 @@ function makeQueueHelpers(opts: {
         w(item);
       }
     }
+    return added.length;
   }
 
   function getNextLink(): Promise<string | null> {
@@ -571,12 +671,8 @@ export async function scrape({
     let inProgressCount = 0;
     let lastActivity = Date.now();
 
-    const progress: OverallProgress = {
-      current: 0,
-      total: 0,
-      pagesProcessed: 0,
-      imagesProcessed: 0,
-    };
+    // Use singleton progress service (single source of truth)
+    const progress = globalProgress;
 
     // Collectors for bulk upsert
     const pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">> =
@@ -598,6 +694,35 @@ export async function scrape({
 
     const waiters: Array<(val: string | null) => void> = [];
 
+    const logProgress = (icon: string, message: string): void => {
+      try {
+        progressService.log(icon, message);
+      } catch {
+        // best-effort
+      }
+      // Intentionally do not forward to the job `logger` here to avoid
+      // duplicate lines without progress bars. The singleton `progressService`
+      // is the authoritative emitter of progress lines and includes the
+      // progress bar and counts.
+    };
+
+    const reserveLocal = (n: number, context?: string): void => {
+      try {
+        reserveProgress(n, context);
+      } catch {
+        // best-effort
+      }
+      try {
+        const s = getProgressSnapshot();
+        checkProgressInvariant({
+          overallProgress: { current: s.current, total: s.total },
+          context: context ?? "",
+        });
+      } catch {
+        // best-effort
+      }
+    };
+
     const { enqueueLinks, getNextLink } = makeQueueHelpers({
       q: queue,
       iq: inQueue,
@@ -608,15 +733,16 @@ export async function scrape({
       touchLastActivity: () => {
         lastActivity = Date.now();
       },
-      onDequeue: (_item: string) => {
+      onDequeue: (item: string) => {
         inProgressCount++;
-        progress.current++;
+        // Log that an item was dequeued but do not mark it completed yet.
+        try {
+          logProgress("⏳", `Dequeued ${formatUrlForConsole(item)}`);
+        } catch {
+          // best-effort
+        }
       },
-    });
-    const { logProgress } = createProgressHelpers({
-      progress,
-      checkProgressInvariant,
-      logger,
+      reserveLinks: (n: number) => reserveLocal(n, "enqueueLinks"),
     });
 
     const restrictToSeeds = !!(pageUrls && pageUrls.length > 0);

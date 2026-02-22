@@ -6,6 +6,7 @@ describe("formatSummaryBox", () => {
     const params = {
       providedCount: 2,
       pagesAnalyzed: 2,
+      imagesProcessed: 0,
       insertedCount: 1,
       updatedCount: 1,
       skippedCount: 0,

@@ -76,6 +76,9 @@ function main(): number {
   return 0;
 }
 
-if (require.main === module) {
-  process.exit(main());
-}
+// Run the checker when the script is executed. This is intentionally
+// unconditional to support ESM invocation via `tsx` and Husky hooks.
+(function run(): void {
+  const code = main();
+  if (code !== 0) process.exit(code);
+})();

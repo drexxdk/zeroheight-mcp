@@ -1,21 +1,21 @@
 #!/usr/bin/env tsx
 
-import { config } from "dotenv";
 import { isRecord, getProp } from "@/utils/common/typeGuards";
 import type { ZodTypeAny } from "zod";
-import logger from "../../src/utils/logger";
 import type { ToolResponse } from "@/utils/toolResponses";
 import { normalizeToToolResponse } from "@/utils/toolResponses";
-config({ path: ".env.local" });
+import type { KnownModule } from "./toolTypes";
 
 export async function runTool(
-  modulePath: string,
-  exportName: string,
-  args?: Record<string, unknown> | undefined,
+  modulePath: KnownModule,
+  opts?: { exportName?: string; args?: Record<string, unknown> },
 ): Promise<unknown> {
+  const logger = (await import("@/utils/logger")).default;
+  const exportName = (opts?.exportName ?? "default") as string;
+  const args = opts?.args;
   const mod = await import(modulePath);
   if (!isRecord(mod)) throw new Error(`Invalid module loaded: ${modulePath}`);
-  const toolCandidate = mod[exportName];
+  const toolCandidate = mod[exportName as string];
   if (
     !isRecord(toolCandidate) ||
     typeof getProp(toolCandidate, "handler") !== "function"
@@ -25,7 +25,21 @@ export async function runTool(
   const handler = getProp(toolCandidate, "handler") as (
     a?: unknown,
   ) => Promise<unknown>;
-  logger.log(`Invoking tool ${exportName} from ${modulePath} with args:`, args);
+  // Redact sensitive fields (e.g., password) before logging invocation args
+  const safeArgs: Record<string, unknown> | undefined = args
+    ? { ...args }
+    : undefined;
+  if (safeArgs && Object.prototype.hasOwnProperty.call(safeArgs, "password")) {
+    try {
+      safeArgs["password"] = "******";
+    } catch {
+      // ignore; logging must not throw
+    }
+  }
+  logger.log(
+    `Invoking tool ${exportName} from ${modulePath} with args:`,
+    safeArgs,
+  );
   const raw = await handler(args ?? {});
   // If the tool provides an outputSchema, validate and print structured
   // output. Otherwise fall back to the legacy ToolResponse normalization.

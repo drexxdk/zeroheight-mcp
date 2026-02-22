@@ -1,6 +1,10 @@
 /// <reference types="vitest/globals" />
-import { vi } from "vitest";
-import { createProgressBar, createProgressHelpers } from "../progress";
+import {
+  createProgressBar,
+  increment,
+  reserve,
+  getProgressSnapshot,
+} from "../progress";
 
 describe("createProgressBar", () => {
   test("renders filled and empty blocks proportionally", () => {
@@ -15,27 +19,21 @@ describe("createProgressBar", () => {
   });
 });
 
-describe("createProgressHelpers", () => {
-  test("markAttempt increments and calls invariant and logger", () => {
-    const progress = { current: 0, total: 2 };
-    const calls: string[] = [];
-    const logger = (m: string): void => {
-      calls.push(m);
-    };
-    const check = vi.fn();
+describe("progress singleton", () => {
+  test("increment increases current and auto-reserves total", () => {
+    // snapshot before
+    const before = getProgressSnapshot();
+    // start one unit of work
+    increment("test-increment");
+    const after = getProgressSnapshot();
+    expect(after.current).toBe(before.current + 1);
+    expect(after.total).toBeGreaterThanOrEqual(after.current);
+  });
 
-    const { markAttempt } = createProgressHelpers({
-      progress,
-      checkProgressInvariant: ({ overallProgress }): void =>
-        check(overallProgress),
-      logger,
-    });
-
-    markAttempt("reason", "⚑", "did a thing");
-
-    expect(progress.current).toBe(1);
-    expect(check).toHaveBeenCalled();
-    expect(calls.length).toBeGreaterThan(0);
-    expect(calls[0]).toContain("did a thing");
+  test("reserve increases total", () => {
+    const before = getProgressSnapshot();
+    reserve(2, "test-reserve");
+    const after = getProgressSnapshot();
+    expect(after.total).toBe(before.total + 2);
   });
 });

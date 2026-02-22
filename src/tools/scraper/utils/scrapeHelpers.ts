@@ -10,6 +10,11 @@ import { tryLogin } from "@/utils/common/scraperHelpers";
 import { extractPageData } from "./pageExtraction";
 import { processPageAndImages } from "./processPageAndImages";
 import { normalizeUrl } from "./prefetch";
+import {
+  reserve as reserveGlobally,
+  incPages as incPagesGlobally,
+  getProgressSnapshot,
+} from "@/utils/common/progress";
 import { config } from "@/utils/config";
 
 type PreExtracted = {
@@ -19,6 +24,15 @@ type PreExtracted = {
   normalizedImages: Array<{ src: string; alt: string }>;
   pageLinks: string[];
 };
+
+export function formatPathForConsole(u: string): string {
+  try {
+    const parsed = new URL(u);
+    return `${parsed.pathname}${parsed.search}` || "/";
+  } catch {
+    return u;
+  }
+}
 
 export async function navigateAndResolveProcessingLink(args: {
   page: Page;
@@ -42,7 +56,6 @@ export async function navigateAndResolveProcessingLink(args: {
     redirects,
     processed,
     formatLinkForConsole,
-    progress,
   } = args;
   // `rootUrl` removed from args list; ensure not referenced below
 
@@ -86,7 +99,17 @@ export async function navigateAndResolveProcessingLink(args: {
         );
       processed.add(processingLink);
       if (processingLink !== link) processed.add(link);
-      if (progress.pagesProcessed !== undefined) progress.pagesProcessed++;
+      // Increment pages processed via singleton and mirror invariant warning.
+      incPagesGlobally();
+      try {
+        const s = getProgressSnapshot();
+        if (s.current > s.total)
+          defaultLogger.warn(
+            `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+          );
+      } catch {
+        // ignore
+      }
       return null;
     }
   } catch {
@@ -191,9 +214,26 @@ export async function extractAndProcessPage(args: {
   }
 
   if (supportedImages.length > 0) {
-    if (overallProgress.total !== undefined)
-      overallProgress.total += supportedImages.length;
-    checkProgressInvariant(overallProgress, "reserve images for page-v2");
+    // Reserve slots in the singleton progress service
+    reserveGlobally(supportedImages.length, "reserve images for page-v2");
+    try {
+      const s = getProgressSnapshot();
+      if (s.current > s.total)
+        checkProgressInvariant(
+          { current: s.current, total: s.total } as unknown as OverallProgress,
+          "reserve images for page-v2",
+        );
+    } catch {
+      // ignore
+    }
+    try {
+      logProgress(
+        "📷",
+        `Reserved ${supportedImages.length} images for ${formatPathForConsole(processingLink)} (+${supportedImages.length})`,
+      );
+    } catch {
+      // best-effort
+    }
   }
 
   const {
@@ -257,7 +297,7 @@ export function postProcessPageResults(args: {
   rootUrl: string;
   hostname: string;
   restrictToSeeds: boolean;
-  enqueueLinks: (links: string[]) => void;
+  enqueueLinks: (links: string[]) => number;
   formatLinkForConsole: (u: string) => string;
   logProgress: (s1: string, s2: string) => void;
   pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
@@ -296,7 +336,6 @@ export function postProcessPageResults(args: {
     uniqueAllImageUrls,
     uniqueAllowedImageUrls,
     uniqueUnsupportedImageUrls,
-    progress,
     processed,
   } = args;
 
@@ -310,11 +349,18 @@ export function postProcessPageResults(args: {
         return false;
       }
     });
-  logProgress(
-    "🔗",
-    `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}`,
-  );
-  if (!restrictToSeeds) enqueueLinks(allowed);
+  if (!restrictToSeeds) {
+    const added = enqueueLinks(allowed);
+    logProgress(
+      "🔗",
+      `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}${added ? ` (+${added})` : ""}`,
+    );
+  } else {
+    logProgress(
+      "🔗",
+      `Discovered ${allowed.length} links on ${formatLinkForConsole(processingLink)}`,
+    );
+  }
 
   updateImageSets(
     uniqueAllImageUrls,
@@ -331,7 +377,16 @@ export function postProcessPageResults(args: {
   imagesStats.skipped += imgStats.skipped || 0;
   imagesStats.failed += imgStats.failed || 0;
 
-  if (progress.pagesProcessed !== undefined) progress.pagesProcessed++;
+  incPagesGlobally();
+  try {
+    const s = getProgressSnapshot();
+    if (s.current > s.total)
+      defaultLogger.warn(
+        `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+      );
+  } catch {
+    // ignore
+  }
   processed.add(processingLink);
   if (processingLink !== pageUpsert.url) processed.add(pageUpsert.url);
   logProgress("✅", `Processed ${formatLinkForConsole(processingLink)}`);
@@ -380,7 +435,7 @@ export async function processLinkForWorker(args: {
   redirects: Map<string, string>;
   processed: Set<string>;
   restrictToSeeds: boolean;
-  enqueueLinks: (links: string[]) => void;
+  enqueueLinks: (links: string[]) => number;
   formatLinkForConsole: (u: string) => string;
   logProgress: (s1: string, s2: string) => void;
   progress: OverallProgress;
@@ -486,17 +541,24 @@ export async function loadExistingImageUrls(
   try {
     // db may be undefined in some test harnesses; guard accordingly
     if (!db) return new Set();
-
-    type FromResult = { data?: unknown };
-    type FromFn = (table: string) => {
-      select: (s: string) => Promise<FromResult>;
-    };
-    if (typeof db !== "object" || db === null) return new Set();
-    const fromProp = Reflect.get(db, "from");
-    if (typeof fromProp !== "function") return new Set();
-    const fromFn = fromProp as FromFn;
-    const { data: allExistingImages } =
-      await fromFn("images").select("original_url");
+    // Extract DB fetch to helper for readability and testability
+    const allExistingImages = await (async function fetchAllImageRows() {
+      if (typeof db !== "object" || db === null) return undefined;
+      const fromProp = Reflect.get(db, "from");
+      if (typeof fromProp !== "function") return undefined;
+      const fromFn = fromProp as (table: string) => unknown;
+      const fromCall = fromFn.call(db as object, "images") as unknown;
+      const selectFn = Reflect.get(fromCall as object, "select");
+      if (!fromCall || typeof selectFn !== "function") return undefined;
+      const res = await (selectFn as (s: string) => Promise<unknown>).call(
+        fromCall,
+        "original_url",
+      );
+      if (res && typeof res === "object" && "data" in res) {
+        return (res as { data?: unknown }).data;
+      }
+      return res;
+    })();
     const existingArray = Array.isArray(allExistingImages)
       ? allExistingImages.filter((r: unknown) => typeof r === "object")
       : [];
@@ -515,7 +577,9 @@ export async function loadExistingImageUrls(
     if (logger) logger(`Found ${set.size} existing images in database`);
     return set;
   } catch (e) {
-    if (logger) logger(`Failed to load existing images: ${String(e)}`);
+    const msg = e instanceof Error ? (e.stack ?? e.message) : String(e);
+    if (logger) logger(`Failed to load existing images: ${msg}`);
+    defaultLogger.debug("loadExistingImageUrls error:", e);
     return new Set<string>();
   }
 }
@@ -629,6 +693,7 @@ export async function performBulkUpsertSummary(
         providedCount: providedCountVal,
         pagesAnalyzed:
           providedCountVal > 0 ? providedCountVal : totalUniquePages,
+        imagesProcessed: getProgressSnapshot().imagesProcessed || 0,
         insertedCount: insertedCountVal,
         updatedCount: updatedCountVal,
         skippedCount: skippedCountVal,

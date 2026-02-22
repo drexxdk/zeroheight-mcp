@@ -48,7 +48,7 @@ const envSchema = z.object({
 });
 
 // Map normalized raw env to our camelCase shape for zod parsing
-const mapped = {
+const mapped: Record<string, string | undefined> = {
   zeroheightMcpAccessToken: rawEnv.ZEROHEIGHT_MCP_ACCESS_TOKEN,
   supabaseServiceRoleKey: rawEnv.SUPABASE_SERVICE_ROLE_KEY,
   supabaseAccessToken: rawEnv.SUPABASE_ACCESS_TOKEN,
@@ -81,13 +81,43 @@ try {
     parsedEnv = envSchema.parse(mapped);
   }
 } catch (e) {
-  // Provide a clearer error message for missing/invalid envs
+  // Provide a clearer error message for missing/invalid envs.
+  // Map zod paths back to the original UPPERCASE env var names and
+  // obfuscate secrets so the error is actionable but not overly noisy.
   if (e instanceof z.ZodError) {
+    const reverseMap: Record<string, string> = {
+      zeroheightMcpAccessToken: "ZEROHEIGHT_MCP_ACCESS_TOKEN",
+      supabaseServiceRoleKey: "SUPABASE_SERVICE_ROLE_KEY",
+      supabaseAccessToken: "SUPABASE_ACCESS_TOKEN",
+      nextPublicSupabaseUrl: "NEXT_PUBLIC_SUPABASE_URL",
+      zeroheightProjectUrl: "ZEROHEIGHT_PROJECT_URL",
+      zeroheightProjectPassword: "ZEROHEIGHT_PROJECT_PASSWORD",
+    };
+
+    const obfuscate = (v: unknown): string => {
+      if (v === undefined) return "undefined";
+      const s = String(v);
+      // For URLs show the full value (helpful for debugging), but
+      // obfuscate other long secrets to avoid leaking tokens in logs.
+      if (s.includes("://")) return s;
+      if (s.length <= 12) return s;
+      return `${s.slice(0, 4)}…${s.slice(-4)}`;
+    };
+
     const details = (e.issues || [])
-      .map((issue: z.ZodIssue) => `${issue.path.join(".")}: ${issue.message}`)
+      .map((issue: z.ZodIssue) => {
+        const key = String(
+          issue.path?.[0] ?? issue.path.join(".") ?? "unknown",
+        );
+        const envName = reverseMap[key] ?? key;
+        const rawVal = mapped[key];
+        return `${envName}: ${issue.message} (value: ${obfuscate(rawVal)})`;
+      })
       .join("; ");
+
     throw new Error(`Environment validation failed: ${details}`);
   }
+
   throw e;
 }
 
@@ -107,7 +137,7 @@ export const config = {
     seedPrefetchConcurrency: 4,
     pageUpsertChunk: 200,
     imageInsertChunk: 500,
-    debug: false,
+    debug: true,
     imageConcurrency: 4,
     prefetch: {
       waitMs: 400,

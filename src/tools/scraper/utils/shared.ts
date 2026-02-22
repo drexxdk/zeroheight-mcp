@@ -8,8 +8,5 @@ export interface PageData {
     storage_path: string;
   }> | null;
 }
-export {
-  createProgressBar,
-  createProgressHelpers,
-} from "@/utils/common/progress";
+export { createProgressBar } from "@/utils/common/progress";
 export type { Progress } from "@/utils/common/progress";

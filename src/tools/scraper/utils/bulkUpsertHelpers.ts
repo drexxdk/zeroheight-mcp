@@ -2,7 +2,9 @@ import { isRecord, getProp } from "../../../utils/common/typeGuards";
 import { toErrorObj } from "@/utils/common/errorUtils";
 import logger from "@/utils/logger";
 import { config } from "@/utils/config";
+import { safeSerialize } from "@/utils/common/safeSerializer";
 import type { ImagesType } from "@/database.types";
+import { getProgressSnapshot } from "@/utils/common/progress";
 
 export async function queryExistingPages(
   db: unknown,
@@ -12,8 +14,9 @@ export async function queryExistingPages(
     if (typeof db !== "object" || db === null) return new Set();
     const fromProp = Reflect.get(db as object, "from");
     if (typeof fromProp !== "function") return new Set();
+    // Call with `db` as this to preserve internal client state
     const fromFn = fromProp as (table: string) => unknown;
-    const pagesFrom = fromFn("pages") as unknown;
+    const pagesFrom = fromFn.call(db as object, "pages") as unknown;
     const selectFn = Reflect.get(pagesFrom as object, "select");
     if (typeof selectFn !== "function") return new Set();
     const selectRes = (selectFn as (s: string) => Promise<unknown>).call(
@@ -62,8 +65,9 @@ export async function insertImageChunks(
   const insertedOriginalUrls = new Set<string>();
   if (!db) return { insertedCountTotal, insertedOriginalUrls };
 
-  for (let i = 0; i < dedupImagesToInsert.length; i += imageChunkSize) {
-    const chunk = dedupImagesToInsert.slice(i, i + imageChunkSize);
+  async function performChunkInsert(
+    chunk: typeof dedupImagesToInsert,
+  ): Promise<{ count: number; urls: Set<string> }> {
     let attempts = 0;
     while (attempts < retryCfg.maxAttempts) {
       attempts += 1;
@@ -73,17 +77,23 @@ export async function insertImageChunks(
         const fromProp = Reflect.get(db as object, "from");
         if (typeof fromProp !== "function")
           throw new Error("DB client missing from()");
-        const insertFn = (
-          fromProp as (table: string) => {
-            insert: (rows: unknown) => {
-              select: (s: string) => Promise<unknown>;
-            };
-          }
-        )("images");
-        const res = (await insertFn
-          .insert(chunk)
-          .select("id, original_url")) as unknown;
+        const fromFn = fromProp as (table: string) => unknown;
+        const imagesFrom = fromFn.call(db as object, "images") as unknown;
+        const insertFn = Reflect.get(imagesFrom as object, "insert");
+        if (typeof insertFn !== "function") throw new Error("insert missing");
+        const insertRes = await (
+          insertFn as (rows: unknown) => Promise<unknown>
+        ).call(imagesFrom, chunk);
+        const selectFn = Reflect.get(insertRes as object, "select");
+        const res =
+          typeof selectFn === "function"
+            ? await (selectFn as (s: string) => Promise<unknown>).call(
+                insertRes,
+                "id, original_url",
+              )
+            : insertRes;
         const maybeInsert = res;
+        const urls = new Set<string>();
         if (isRecord(maybeInsert)) {
           const insertError = getProp(maybeInsert, "error");
           if (insertError) throw insertError;
@@ -92,12 +102,12 @@ export async function insertImageChunks(
             for (const row of maybeData) {
               if (!isRecord(row)) continue;
               const orig = getProp(row, "original_url");
-              if (typeof orig === "string") insertedOriginalUrls.add(orig);
+              if (typeof orig === "string") urls.add(orig);
             }
-            insertedCountTotal += maybeData.length;
+            return { count: maybeData.length, urls };
           }
         }
-        break;
+        return { count: 0, urls };
       } catch (err) {
         if (attempts >= retryCfg.maxAttempts) {
           logger.error("Failed inserting image chunk after retries:", err);
@@ -108,7 +118,16 @@ export async function insertImageChunks(
         );
       }
     }
+    return { count: 0, urls: new Set() };
   }
+
+  for (let i = 0; i < dedupImagesToInsert.length; i += imageChunkSize) {
+    const chunk = dedupImagesToInsert.slice(i, i + imageChunkSize);
+    const res = await performChunkInsert(chunk);
+    insertedCountTotal += res.count;
+    for (const u of res.urls) insertedOriginalUrls.add(u);
+  }
+
   return { insertedCountTotal, insertedOriginalUrls };
 }
 
@@ -165,19 +184,24 @@ export async function upsertPages(
           const fromProp = Reflect.get(dbClient as object, "from");
           if (typeof fromProp !== "function")
             throw new Error("DB client missing from()");
-          const pagesFrom = fromProp("pages");
+          const fromFn = fromProp as (table: string) => unknown;
+          const pagesFrom = fromFn.call(dbClient as object, "pages");
           const upsertCaller = Reflect.get(pagesFrom as object, "upsert");
           if (typeof upsertCaller !== "function")
             throw new Error("DB client missing upsert()");
           const upsertCallResult = (
-            upsertCaller as (rows: unknown, opts?: unknown) => unknown
-          )(chunk, { onConflict: "url" });
+            upsertCaller as (
+              this: unknown,
+              rows: unknown,
+              opts?: unknown,
+            ) => unknown
+          ).call(pagesFrom, chunk, { onConflict: "url" });
           const selectFn = Reflect.get(upsertCallResult as object, "select");
           if (typeof selectFn !== "function")
             throw new Error("DB upsert result missing select()");
-          const upsertRes = await (selectFn as (s: string) => Promise<unknown>)(
-            "id, url",
-          );
+          const upsertRes = await (
+            selectFn as (s: string) => Promise<unknown>
+          ).call(upsertCallResult, "id, url");
           chunkResult = await normalizeUpsertResult(upsertRes as unknown);
           if (chunkResult && !chunkResult.error) break;
         } else {
@@ -202,9 +226,14 @@ export async function upsertPages(
   for (let i = 0; i < uniquePages.length; i += pageChunkSize) {
     const chunk = uniquePages.slice(i, i + pageChunkSize);
     const chunkResult = await performUpsertChunk(db, chunk, i, dryRun);
-    if (chunkResult && Array.isArray(chunkResult.data))
-      upsertedPagesAll.push(...chunkResult.data);
-    else if (chunkResult?.error)
+    if (chunkResult && Array.isArray(chunkResult.data)) {
+      // Defensively filter out any non-object/undefined entries
+      const safe = chunkResult.data.filter(
+        (it: unknown): it is { id?: number; url?: string } =>
+          typeof it === "object" && it !== null,
+      );
+      upsertedPagesAll.push(...safe);
+    } else if (chunkResult?.error)
       logger.error("Error bulk upserting pages chunk:", chunkResult.error);
   }
 
@@ -222,7 +251,7 @@ export async function getDbExistingImageUrls(
     const fromProp = Reflect.get(db as object, "from");
     if (typeof fromProp !== "function") return dbExistingImageUrls;
     const fromFn = fromProp as (table: string) => unknown;
-    const imagesFrom = fromFn("images") as unknown;
+    const imagesFrom = fromFn.call(db as object, "images") as unknown;
     const selectFn = Reflect.get(imagesFrom as object, "select");
     if (typeof selectFn !== "function") return allExistingImageUrls;
     const selectRes = (selectFn as (s: string) => Promise<unknown>).call(
@@ -283,7 +312,7 @@ export async function computeImagesAlreadyAssociatedCount(
         const fromProp = Reflect.get(db as object, "from");
         if (typeof fromProp !== "function") continue;
         const fromFn = fromProp as (table: string) => unknown;
-        const imagesFrom = fromFn("images") as unknown;
+        const imagesFrom = fromFn.call(db as object, "images") as unknown;
         const selFn = Reflect.get(imagesFrom as object, "select");
         if (typeof selFn !== "function") continue;
         const selectRes = (selFn as (s: string) => unknown).call(
@@ -320,9 +349,66 @@ export async function computeImagesAlreadyAssociatedCount(
   return imagesAlreadyAssociatedCount;
 }
 
+async function fetchDbRowsForIntersection(
+  db: unknown,
+  intersection: string[],
+): Promise<unknown | null> {
+  try {
+    if (typeof db !== "object" || db === null) return null;
+    const fromProp = Reflect.get(db as object, "from");
+    if (typeof fromProp !== "function") return null;
+    const fromFn = fromProp as (this: unknown, table: string) => unknown;
+    const imagesFrom = fromFn.call(db as object, "images") as unknown;
+    const selectFn = Reflect.get(imagesFrom as object, "select");
+    if (typeof selectFn !== "function") throw new Error("select missing");
+    const selectRes = (selectFn as (s: string) => unknown).call(
+      imagesFrom,
+      "id, original_url, created_at",
+    );
+    const inFn = Reflect.get(selectRes as object, "in");
+    const withIn =
+      inFn && typeof inFn === "function"
+        ? await (inFn as (k: string, v: unknown) => Promise<unknown>).call(
+            selectRes,
+            "original_url",
+            intersection,
+          )
+        : await (selectRes as Promise<unknown>);
+
+    // Only call `order` if the result of the `in` call (or the original
+    // select builder) exposes an `order` function. Some backends/clients may
+    // return concrete data at this point instead of a chainable builder; in
+    // that case we must not attempt to call `order` on the data object.
+    const orderFnOnWithIn = Reflect.get(withIn as object, "order");
+    const withOrder =
+      orderFnOnWithIn && typeof orderFnOnWithIn === "function"
+        ? (orderFnOnWithIn as (f: string, opts?: unknown) => unknown).call(
+            withIn,
+            "created_at",
+            { ascending: false },
+          )
+        : withIn;
+
+    // Similarly only call `limit` if the previous step returned a chainable
+    // builder exposing a `limit` function.
+    const limitFnOnWithOrder = Reflect.get(withOrder as object, "limit");
+    const dbRes =
+      limitFnOnWithOrder && typeof limitFnOnWithOrder === "function"
+        ? await (limitFnOnWithOrder as (n: number) => Promise<unknown>).call(
+            withOrder,
+            config.scraper.db.inspectLimit,
+          )
+        : (withOrder as unknown);
+    return dbRes;
+  } catch (err) {
+    throw err;
+  }
+}
+
 export type SummaryParams = Readonly<{
   providedCount: number;
   pagesAnalyzed: number;
+  imagesProcessed: number;
   insertedCount: number;
   updatedCount: number;
   skippedCount: number;
@@ -377,8 +463,20 @@ export function buildSummaryParams(opts: {
   const updatedCount = existingCount;
   const skippedCount =
     providedCount > 0 ? Math.max(0, providedCount - totalUniquePages) : 0;
+  const progressSnap = getProgressSnapshot();
   const pagesAnalyzed =
-    providedCount > 0 ? providedCount : totalUniquePages + pagesFailed;
+    typeof progressSnap.pagesProcessed === "number" &&
+    progressSnap.pagesProcessed > 0
+      ? progressSnap.pagesProcessed
+      : providedCount > 0
+        ? providedCount
+        : totalUniquePages + pagesFailed;
+
+  const imagesProcessed =
+    typeof progressSnap.imagesProcessed === "number" &&
+    progressSnap.imagesProcessed > 0
+      ? progressSnap.imagesProcessed
+      : imagesStats.processed || 0;
 
   const imagesUploadedCount = imagesStats.uploaded;
   const imagesDbInsertedCount = insertedCountTotal;
@@ -392,6 +490,7 @@ export function buildSummaryParams(opts: {
   return {
     providedCount,
     pagesAnalyzed,
+    imagesProcessed,
     insertedCount,
     updatedCount,
     skippedCount,
@@ -431,60 +530,51 @@ export async function inspectDbForIntersection(
     // If we have intersection URLs, fetch DB rows for inspection (up to configured limit)
     if (intersection.length > 0 && db) {
       try {
-        const fromProp = Reflect.get(db as object, "from");
-        if (typeof fromProp === "function") {
-          const fromFn = fromProp as (table: string) => unknown;
-          const imagesFrom = fromFn("images") as unknown;
-          const selectFn = Reflect.get(imagesFrom as object, "select");
-          if (typeof selectFn !== "function") throw new Error("select missing");
-          const selectRes = (selectFn as (s: string) => unknown).call(
-            imagesFrom,
-            "id, original_url, created_at",
+        const maybeDbData = await fetchDbRowsForIntersection(db, intersection);
+        if (isRecord(maybeDbData)) {
+          const maybeData = getProp(maybeDbData, "data");
+          logger.debug(
+            `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
+              Array.isArray(maybeData)
+                ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
+                : [],
+              null,
+              2,
+            )}`,
           );
-          const inFn = Reflect.get(selectRes as object, "in");
-          const orderFn = Reflect.get(selectRes as object, "order");
-          const limitFn = Reflect.get(selectRes as object, "limit");
-          const withIn =
-            inFn && typeof inFn === "function"
-              ? await (
-                  inFn as (k: string, v: unknown) => Promise<unknown>
-                ).call(selectRes, "original_url", intersection)
-              : await (selectRes as Promise<unknown>);
-          const withOrder =
-            orderFn && typeof orderFn === "function"
-              ? (orderFn as (f: string, opts?: unknown) => unknown).call(
-                  withIn,
-                  "created_at",
-                  { ascending: false },
-                )
-              : withIn;
-          const dbRes =
-            limitFn && typeof limitFn === "function"
-              ? await (limitFn as (n: number) => Promise<unknown>).call(
-                  withOrder,
-                  config.scraper.db.inspectLimit,
-                )
-              : (withOrder as unknown);
-          const maybeDbData = dbRes;
-          if (isRecord(maybeDbData)) {
-            const maybeData = getProp(maybeDbData, "data");
-            logger.debug(
-              `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
-                Array.isArray(maybeData)
-                  ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
-                  : [],
-                null,
-                2,
-              )}`,
-            );
-          } else {
-            logger.debug(
-              ` [debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
-            );
-          }
+        } else {
+          logger.debug(
+            ` [debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
+          );
         }
       } catch (err) {
-        logger.debug(`[debug] DB inspection error: ${String(err)}`);
+        (function handleDbInspectError(e: unknown) {
+          if (config.scraper.debug) {
+            try {
+              const msg =
+                e && typeof e === "object" && "message" in e
+                  ? String((e as { message?: unknown }).message ?? String(e))
+                  : String(e);
+              const stack =
+                e && typeof e === "object" && "stack" in e
+                  ? String((e as { stack?: unknown }).stack ?? "")
+                  : undefined;
+              const details = safeSerialize(e, {
+                maxDepth: 4,
+                showErrorStack: false,
+              });
+              logger.debug(
+                `[debug] DB inspection error: ${msg}${stack ? `\n${stack}` : ""}\n${details}`,
+              );
+            } catch {
+              logger.debug(`[debug] DB inspection error`);
+            }
+          } else {
+            logger.debug(
+              `[debug] DB inspection skipped due to runtime client error`,
+            );
+          }
+        })(err);
       }
     }
 
@@ -609,13 +699,11 @@ export async function performImageInsertFlow(opts: {
     await computeImagesAlreadyAssociatedCount(db, imagesFoundArray, pageIdSet);
 
   const debug = config.scraper.debug;
+  // Emit the image-insert diagnostic only at debug level; it is redundant
+  // with the final summary and noisy for normal runs.
   if (debug)
     logger.debug(
       `[debug] image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
-    );
-  else
-    logger.log(
-      `image insert: pendingRecords=${pendingImageRecords.length} imagesToInsert=${imagesToInsert.length} dedup=${dedupImagesToInsert.length} allExisting=${allExistingImageUrls.size}`,
     );
 
   const dbExistingImageUrls = await getDbExistingImageUrls(

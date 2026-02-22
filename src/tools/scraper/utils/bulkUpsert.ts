@@ -157,6 +157,7 @@ export function formatSummaryBox({ p }: { p: SummaryParams }): string[] {
   lines.push("");
   lines.push("");
   lines.push(`Images found: ${p.uniqueTotalImages} (unique)`);
+  lines.push(`Images processed: ${p.imagesProcessed}`);
   lines.push(`Supported images: ${p.uniqueAllowed} (unique)`);
   lines.push(`Unsupported images: ${p.uniqueUnsupported} (unique)`);
   lines.push(`Images uploaded: ${p.imagesUploadedCount}`);
