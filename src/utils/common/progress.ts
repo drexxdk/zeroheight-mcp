@@ -28,6 +28,7 @@ export type ProgressSnapshot = {
   imagesProcessed: number;
   pagesRedirected: number;
   pagesExternalIgnored: number;
+  pagesFailed: number;
 };
 class ProgressService {
   private items = new Map<string, ProgressItem>();
@@ -138,6 +139,7 @@ class ProgressService {
     let imagesProcessed = 0;
     let pagesRedirected = 0;
     let pagesExternalIgnored = 0;
+    let pagesFailed = 0;
     // `current` reflects work that has been started or finished.
     // Count any non-pending item (including `started`) as in-progress/completed.
     let current = 0;
@@ -147,6 +149,7 @@ class ProgressService {
         if (item.status === "processed") pagesProcessed += 1;
         if (item.status === "redirected") pagesRedirected += 1;
         if (item.status === "external") pagesExternalIgnored += 1;
+        if (item.status === "failed") pagesFailed += 1;
       }
       if (item.type === "image" && item.status === "processed")
         imagesProcessed += 1;
@@ -159,6 +162,7 @@ class ProgressService {
       imagesProcessed,
       pagesRedirected,
       pagesExternalIgnored,
+      pagesFailed,
     };
   }
 

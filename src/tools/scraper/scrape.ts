@@ -266,12 +266,6 @@ async function processLinkUnit(
     }>;
     pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
     processedPages: Array<ProcessedPage>;
-    imagesStats: {
-      processed: number;
-      uploaded: number;
-      skipped: number;
-      failed: number;
-    };
 
     allExistingImageUrls: Set<string>;
     loggedInHostnames: Set<string>;
@@ -324,7 +318,6 @@ async function processLinkUnit(
           pendingImageRecords: opts.pendingImageRecords,
           pagesToUpsert: opts.pagesToUpsert,
           processedPages: opts.processedPages,
-          imagesStats: opts.imagesStats,
           allExistingImageUrls: opts.allExistingImageUrls,
           loggedInHostnames: opts.loggedInHostnames,
           redirects: opts.redirects,
@@ -378,12 +371,7 @@ async function runWorkerForScrape(options: {
   pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
   processedPages: Array<ProcessedPage>;
   onPageError?: (link: string, err: unknown) => void;
-  imagesStats: {
-    processed: number;
-    uploaded: number;
-    skipped: number;
-    failed: number;
-  };
+  // imagesStats removed; image counters derived from progress items
 
   allExistingImageUrls: Set<string>;
   loggedInHostnames: Set<string>;
@@ -423,7 +411,6 @@ async function runWorkerForScrape(options: {
           pendingImageRecords: options.pendingImageRecords,
           pagesToUpsert: options.pagesToUpsert,
           processedPages: options.processedPages,
-          imagesStats: options.imagesStats,
           allExistingImageUrls: options.allExistingImageUrls,
           loggedInHostnames: options.loggedInHostnames,
           redirects: options.redirects,
@@ -469,12 +456,7 @@ async function startWorkersForScrape(options: {
   }>;
   pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
   processedPages: Array<ProcessedPage>;
-  imagesStats: {
-    processed: number;
-    uploaded: number;
-    skipped: number;
-    failed: number;
-  };
+  // imagesStats removed; image counters derived from progress items
 
   allExistingImageUrls: Set<string>;
   loggedInHostnames: Set<string>;
@@ -504,7 +486,6 @@ async function startWorkersForScrape(options: {
         pendingImageRecords: options.pendingImageRecords,
         pagesToUpsert: options.pagesToUpsert,
         processedPages: options.processedPages,
-        imagesStats: options.imagesStats,
         allExistingImageUrls: options.allExistingImageUrls,
         loggedInHostnames: options.loggedInHostnames,
         redirects: options.redirects,
@@ -682,8 +663,7 @@ export async function scrape({
       original_url: ImagesType["original_url"];
       storage_path: ImagesType["storage_path"];
     }> = [];
-    const imagesStats = { processed: 0, uploaded: 0, skipped: 0, failed: 0 };
-    let pagesFailed = 0;
+    // pagesFailed is derived from the progress service snapshot at finalization.
 
     const processedPages: Array<ProcessedPage> = [];
 
@@ -791,7 +771,6 @@ export async function scrape({
       pendingImageRecords,
       pagesToUpsert,
       processedPages,
-      imagesStats,
       allExistingImageUrls,
       loggedInHostnames,
       redirects,
@@ -812,7 +791,8 @@ export async function scrape({
         lastActivity = Date.now();
       },
       onPageError: (link: string, err: unknown) => {
-        pagesFailed++;
+        // Do not increment `pagesFailed` here; the progress service tracks per-page
+        // `failed` status and the final snapshot will include the accurate count.
         if (logger)
           logger(
             `Error processing ${formatUrlForConsole(link)}: ${String(err)}`,
@@ -839,11 +819,28 @@ export async function scrape({
     // Finalize: bulk upsert, close browser, return result
     // Use end-of-run snapshot as the source of truth for processed counts.
     const finalSnap = getProgressSnapshot();
+    // Derive final image stats from progress items so the ProgressService is
+    // the single source of truth for image outcomes.
+    const items = getItems();
+    const imageItems = items.filter((it) => it.type === "image");
+    const imagesUploaded = imageItems.filter(
+      (i) => i.reason === "uploaded",
+    ).length;
+    const imagesSkipped = imageItems.filter(
+      (i) =>
+        i.status === "skipped" ||
+        i.reason === "unsupported" ||
+        i.reason === "already_present" ||
+        i.reason === "duplicate",
+    ).length;
+    const imagesFailed = imageItems.filter(
+      (i) => i.status === "failed" || i.reason === "failed",
+    ).length;
     const finalImagesStats = {
       processed: finalSnap.imagesProcessed,
-      uploaded: imagesStats.uploaded,
-      skipped: imagesStats.skipped,
-      failed: imagesStats.failed,
+      uploaded: imagesUploaded,
+      skipped: imagesSkipped,
+      failed: imagesFailed,
     };
     return await finalizeScrape({
       pagesToUpsert,
@@ -852,7 +849,7 @@ export async function scrape({
       // database state at start-of-run.
       allExistingImageUrls: preExistingImageUrls,
       imagesStats: finalImagesStats,
-      pagesFailed,
+      pagesFailed: finalSnap.pagesFailed,
       providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
       logger,
       browser,

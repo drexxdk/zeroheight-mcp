@@ -398,12 +398,6 @@ export function postProcessPageResults(args: {
   logProgress: (s1: string, s2: string) => void;
   pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
   processedPages: Array<Record<string, unknown>>;
-  imagesStats: {
-    processed: number;
-    uploaded: number;
-    skipped: number;
-    failed: number;
-  };
   // image sets removed - progress items are the source of truth
   // allExistingImageUrls not required here
   progress: OverallProgress;
@@ -426,7 +420,6 @@ export function postProcessPageResults(args: {
     logProgress,
     pagesToUpsert,
     processedPages,
-    imagesStats,
     // removed
     processed,
   } = args;
@@ -462,10 +455,8 @@ export function postProcessPageResults(args: {
 
   pagesToUpsert.push(pageUpsert);
   processedPages.push(processedPageEntry);
-  imagesStats.processed += imgStats.processed || 0;
-  imagesStats.uploaded += imgStats.uploaded || 0;
-  imagesStats.skipped += imgStats.skipped || 0;
-  imagesStats.failed += imgStats.failed || 0;
+  // Image counters (processed/uploaded/skipped/failed) are derived from
+  // the progress items at finalization. Do not update a local `imagesStats` here.
 
   // Upsert the page item as processed
   try {
@@ -537,12 +528,6 @@ export async function processLinkForWorker(args: {
   }>;
   pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
   processedPages: Array<Record<string, unknown>>;
-  imagesStats: {
-    processed: number;
-    uploaded: number;
-    skipped: number;
-    failed: number;
-  };
   // image sets removed - compute categories from progress items instead
   allExistingImageUrls: Set<string>;
   loggedInHostnames: Set<string>;
@@ -565,7 +550,7 @@ export async function processLinkForWorker(args: {
     pendingImageRecords,
     pagesToUpsert,
     processedPages,
-    imagesStats,
+    // imagesStats removed; derive final image counters from progress items
     // removed
     allExistingImageUrls,
     loggedInHostnames,
@@ -637,7 +622,6 @@ export async function processLinkForWorker(args: {
     logProgress,
     pagesToUpsert,
     processedPages,
-    imagesStats,
     progress,
     processed,
   });
@@ -879,6 +863,34 @@ function computeFallbackSummary(args: {
       ? uniqueUnsupported.size
       : Math.max(0, derivedUniqueTotalImages - uniqueAllowedCount);
 
+  // Derive precise image outcome counts from the progress items so the
+  // summary is authoritative and not dependent on local image counters.
+  const items = getItems();
+  const imageItems = items.filter((i) => i.type === "image");
+  const uploadedCount = imageItems.filter(
+    (i) => i.reason === "uploaded",
+  ).length;
+  const skippedUniqueCount = Array.from(
+    new Set(
+      imageItems
+        .filter(
+          (i) => i.reason === "already_present" || i.reason === "duplicate",
+        )
+        .map((i) => i.url),
+    ),
+  ).length;
+  const failedCount = imageItems.filter((i) => {
+    // Treat known non-failure reasons as non-failures; everything else is a failure
+    const r = i.reason || "";
+    return (
+      r !== "uploaded" &&
+      r !== "already_present" &&
+      r !== "duplicate" &&
+      r !== "unsupported" &&
+      r !== "invalid"
+    );
+  }).length;
+
   const params: SummaryParams = {
     providedCount: providedCountVal,
     pagesAnalyzed: providedCountVal > 0 ? providedCountVal : totalUniquePages,
@@ -891,11 +903,9 @@ function computeFallbackSummary(args: {
     uniqueTotalImages: derivedUniqueTotalImages,
     uniqueUnsupported: uniqueUnsupportedCount,
     uniqueAllowed: uniqueAllowedCount,
-    imagesUploadedCount: imagesStats.uploaded,
-    uniqueSkipped: Array.from(uniqueAllowed).filter((u) =>
-      allExistingImageUrls.has(u),
-    ).length,
-    imagesFailed: imagesStats.failed,
+    imagesUploadedCount: uploadedCount,
+    uniqueSkipped: skippedUniqueCount,
+    imagesFailed: failedCount,
     imagesDbInsertedCount: pendingImageRecords.length,
     imagesAlreadyAssociatedCount: Array.from(uniqueAllowed).filter((u) =>
       allExistingImageUrls.has(u),

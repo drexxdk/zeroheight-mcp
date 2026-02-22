@@ -110,13 +110,19 @@ export async function processImagesForPage(options: {
           const key = normalizeImageUrl
             ? normalizeImageUrl({ src: String(img.src || "") })
             : String(img.src || "");
-          upsertItem({ url: key, type: "image", status: "processed" });
+          upsertItem({
+            url: key,
+            type: "image",
+            status: "processed",
+            reason: "invalid",
+          });
         } catch {
           try {
             upsertItem({
               url: String(img.src || ""),
               type: "image",
               status: "processed",
+              reason: "invalid",
             });
           } catch {
             // best-effort
@@ -142,6 +148,7 @@ export async function processImagesForPage(options: {
             url: normalizedSrc,
             type: "image",
             status: "processed",
+            reason: "already_present",
           });
         } catch {
           // best-effort
@@ -168,6 +175,7 @@ export async function processImagesForPage(options: {
             url: normalizedSrc,
             type: "image",
             status: "processed",
+            reason: "duplicate",
           });
         } catch {
           // best-effort
@@ -207,10 +215,21 @@ export async function processImagesForPage(options: {
         // increment the global counter the first time we encounter this
         // normalized URL across the entire scraper run.
         try {
+          // Derive a concise reason for the processed state so summary
+          // derivation can be exact. Prefer explicit outcomes when
+          // available.
+          const processedReason = result
+            ? result.uploaded
+              ? "uploaded"
+              : result.error
+                ? String(result.error)
+                : "failed"
+            : "failed";
           upsertItem({
             url: normalizedSrc,
             type: "image",
             status: "processed",
+            reason: processedReason,
           });
         } catch {
           // best-effort
