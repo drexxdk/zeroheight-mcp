@@ -10,6 +10,7 @@ import {
   increment,
   incImages,
   getProgressSnapshot,
+  markImageProcessed,
 } from "@/utils/common/progress";
 import { formatPathForConsole } from "./scrapeHelpers";
 
@@ -111,7 +112,12 @@ export async function processImagesForPage(options: {
       if (!(img.src && img.src.startsWith("http"))) {
         logProgress("❌", `Invalid image source: ${img.src.split("/").pop()}`);
         // Count this image as processed (it consumed a reserved slot)
-        incImages();
+        // Delegate uniqueness/counting to the central ProgressService.
+        try {
+          markImageProcessed(String(img.src || ""));
+        } catch {
+          incImages();
+        }
         try {
           const s = getProgressSnapshot();
           if (s.current > s.total)
@@ -127,7 +133,11 @@ export async function processImagesForPage(options: {
       const normalizedSrc = normalizeImageUrl({ src: img.src });
       if (allExistingImageUrls.has(normalizedSrc)) {
         logProgress("🚫", "Skipping image - already processed");
-        incImages();
+        try {
+          markImageProcessed(normalizedSrc);
+        } catch {
+          incImages();
+        }
         try {
           const s = getProgressSnapshot();
           if (s.current > s.total)
@@ -145,7 +155,11 @@ export async function processImagesForPage(options: {
       // uploads.
       if (inProgress.has(normalizedSrc)) {
         logProgress("⏭️", "Skipping duplicate image in-progress");
-        incImages();
+        try {
+          markImageProcessed(normalizedSrc);
+        } catch {
+          incImages();
+        }
         try {
           const s = getProgressSnapshot();
           if (s.current > s.total)
@@ -177,8 +191,14 @@ export async function processImagesForPage(options: {
         // Ensure we release the in-progress lock so other occurrences can be
         // considered (they will now see the URL in `allExistingImageUrls`).
         inProgress.delete(normalizedSrc);
-        // Count this image as completed (success, skip, or failure)
-        incImages();
+        // Count this image as completed (success, skip, or failure) — only
+        // increment the global counter the first time we encounter this
+        // normalized URL across the entire scraper run.
+        try {
+          markImageProcessed(normalizedSrc);
+        } catch {
+          incImages();
+        }
       }
       if (result && result.uploaded)
         return { processed: 1, uploaded: 1, skipped: 0, failed: 0 };

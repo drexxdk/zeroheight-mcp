@@ -19,6 +19,9 @@ class ProgressService {
 
   // last values printed to console — we never print a lower value than these
   private lastPrinted = { current: 0, total: 0 };
+  // Track normalized image URLs that have been counted so far so the
+  // ProgressService is the single source of truth for image counts.
+  private processedImageUrls = new Set<string>();
 
   // public API -----------------------------------------------------------
   getCurrent(): number {
@@ -76,6 +79,21 @@ class ProgressService {
     if (n <= 0) return;
     this.state.imagesProcessed += n;
     this.print("📷", `Images processed ${this.state.imagesProcessed}`);
+  }
+
+  // Mark a normalized image URL as processed. Returns true if this call
+  // caused the global images counter to increase (i.e. the URL was seen
+  // for the first time), otherwise false.
+  markImageProcessed(url: string): boolean {
+    if (!url) return false;
+    try {
+      if (this.processedImageUrls.has(url)) return false;
+      this.processedImageUrls.add(url);
+      this.incImages(1);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   snapshot(): ProgressSnapshot {
@@ -154,6 +172,8 @@ export const reserve = (n = 1, reason?: string): void =>
 export const increment = (context?: string): void => service.start(context);
 export const incPages = (n = 1): void => service.incPages(n);
 export const incImages = (n = 1): void => service.incImages(n);
+export const markImageProcessed = (url: string): boolean =>
+  service.markImageProcessed(url);
 export const getProgressSnapshot = (): ProgressSnapshot => service.snapshot();
 
 export default service;

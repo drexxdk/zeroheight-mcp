@@ -137,7 +137,7 @@ export const config = {
     seedPrefetchConcurrency: 4,
     pageUpsertChunk: 200,
     imageInsertChunk: 500,
-    debug: true,
+    debug: false,
     imageConcurrency: 4,
     prefetch: {
       waitMs: 400,
