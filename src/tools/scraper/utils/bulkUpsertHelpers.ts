@@ -441,6 +441,8 @@ export function buildSummaryParams(opts: {
   insertedOriginalUrls: Set<string>;
   imagesAlreadyAssociatedCount: number;
   dbExistingImageUrls: Set<string>;
+  /** Optional precomputed unique-skipped count to prefer over DB-derived value */
+  uniqueSkippedOverride?: number;
 }): SummaryParams {
   const {
     providedCount,
@@ -483,9 +485,12 @@ export function buildSummaryParams(opts: {
   const uniqueTotalImages = uniqueAllImageUrls.size;
   const uniqueUnsupported = uniqueUnsupportedImageUrls.size;
   const uniqueAllowed = uniqueAllowedImageUrls.size;
-  const uniqueSkipped = Array.from(uniqueAllowedImageUrls).filter(
-    (u) => dbExistingImageUrls.has(u) && !insertedOriginalUrls.has(u),
-  ).length;
+  const uniqueSkipped =
+    typeof opts.uniqueSkippedOverride === "number"
+      ? opts.uniqueSkippedOverride
+      : Array.from(uniqueAllowedImageUrls).filter(
+          (u) => dbExistingImageUrls.has(u) && !insertedOriginalUrls.has(u),
+        ).length;
 
   return {
     providedCount,

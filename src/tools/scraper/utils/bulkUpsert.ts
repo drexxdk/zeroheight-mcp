@@ -13,6 +13,8 @@ import {
   buildSummaryParams,
   SummaryParams,
   performImageInsertFlow,
+  getDbExistingImageUrls,
+  computeImagesAlreadyAssociatedCount,
 } from "./bulkUpsertHelpers";
 
 // Allow either the real Supabase client or a lightweight test stub that
@@ -20,9 +22,6 @@ import {
 // compatible `from` signature, so accept a looser shape here to avoid
 // expensive casting in tests.
 type DbClient = ReturnType<typeof getClient>["client"] | TestDbClient;
-
-// Helper types and inspection helpers were moved to `bulkUpsertHelpers`
-
 export type BulkUpsertResult = { lines: string[] };
 
 export async function bulkUpsertPagesAndImages(options: {
@@ -33,8 +32,8 @@ export async function bulkUpsertPagesAndImages(options: {
     original_url: ImagesType["original_url"];
     storage_path: ImagesType["storage_path"];
   }>;
-  uniqueAllowedImageUrls: Set<string>;
   uniqueAllImageUrls: Set<string>;
+  uniqueAllowedImageUrls: Set<string>;
   uniqueUnsupportedImageUrls: Set<string>;
   allExistingImageUrls: Set<string>;
   imagesStats: {
@@ -118,11 +117,63 @@ export async function bulkUpsertPagesAndImages(options: {
   });
 
   const {
-    insertedCountTotal,
     insertedOriginalUrls,
     dbExistingImageUrls,
     imagesAlreadyAssociatedCount,
   } = imageInsertRes;
+
+  // Normalize inserted original URLs to canonical form used for DB comparisons
+  const normalizedInsertedOriginals = new Set<string>();
+  for (const val of insertedOriginalUrls) {
+    try {
+      const u = new URL(String(val));
+      normalizedInsertedOriginals.add(
+        `${u.protocol}//${u.hostname}${u.pathname}`,
+      );
+    } catch {
+      normalizedInsertedOriginals.add(String(val));
+    }
+  }
+
+  // Re-query the DB for existing allowed image URLs after the insert
+  // to get the authoritative post-run set.
+  const dbExistingAfterInsert = await getDbExistingImageUrls(
+    db,
+    uniqueAllowedImageUrls,
+    allExistingImageUrls,
+  );
+
+  // Compute unique images skipped based on the pre-run snapshot (`allExistingImageUrls`).
+  // If the post-insert DB state indicates that the only existing rows are the
+  // ones we just inserted (i.e. postCount === normalizedInsertedOriginals.size),
+  // prefer 0 skipped since the DB was effectively empty before the run.
+  const preRunIntersection = Array.from(uniqueAllowedImageUrls).filter((u) =>
+    allExistingImageUrls.has(u),
+  ).length;
+  const postRunIntersection = Array.from(uniqueAllowedImageUrls).filter((u) =>
+    dbExistingAfterInsert.has(u),
+  ).length;
+
+  let uniqueSkippedOverride = preRunIntersection;
+  if (
+    postRunIntersection === normalizedInsertedOriginals.size &&
+    postRunIntersection > 0
+  ) {
+    // The DB after insert only contains what we just added -> pre-run was empty
+    uniqueSkippedOverride = 0;
+  }
+
+  // Compute associations before (we already had this value from imageInsertRes)
+  const existingAssocBefore = imagesAlreadyAssociatedCount;
+  // Compute associations after insertion and take the delta as new associations
+  const pageIdSet = new Set<number>(Array.from(urlToId.values()));
+  const existingAssocAfter = await computeImagesAlreadyAssociatedCount(
+    db,
+    Array.from(uniqueAllowedImageUrls),
+    pageIdSet,
+  );
+  const newAssociations = Math.max(0, existingAssocAfter - existingAssocBefore);
+  const imagesDbInsertedCount = newAssociations;
 
   const params = buildSummaryParams({
     providedCount,
@@ -133,11 +184,15 @@ export async function bulkUpsertPagesAndImages(options: {
     uniqueUnsupportedImageUrls,
     uniqueAllowedImageUrls,
     imagesStats,
-    insertedCountTotal,
+    insertedCountTotal: imagesDbInsertedCount,
     insertedOriginalUrls,
-    imagesAlreadyAssociatedCount,
+    // Report the pre-run associated count so the summary shows how many
+    // associations already existed before this run started.
+    imagesAlreadyAssociatedCount: existingAssocBefore,
     dbExistingImageUrls,
+    uniqueSkippedOverride,
   });
+
   const out = formatSummaryBox({ p: params });
   return { lines: out };
 }

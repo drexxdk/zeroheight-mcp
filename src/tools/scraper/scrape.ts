@@ -749,7 +749,12 @@ export async function scrape({
 
     const { client: db } = getClient();
     const loggedInHostnames = new Set<string>();
-    const allExistingImageUrls = await loadExistingImageUrls(db, logger);
+    // Load a pre-run snapshot of existing image URLs and keep an immutable
+    // copy (`preExistingImageUrls`) to use for summary calculations. Create a
+    // mutable copy (`allExistingImageUrls`) that workers may add to during the
+    // run to prevent duplicate uploads.
+    const preExistingImageUrls = await loadExistingImageUrls(db, logger);
+    const allExistingImageUrls = new Set(preExistingImageUrls);
 
     await prepareSeedsForScrape({
       browser,
@@ -831,7 +836,9 @@ export async function scrape({
       uniqueAllowedImageUrls,
       uniqueAllImageUrls,
       uniqueUnsupportedImageUrls,
-      allExistingImageUrls,
+      // Pass the immutable pre-run snapshot so the summary reflects the
+      // database state at start-of-run.
+      allExistingImageUrls: preExistingImageUrls,
       imagesStats,
       pagesFailed,
       providedCount: pageUrls && pageUrls.length > 0 ? pageUrls.length : 0,
