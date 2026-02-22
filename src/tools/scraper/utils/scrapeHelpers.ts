@@ -16,6 +16,8 @@ import progressService, {
   getProgressSnapshot,
   upsertItem,
   getItems,
+  markImagePending,
+  markImageUnsupported,
 } from "@/utils/common/progress";
 import { normalizeImageUrl } from "./imageHelpers";
 import { config } from "@/utils/config";
@@ -300,10 +302,7 @@ export async function extractAndProcessPage(args: {
       } catch {
         // fallback to coarse reservation if per-image upserts fail
         try {
-          progressService.reserve(
-            supportedImages.length,
-            "reserve images for page-v2",
-          );
+          progressService.reserve(supportedImages.length, undefined);
         } catch {
           // ignore
         }
@@ -335,7 +334,7 @@ export async function extractAndProcessPage(args: {
   const {
     pageUpsert,
     processedPageEntry,
-    imgStats,
+    imgStats: _imgStats,
     pageLinks: returnedPageLinks,
     normalizedImages: retNorm,
     supportedImages: retSupported,
@@ -363,7 +362,7 @@ export async function extractAndProcessPage(args: {
   return {
     pageUpsert,
     processedPageEntry,
-    imgStats,
+    imgStats: _imgStats,
     returnedPageLinks,
     originalPageLinks: pageLinks,
     retNorm,
@@ -406,7 +405,7 @@ export function postProcessPageResults(args: {
   const {
     pageUpsert,
     processedPageEntry,
-    imgStats,
+    imgStats: _imgStats,
     returnedPageLinks,
     originalPageLinks,
     retNorm,
@@ -490,19 +489,17 @@ export function postProcessPageResults(args: {
       for (const img of retNorm || []) {
         try {
           if (supportedSet.has(img.src)) {
-            upsertItem({
-              url: img.src,
-              type: "image",
-              status: "pending",
-              reason: "supported",
-            });
+            try {
+              markImagePending(img.src);
+            } catch {
+              // best-effort
+            }
           } else {
-            upsertItem({
-              url: img.src,
-              type: "image",
-              status: "skipped",
-              reason: "unsupported",
-            });
+            try {
+              markImageUnsupported(img.src);
+            } catch {
+              // best-effort
+            }
           }
         } catch {
           // best-effort
@@ -833,7 +830,7 @@ function computeFallbackSummary(args: {
     uniqueAllowed,
     uniqueUnsupported,
     allExistingImageUrls,
-    imagesStats,
+    imagesStats: _imagesStats,
     pagesFailed,
     providedCount,
     logger,

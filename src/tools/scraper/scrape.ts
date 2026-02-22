@@ -595,7 +595,7 @@ function makeQueueHelpers(opts: {
       } catch {
         // best-effort fallback to numeric reservation via service
         try {
-          progressService.reserve(added.length, "enqueueLinks:fallback");
+          progressService.reserve(added.length);
         } catch {
           // ignore
         }
@@ -690,7 +690,7 @@ export async function scrape({
             url: `__reserved__${Date.now()}_${Math.floor(Math.random() * 1e9)}`,
             type: "page",
             status: "pending",
-            reason: context,
+            reason: undefined,
           });
         }
       } catch {

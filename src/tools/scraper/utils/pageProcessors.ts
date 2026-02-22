@@ -6,7 +6,15 @@ import { processAndUploadImage } from "./imagePipeline";
 import { mapWithConcurrency } from "./concurrency";
 import { config } from "@/utils/config";
 import logger from "@/utils/logger";
-import { getProgressSnapshot, upsertItem } from "@/utils/common/progress";
+import {
+  getProgressSnapshot,
+  upsertItem,
+  markImageUploaded,
+  markImageAlreadyPresent,
+  markImageDuplicate,
+  markImageInvalid,
+  markImageFailed,
+} from "@/utils/common/progress";
 import { formatPathForConsole } from "./scrapeHelpers";
 
 export type LogProgressFn = (icon: string, message: string) => void;
@@ -110,20 +118,10 @@ export async function processImagesForPage(options: {
           const key = normalizeImageUrl
             ? normalizeImageUrl({ src: String(img.src || "") })
             : String(img.src || "");
-          upsertItem({
-            url: key,
-            type: "image",
-            status: "processed",
-            reason: "invalid",
-          });
+          markImageInvalid(key);
         } catch {
           try {
-            upsertItem({
-              url: String(img.src || ""),
-              type: "image",
-              status: "processed",
-              reason: "invalid",
-            });
+            markImageInvalid(String(img.src || ""));
           } catch {
             // best-effort
           }
@@ -144,12 +142,7 @@ export async function processImagesForPage(options: {
       if (allExistingImageUrls.has(normalizedSrc)) {
         logProgress("🚫", "Skipping image - already processed");
         try {
-          upsertItem({
-            url: normalizedSrc,
-            type: "image",
-            status: "processed",
-            reason: "already_present",
-          });
+          markImageAlreadyPresent(normalizedSrc);
         } catch {
           // best-effort
         }
@@ -171,12 +164,7 @@ export async function processImagesForPage(options: {
       if (inProgress.has(normalizedSrc)) {
         logProgress("⏭️", "Skipping duplicate image in-progress");
         try {
-          upsertItem({
-            url: normalizedSrc,
-            type: "image",
-            status: "processed",
-            reason: "duplicate",
-          });
+          markImageDuplicate(normalizedSrc);
         } catch {
           // best-effort
         }
@@ -218,19 +206,13 @@ export async function processImagesForPage(options: {
           // Derive a concise reason for the processed state so summary
           // derivation can be exact. Prefer explicit outcomes when
           // available.
-          const processedReason = result
-            ? result.uploaded
-              ? "uploaded"
-              : result.error
-                ? String(result.error)
-                : "failed"
-            : "failed";
-          upsertItem({
-            url: normalizedSrc,
-            type: "image",
-            status: "processed",
-            reason: processedReason,
-          });
+          if (result && result.uploaded) {
+            markImageUploaded(normalizedSrc);
+          } else if (result && result.error) {
+            markImageFailed(normalizedSrc, String(result.error));
+          } else {
+            markImageFailed(normalizedSrc);
+          }
         } catch {
           // best-effort
         }

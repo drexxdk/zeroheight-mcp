@@ -12,12 +12,22 @@ export type ItemStatus =
   | "failed"
   | "skipped";
 
+export type Reason =
+  | "uploaded"
+  | "already_present"
+  | "duplicate"
+  | "unsupported"
+  | "invalid"
+  | "failed"
+  | "skipped"
+  | "supported";
+
 export type ProgressItem = {
   url: string; // unique key for the item
   type: ItemType;
   status: ItemStatus;
   finalUrl?: string; // if redirected
-  reason?: string; // failure or external reason
+  reason?: Reason; // failure or external reason
   updatedAt: number;
 };
 
@@ -29,6 +39,16 @@ export type ProgressSnapshot = {
   pagesRedirected: number;
   pagesExternalIgnored: number;
   pagesFailed: number;
+};
+export type ProgressSummary = {
+  totalItems: number;
+  totalImages: number;
+  uniqueAllCount: number;
+  uploadedCount: number;
+  uniqueSkipped: number;
+  failedCount: number;
+  uniqueAllowedCount: number;
+  uniqueUnsupportedCount: number;
 };
 class ProgressService {
   private items = new Map<string, ProgressItem>();
@@ -58,7 +78,7 @@ class ProgressService {
     type: ItemType;
     status: ItemStatus;
     finalUrl?: string;
-    reason?: string;
+    reason?: Reason;
   }): ProgressItem {
     if (!url) throw new Error("url is required for progress item");
     const now = Date.now();
@@ -122,7 +142,7 @@ class ProgressService {
   setItemStatus(
     url: string,
     status: ItemStatus,
-    opts?: { finalUrl?: string; reason?: string; type?: ItemType },
+    opts?: { finalUrl?: string; reason?: Reason; type?: ItemType },
   ): ProgressItem {
     return this.upsertItem({
       url,
@@ -167,7 +187,7 @@ class ProgressService {
   }
 
   // Create reserved placeholder items to mimic previous reserve() behaviour.
-  reserve(n = 1, reason?: string): void {
+  reserve(n = 1, reason?: Reason): void {
     if (n <= 0) return;
     for (let i = 0; i < n; i += 1) {
       const url = `__reserved__${Date.now()}_${this.reservedCounter++}`;
@@ -307,6 +327,123 @@ class ProgressService {
       (a, b) => a.updatedAt - b.updatedAt,
     );
   }
+
+  // Convenience helpers for common image outcomes
+  public markImagePending(url: string): ProgressItem {
+    return this.upsertItem({
+      url,
+      type: "image",
+      status: "pending",
+      reason: "supported",
+    });
+  }
+
+  public markImageUploaded(url: string): ProgressItem {
+    return this.upsertItem({
+      url,
+      type: "image",
+      status: "processed",
+      reason: "uploaded",
+    });
+  }
+
+  public markImageAlreadyPresent(url: string): ProgressItem {
+    return this.upsertItem({
+      url,
+      type: "image",
+      status: "processed",
+      reason: "already_present",
+    });
+  }
+
+  public markImageDuplicate(url: string): ProgressItem {
+    return this.upsertItem({
+      url,
+      type: "image",
+      status: "processed",
+      reason: "duplicate",
+    });
+  }
+
+  public markImageInvalid(url: string): ProgressItem {
+    return this.upsertItem({
+      url,
+      type: "image",
+      status: "processed",
+      reason: "invalid",
+    });
+  }
+
+  public markImageUnsupported(url: string): ProgressItem {
+    return this.upsertItem({
+      url,
+      type: "image",
+      status: "skipped",
+      reason: "unsupported",
+    });
+  }
+
+  public markImageFailed(url: string, err?: string): ProgressItem {
+    // store the error string as the reason when available, otherwise "failed"
+    const reason: Reason = (err && (err as unknown as Reason)) || "failed";
+    return this.upsertItem({ url, type: "image", status: "processed", reason });
+  }
+
+  // Produce a derived summary focused on image outcomes. Keep this small and
+  // authoritative so consumers only call one API when building summaries.
+  public getSummary(): ProgressSummary {
+    const items = Array.from(this.items.values());
+    const imageItems = items.filter((i) => i.type === "image");
+    const uniqueAll = new Set(imageItems.map((i) => i.url));
+    const uploadedCount = imageItems.filter(
+      (i) => i.reason === "uploaded",
+    ).length;
+    const uniqueSkipped = Array.from(
+      new Set(
+        imageItems
+          .filter(
+            (i) => i.reason === "already_present" || i.reason === "duplicate",
+          )
+          .map((i) => i.url),
+      ),
+    ).length;
+    const failedCount = imageItems.filter((i) => {
+      const r = i.reason ?? "";
+      return (
+        r !== "uploaded" &&
+        r !== "already_present" &&
+        r !== "duplicate" &&
+        r !== "unsupported" &&
+        r !== "invalid" &&
+        r !== "supported"
+      );
+    }).length;
+    const uniqueAllowed = new Set(
+      imageItems
+        .filter(
+          (i) =>
+            i.reason === "supported" ||
+            i.reason === "uploaded" ||
+            i.reason === "already_present" ||
+            i.reason === "duplicate",
+        )
+        .map((i) => i.url),
+    );
+    const uniqueUnsupported = Array.from(uniqueAll).filter(
+      (u) => !uniqueAllowed.has(u),
+    ).length;
+
+    return {
+      totalItems: items.length,
+      totalImages: imageItems.length,
+      uniqueAllCount: uniqueAll.size,
+      uploadedCount,
+      uniqueSkipped,
+      failedCount,
+      uniqueAllowedCount: uniqueAllowed.size,
+      uniqueUnsupportedCount: uniqueUnsupported,
+    };
+  }
 }
 
 const service = new ProgressService();
@@ -321,7 +458,24 @@ export const upsertItem = (opts: {
   type: ItemType;
   status: ItemStatus;
   finalUrl?: string;
-  reason?: string;
+  reason?: Reason;
 }): ProgressItem => service.upsertItem(opts);
 
 export const getItems = (): ProgressItem[] => service.getItems();
+
+// Helper exports for convenience
+export const markImagePending = (url: string): ProgressItem =>
+  service.markImagePending(url);
+export const markImageUploaded = (url: string): ProgressItem =>
+  service.markImageUploaded(url);
+export const markImageAlreadyPresent = (url: string): ProgressItem =>
+  service.markImageAlreadyPresent(url);
+export const markImageDuplicate = (url: string): ProgressItem =>
+  service.markImageDuplicate(url);
+export const markImageInvalid = (url: string): ProgressItem =>
+  service.markImageInvalid(url);
+export const markImageUnsupported = (url: string): ProgressItem =>
+  service.markImageUnsupported(url);
+export const markImageFailed = (url: string, err?: string): ProgressItem =>
+  service.markImageFailed(url, err);
+export const getProgressSummary = (): ProgressSummary => service.getSummary();
