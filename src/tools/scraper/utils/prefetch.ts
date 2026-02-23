@@ -3,8 +3,83 @@ import { isRecord } from "@/utils/common/typeGuards";
 import { extractPageData } from "./pageExtraction";
 import { tryLogin } from "@/utils/common/scraperHelpers";
 import { mapWithConcurrency } from "./concurrency";
+import PagePool from "./pagePool";
 import { config } from "@/utils/config";
 import defaultLogger from "@/utils/logger";
+
+async function gatherLoginCookies(options: {
+  browser: Browser;
+  rootUrl: string;
+  password?: string;
+  logger?: (s: string) => void;
+  pagePool?: PagePool;
+}): Promise<Array<Parameters<PuppeteerPage["setCookie"]>[0]>> {
+  const { browser, rootUrl, password, logger, pagePool } = options;
+  if (!password) return [];
+  const loginPool = pagePool ?? new PagePool(browser, 1);
+  const createdLoginPool = !pagePool;
+  try {
+    const p = await loginPool.acquire();
+    try {
+      await p.goto(rootUrl, {
+        waitUntil: config.scraper.viewport.navWaitUntil,
+        timeout: config.scraper.viewport.navTimeoutMs,
+      });
+      try {
+        await tryLogin({ page: p, password });
+        if (logger) logger("Root login attempt complete");
+      } catch (e) {
+        if (logger) logger(`Root login attempt failed: ${String(e)}`);
+      }
+      try {
+        const raw = await p.cookies();
+        return raw.map((c) => {
+          let sameSite: "Strict" | "Lax" | "None" | undefined = undefined;
+          const ss = isRecord(c) ? c["sameSite"] : undefined;
+          if (ss === "Strict" || ss === "Lax" || ss === "None") sameSite = ss;
+          return {
+            name: c.name,
+            value: c.value,
+            domain: c.domain,
+            path: c.path,
+            expires: c.expires,
+            httpOnly: c.httpOnly,
+            secure: c.secure,
+            sameSite,
+          };
+        });
+      } catch (e) {
+        defaultLogger.debug("prefetch seed parsing failed:", e);
+        return [];
+      }
+    } finally {
+      try {
+        loginPool.release(p);
+      } catch (e) {
+        defaultLogger.debug("Error releasing login pooled page:", e);
+        try {
+          await p.close();
+        } catch (e2) {
+          defaultLogger.debug(
+            "Error closing login page after failed release:",
+            e2,
+          );
+        }
+      }
+    }
+  } catch (e) {
+    if (logger) logger(`Root prefetch/login failed: ${String(e)}`);
+    return [];
+  } finally {
+    if (createdLoginPool) {
+      try {
+        await (loginPool as PagePool).closeAll();
+      } catch {
+        // best-effort
+      }
+    }
+  }
+}
 
 export function normalizeUrl({
   u,
@@ -41,11 +116,13 @@ export async function prefetchSeeds(options: {
   password?: string;
   concurrency?: number;
   logger?: (s: string) => void;
+  pagePool?: PagePool;
 }): Promise<{
   preExtractedMap: Map<string, PreExtracted>;
   normalizedSeeds: string[];
 }> {
-  const { browser, rootUrl, seeds, password, concurrency, logger } = options;
+  const { browser, rootUrl, seeds, password, concurrency, logger, pagePool } =
+    options;
   const hostname = new URL(rootUrl).hostname;
   const normSeeds = seeds.map((s) => normalizeUrl({ u: s, base: rootUrl }));
   const preExtractedMap = new Map<string, PreExtracted>();
@@ -53,72 +130,32 @@ export async function prefetchSeeds(options: {
   // If a password is provided, attempt a root login once and reuse cookies.
   let cookies: Array<Parameters<PuppeteerPage["setCookie"]>[0]> = [];
   if (password) {
-    try {
-      const p = await browser.newPage();
-      await p.setViewport({
-        width: config.scraper.viewport.width,
-        height: config.scraper.viewport.height,
-      });
-      await p.goto(rootUrl, {
-        waitUntil: config.scraper.viewport.navWaitUntil,
-        timeout: config.scraper.viewport.navTimeoutMs,
-      });
-      try {
-        await tryLogin({ page: p, password });
-        if (logger) logger("Root login attempt complete");
-      } catch (e) {
-        if (logger) logger(`Root login attempt failed: ${String(e)}`);
-      }
-      try {
-        // Collect cookies to set on seed pages to reuse session
-        const raw = await p.cookies();
-        cookies = raw.map((c) => {
-          let sameSite: "Strict" | "Lax" | "None" | undefined = undefined;
-          const ss = isRecord(c) ? c["sameSite"] : undefined;
-          if (ss === "Strict" || ss === "Lax" || ss === "None") sameSite = ss;
-          return {
-            name: c.name,
-            value: c.value,
-            domain: c.domain,
-            path: c.path,
-            expires: c.expires,
-            httpOnly: c.httpOnly,
-            secure: c.secure,
-            sameSite,
-          };
-        });
-      } catch (e) {
-        defaultLogger.debug("prefetch seed parsing failed:", e);
-      }
-      try {
-        await p.close();
-      } catch (e) {
-        defaultLogger.debug("prefetch optional parse failed:", e);
-      }
-    } catch (e) {
-      if (logger) logger(`Root prefetch/login failed: ${String(e)}`);
-    }
+    cookies = await gatherLoginCookies({
+      browser,
+      rootUrl,
+      password,
+      logger,
+      pagePool,
+    });
   }
 
   const workConcurrency = concurrency ?? config.scraper.seedPrefetchConcurrency;
 
+  // Use a page pool for seed prefetches to reuse pages and limit churn.
+  const pool = pagePool ?? new PagePool(browser, Math.max(1, workConcurrency));
+  const createdPool = !pagePool;
   await mapWithConcurrency(
     normSeeds,
     async (u) => {
       let attempts = 0;
       while (attempts < config.scraper.retry.maxAttempts) {
         attempts++;
+        const p = await pool.acquire();
         try {
-          const p = await browser.newPage();
-          await p.setViewport({
-            width: config.scraper.viewport.width,
-            height: config.scraper.viewport.height,
-          });
           try {
             // If we collected cookies from the root login, set them on the page
             if (cookies && cookies.length > 0) {
               try {
-                // Puppeteer's setCookie expects CookieParam; spread basic fields
                 await p.setCookie(...cookies);
               } catch (e) {
                 defaultLogger.debug("prefetch loop item parse failed:", e);
@@ -187,28 +224,29 @@ export async function prefetchSeeds(options: {
             }).catch(() => fallback);
 
             preExtractedMap.set(u, extracted);
-          } finally {
-            try {
-              await p.close();
-            } catch (e) {
-              defaultLogger.debug("prefetch finalizer error:", e);
+            break; // success
+          } catch (err) {
+            if (attempts >= config.scraper.retry.maxAttempts) {
+              if (logger)
+                logger(`Seed prefetch failed for ${u}: ${String(err)}`);
+            } else {
+              // small backoff
+              await new Promise((r) =>
+                setTimeout(r, config.scraper.retry.retryBaseMs * attempts),
+              );
             }
           }
-          break; // success
-        } catch (err) {
-          if (attempts >= config.scraper.retry.maxAttempts) {
-            if (logger) logger(`Seed prefetch failed for ${u}: ${String(err)}`);
-          } else {
-            // small backoff
-            await new Promise((r) =>
-              setTimeout(r, config.scraper.retry.retryBaseMs * attempts),
-            );
-          }
+        } finally {
+          pool.release(p);
         }
       }
     },
     workConcurrency,
   );
+
+  if (createdPool) {
+    await pool.closeAll();
+  }
 
   return { preExtractedMap, normalizedSeeds: normSeeds };
 }

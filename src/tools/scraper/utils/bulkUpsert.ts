@@ -196,14 +196,8 @@ export async function bulkUpsertPagesAndImages(options: {
     uniqueAllImageUrls,
     uniqueUnsupportedImageUrls,
     uniqueAllowedImageUrls,
-    // Prefer the runtime-reported uploaded count, but fall back to the
-    // number of pending image records when the progress service reports
-    // zero uploads. This handles small races where uploaded marks may
-    // not be reflected in the progress snapshot at summary time.
-    imagesStats: {
-      ...imagesStats,
-      uploaded: Math.max(imagesStats.uploaded || 0, pendingImageRecords.length),
-    },
+    // Use the runtime-reported uploaded count from the progress snapshot.
+    imagesStats: { ...imagesStats },
     insertedCountTotal: imagesDbInsertedCount,
     insertedOriginalUrls,
     // Report the pre-run associated count so the summary shows how many

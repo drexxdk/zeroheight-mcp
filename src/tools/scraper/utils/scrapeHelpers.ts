@@ -134,6 +134,7 @@ export async function navigateAndResolveProcessingLink(args: {
   rootUrl: string;
   password?: string;
   logger?: (s: string) => void;
+  logProgress?: (icon: string, msg: string) => void;
   loggedInHostnames: Set<string>;
   redirects: Map<string, string>;
   processed: Set<string>;
@@ -160,11 +161,11 @@ export async function navigateAndResolveProcessingLink(args: {
   });
   try {
     const navMs = Date.now() - _navStart;
-    // log a simple navigation timing if logger is provided
-    if (logger)
-      logger(
-        `Navigation to ${formatLinkForConsole(link)} completed in ${navMs}ms`,
-      );
+    // Prefer the progress-aware logger when available so messages include
+    // the progress bar and current/total counts; fall back to the job logger.
+    const navMsg = `Navigation to ${formatLinkForConsole(link)} completed in ${navMs}ms`;
+    if (args.logProgress) args.logProgress("⏱️", navMsg);
+    else if (logger) logger(navMsg);
   } catch {
     // ignore
   }
@@ -601,6 +602,7 @@ export async function processLinkForWorker(args: {
     rootUrl,
     password,
     logger,
+    logProgress,
     loggedInHostnames,
     redirects,
     processed,

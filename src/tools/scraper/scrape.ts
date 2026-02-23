@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Page, Browser } from "puppeteer";
 import { launchBrowser, attachDefaultInterception } from "./utils/puppeteer";
+import PagePool from "./utils/pagePool";
 import { createErrorResponse } from "@/utils/toolResponses";
 import { JobCancelled } from "@/utils/common/errors";
 import {
@@ -155,8 +156,29 @@ function buildPreExtractedFromSeed(v: unknown): PreExtracted {
   return { title, content, supportedImages, normalizedImages, pageLinks };
 }
 
+async function computeInitialLinksFromPage(
+  p: Page,
+  rootUrl: string,
+  extracted: PreExtracted,
+): Promise<string[]> {
+  const anchors: string[] = await p
+    .$$eval("a[href]", (links: Array<{ href?: string }>) =>
+      links.map((a) => a.href || "").filter(Boolean),
+    )
+    .catch(() => []);
+
+  const initialSet = new Set<string>();
+  initialSet.add(normalizeUrl({ u: rootUrl }));
+  for (const a of anchors)
+    initialSet.add(normalizeUrl({ u: a, base: rootUrl }));
+  for (const a of extracted.pageLinks || [])
+    initialSet.add(normalizeUrl({ u: a, base: rootUrl }));
+  return Array.from(initialSet);
+}
+
 async function prepareSeedsForScrape({
   browser,
+  pagePool,
   rootUrl,
   pageUrls,
   password,
@@ -166,6 +188,7 @@ async function prepareSeedsForScrape({
   loggedInHostnames,
 }: {
   browser: Browser;
+  pagePool: PagePool;
   rootUrl: string;
   pageUrls?: string[];
   password?: string;
@@ -180,6 +203,7 @@ async function prepareSeedsForScrape({
     );
     const { preExtractedMap: seedMap } = await prefetchSeeds({
       browser,
+      pagePool,
       rootUrl,
       seeds: normalized,
       password,
@@ -196,7 +220,7 @@ async function prepareSeedsForScrape({
     return;
   }
 
-  const p = await browser.newPage();
+  const p = await pagePool.acquire();
   await p.setViewport({
     width: config.scraper.viewport.width,
     height: config.scraper.viewport.height,
@@ -234,25 +258,25 @@ async function prepareSeedsForScrape({
     allowedHostname: hostname,
   }).catch(() => fallbackRoot);
 
-  const anchors: string[] = await p
-    .$$eval("a[href]", (links: Array<{ href?: string }>) =>
-      links.map((a) => a.href || "").filter(Boolean),
-    )
-    .catch(() => []);
-
-  const initialSet = new Set<string>();
-  initialSet.add(normalizeUrl({ u: rootUrl }));
-  for (const a of anchors)
-    initialSet.add(normalizeUrl({ u: a, base: rootUrl }));
-  for (const a of extracted.pageLinks || [])
-    initialSet.add(normalizeUrl({ u: a, base: rootUrl }));
-  const initial = Array.from(initialSet);
+  const initial = await computeInitialLinksFromPage(p, rootUrl, extracted);
   if (logger) logger(`Seeded ${initial.length} initial links from root`);
   enqueueLinks(initial);
   try {
-    await p.close();
+    try {
+      pagePool.release(p);
+    } catch (e) {
+      defaultLogger.debug("Error releasing pooled seed page:", e);
+      try {
+        await p.close();
+      } catch (e2) {
+        defaultLogger.debug(
+          "Error closing seed page after failed release:",
+          e2,
+        );
+      }
+    }
   } catch (e) {
-    defaultLogger.debug("Error reading image urls from DB:", e);
+    defaultLogger.debug("Error cleaning up seed page:", e);
   }
 }
 
@@ -367,6 +391,7 @@ async function runWorkerForScrape(options: {
   password?: string;
   logger?: (s: string) => void;
   preExtractedMap: Map<string, PreExtracted>;
+  pagePool: PagePool;
   pendingImageRecords: Array<{
     pageUrl: string;
     original_url: string;
@@ -388,12 +413,8 @@ async function runWorkerForScrape(options: {
   progress: OverallProgress;
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
 }): Promise<void> {
-  const { browser, shouldCancel, getNextLink } = options;
-  const page: Page = await browser.newPage();
-  await page.setViewport({
-    width: config.scraper.viewport.width,
-    height: config.scraper.viewport.height,
-  });
+  const { shouldCancel, getNextLink, pagePool } = options;
+  const page: Page = await pagePool.acquire();
   try {
     await attachDefaultInterception(page, { blockImages: true }).catch(
       () => {},
@@ -437,14 +458,20 @@ async function runWorkerForScrape(options: {
     }
   } finally {
     try {
-      await page.close();
+      pagePool.release(page);
     } catch (e) {
-      defaultLogger.debug("Error in prefetch iteration:", e);
+      defaultLogger.debug("Error releasing pooled page:", e);
+      try {
+        await page.close();
+      } catch (e2) {
+        defaultLogger.debug("Error closing page after failed release:", e2);
+      }
     }
   }
 }
 
 async function startWorkersForScrape(options: {
+  pagePool: PagePool;
   concurrency: number;
   browser: Browser;
   shouldCancel?: () => boolean | Promise<boolean>;
@@ -481,6 +508,7 @@ async function startWorkersForScrape(options: {
     workers.push(
       runWorkerForScrape({
         browser: options.browser,
+        pagePool: options.pagePool,
         shouldCancel: options.shouldCancel,
         getNextLink: options.getNextLink,
         logProgress: options.logProgress,
@@ -753,8 +781,11 @@ export async function scrape({
     const preExistingImageUrls = await loadExistingImageUrls(db, logger);
     const allExistingImageUrls = new Set(preExistingImageUrls);
 
+    const pagePool = new PagePool(browser, Math.max(1, concurrency));
+
     await prepareSeedsForScrape({
       browser,
+      pagePool,
       rootUrl,
       pageUrls,
       password,
@@ -767,6 +798,7 @@ export async function scrape({
     const workers = await startWorkersForScrape({
       concurrency,
       browser,
+      pagePool,
       shouldCancel,
       getNextLink,
       logProgress,
