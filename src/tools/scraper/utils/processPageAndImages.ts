@@ -77,7 +77,7 @@ export async function processPageAndImages(
     link,
     allowedHostname,
     storage,
-    overallProgress: _overallProgress,
+
     allExistingImageUrls,
     pendingImageRecords,
     logProgress,

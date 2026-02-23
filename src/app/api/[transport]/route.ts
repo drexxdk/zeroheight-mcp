@@ -99,6 +99,27 @@ const handler = createMcpHandler(
         }
       };
     };
+
+    server.registerTool(
+      queryDataTool.title,
+      {
+        title: queryDataTool.title,
+        description: queryDataTool.description,
+        inputSchema: queryDataTool.inputSchema,
+      },
+      wrapTool(queryDataTool),
+    );
+
+    server.registerTool(
+      scrapeTool.title,
+      {
+        title: scrapeTool.title,
+        description: scrapeTool.description,
+        inputSchema: scrapeTool.inputSchema,
+      },
+      wrapTool(scrapeTool),
+    );
+
     server.registerTool(
       tasksGetTool.title,
       {
@@ -194,26 +215,6 @@ const handler = createMcpHandler(
         inputSchema: clearAllDataTool.inputSchema,
       },
       wrapTool(clearAllDataTool),
-    );
-
-    server.registerTool(
-      scrapeTool.title,
-      {
-        title: scrapeTool.title,
-        description: scrapeTool.description,
-        inputSchema: scrapeTool.inputSchema,
-      },
-      wrapTool(scrapeTool),
-    );
-
-    server.registerTool(
-      queryDataTool.title,
-      {
-        title: queryDataTool.title,
-        description: queryDataTool.description,
-        inputSchema: queryDataTool.inputSchema,
-      },
-      wrapTool(queryDataTool),
     );
   },
   {},
@@ -350,13 +351,7 @@ async function authenticateAndParse(request: NextRequest): Promise<{
 // Authenticate the request. Lightweight task tools may be short-circuited
 // to call handlers directly; other requests are forwarded to the MCP handler.
 async function authenticatedHandler(request: NextRequest): Promise<Response> {
-  const {
-    isValid,
-    error,
-    bodyText,
-    contentType: _contentType,
-    parsed: _parsed,
-  } = await authenticateAndParse(request);
+  const { isValid, error, bodyText } = await authenticateAndParse(request);
 
   if (!isValid) {
     return new Response(

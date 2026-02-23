@@ -94,12 +94,15 @@ const eslintConfig = defineConfig([
           "ts-check": false,
         },
       ],
-      // Allow intentionally unused variables/args prefixed with `_`.
+      // Allow intentionally unused function arguments prefixed with `_` but
+      // report unused declared variables even if they start with `_`.
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
           argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
+          // Do not ignore underscore-prefixed variables; set to a pattern
+          // that matches nothing so only args (function params) are ignored.
+          varsIgnorePattern: "^$",
           caughtErrorsIgnorePattern: "^_",
         },
       ],

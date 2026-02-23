@@ -287,25 +287,6 @@ export async function performBucketClear({
   const storageClientToUse: ReturnType<typeof createClient<Database>> | null =
     clientInstance || maybeClient;
 
-  const buckets: string[] = [];
-  const files: Array<{ name: string }> = [];
-
-  // Gather debug info about the bucket/files (helps explain zero-results)
-  try {
-    if (storageClientToUse) {
-      const debug = await getBucketDebugInfo({
-        client: storageClientToUse,
-        bucketName: targetBucket,
-      });
-      buckets.push(...debug.buckets);
-      files.push(...debug.files);
-    } else {
-      logger.warn("No Supabase client available to list buckets/files");
-    }
-  } catch (err) {
-    logger.error("Error getting bucket debug info:", err);
-  }
-
   // proceed with clearing the bucket
   let deleteSummary: {
     deletedCount: number;
@@ -327,11 +308,10 @@ export async function performBucketClear({
 
   return {
     bucket: targetBucket,
-    foundCount: files.length,
-    foundFiles: files
-      .slice(0, config.tuning.imageUtilsSampleLimit)
-      .map((f) => f.name),
-    availableBuckets: buckets,
+    // Do not perform a separate listing - use deletedCount as a proxy for foundCount.
+    foundCount: deleteSummary.deletedCount,
+    foundFiles: [],
+    availableBuckets: [],
     deletedCount: deleteSummary.deletedCount,
     deleteErrors: deleteSummary.deleteErrors,
   };

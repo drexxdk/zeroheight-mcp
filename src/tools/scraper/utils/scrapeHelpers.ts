@@ -348,7 +348,7 @@ export async function extractAndProcessPage(args: {
   const {
     pageUpsert,
     processedPageEntry,
-    imgStats: _imgStats,
+    imgStats,
     pageLinks: returnedPageLinks,
     normalizedImages: retNorm,
     supportedImages: retSupported,
@@ -386,7 +386,8 @@ export async function extractAndProcessPage(args: {
   return {
     pageUpsert,
     processedPageEntry,
-    imgStats: _imgStats,
+    imgStats,
+    // imgStats intentionally not used here; callers handle image progress
     returnedPageLinks,
     originalPageLinks: pageLinks,
     retNorm,
@@ -429,7 +430,6 @@ export function postProcessPageResults(args: {
   const {
     pageUpsert,
     processedPageEntry,
-    imgStats: _imgStats,
     returnedPageLinks,
     originalPageLinks,
     retNorm,
@@ -869,7 +869,7 @@ function computeFallbackSummary(args: {
     uniqueAllowed,
     uniqueUnsupported,
     allExistingImageUrls,
-    imagesStats: _imagesStats,
+    // imagesStats intentionally not used here; callers handle image progress
     pagesFailed,
     providedCount,
     logger,

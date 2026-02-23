@@ -12,7 +12,7 @@ export const getDatabaseSchemaTool: ToolDefinition<
   typeof dbSchemaInput,
   DatabaseSchemaResult | ReturnType<typeof createErrorResponse>
 > = {
-  title: "DEVELOPMENT_get-database-schema",
+  title: "get_database_schema",
   description:
     "Retrieve TypeScript type definitions for the complete database schema.",
   inputSchema: dbSchemaInput,

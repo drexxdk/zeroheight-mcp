@@ -12,11 +12,17 @@ import type { ToolDefinition } from "@/tools/toolTypes";
 export type ClearAllDataResult = {
   message: string;
   bucket?: string | null;
-  foundCount?: number;
-  foundFiles?: string[];
-  availableBuckets?: string[];
-  deletedCount?: number;
-  deleteErrors?: Array<{ file: string; error: string }>;
+  // storage/bucket details
+  storageFoundCount?: number; // number of files discovered in the bucket
+  storageDeletedCount?: number; // number of files deleted from the bucket
+  storageDeleteErrors?: Array<{ file?: string; error: string }>;
+  // database row counts
+  // database row counts
+  // database row counts
+  imagesDeletedRows?: number;
+  pagesDeletedRows?: number;
+  tasksDeletedRows?: number;
+  tasksRemainingRows?: number;
 };
 
 async function clearDatabase(): Promise<
@@ -64,6 +70,8 @@ async function clearDatabase(): Promise<
         );
       }
 
+      const imagesDeletedRows = getRowCount(imagesData);
+
       // Clear pages table
       defaultLogger.log("Clearing pages table...");
       const { data: pagesData, error: pagesError } = await adminClient
@@ -82,10 +90,13 @@ async function clearDatabase(): Promise<
         );
       }
 
+      const pagesDeletedRows = getRowCount(pagesData);
+
       // Clear finished/terminal tasks rows
       defaultLogger.log(
         "Clearing terminal tasks rows (completed, failed, cancelled)...",
       );
+      let tasksDeletedRows = 0;
       try {
         const { data: jobsData, error: jobsError } = await adminClient
           .from("tasks")
@@ -97,9 +108,23 @@ async function clearDatabase(): Promise<
           defaultLogger.log(
             `Terminal tasks rows cleared (${getRowCount(jobsData)} rows)`,
           );
+          tasksDeletedRows = getRowCount(jobsData);
         }
       } catch (err) {
         defaultLogger.error("Unexpected error while clearing tasks:", err);
+      }
+
+      // Count remaining tasks (those not deleted)
+      let tasksRemainingRows = 0;
+      try {
+        const countRes = await adminClient
+          .from("tasks")
+          .select("id", { count: "exact", head: false });
+        if (countRes && Array.isArray(countRes.data)) {
+          tasksRemainingRows = countRes.data.length;
+        }
+      } catch (err) {
+        defaultLogger.error("Error counting remaining tasks:", err);
       }
 
       const bucketResult = await performBucketClear({
@@ -108,13 +133,12 @@ async function clearDatabase(): Promise<
 
       defaultLogger.log("All Zeroheight data cleared successfully");
       return {
-        message: "Zeroheight data cleared successfully",
+        message:
+          "Zeroheight data cleared successfully (terminal tasks removed; non-terminal tasks retained)",
         bucket: bucketResult.bucket,
-        foundCount: bucketResult.foundCount,
-        foundFiles: bucketResult.foundFiles,
-        availableBuckets: bucketResult.availableBuckets,
-        deletedCount: bucketResult.deletedCount,
-        deleteErrors: Array.isArray(bucketResult.deleteErrors)
+        storageFoundCount: bucketResult.foundCount,
+        storageDeletedCount: bucketResult.deletedCount,
+        storageDeleteErrors: Array.isArray(bucketResult.deleteErrors)
           ? bucketResult.deleteErrors.map((e) => {
               if (isRecord(e)) {
                 const file =
@@ -122,15 +146,19 @@ async function clearDatabase(): Promise<
                     ? String(getProp(e, "file"))
                     : typeof getProp(e, "name") === "string"
                       ? String(getProp(e, "name"))
-                      : "unknown";
+                      : undefined;
                 const errVal = getProp(e, "error");
                 const norm = toErrorObj(errVal);
                 const errorMsg = norm?.message ?? String(errVal ?? "");
                 return { file, error: errorMsg };
               }
-              return { file: "unknown", error: String(e) };
+              return { file: undefined, error: String(e) };
             })
           : undefined,
+        imagesDeletedRows,
+        pagesDeletedRows,
+        tasksDeletedRows,
+        tasksRemainingRows,
       };
     }
 
@@ -158,20 +186,22 @@ export const clearAllDataTool: ToolDefinition<
   typeof clearAllDataInput,
   ClearAllDataResult | ReturnType<typeof createErrorResponse>
 > = {
-  title: "DATABASE_clear-all-data",
+  title: "clear_all_data",
   description:
-    "Clear all Zeroheight data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
+    "Clear all data from the database and storage bucket. This removes all pages and images. REQUIRES explicit MCP API key confirmation for safety.",
   inputSchema: clearAllDataInput,
   outputSchema: z.object({
     message: z.string(),
     bucket: z.string().nullable().optional(),
-    foundCount: z.number().optional(),
-    foundFiles: z.array(z.string()).optional(),
-    availableBuckets: z.array(z.string()).optional(),
-    deletedCount: z.number().optional(),
-    deleteErrors: z
-      .array(z.object({ file: z.string(), error: z.string() }))
+    storageFoundCount: z.number().optional(),
+    storageDeletedCount: z.number().optional(),
+    storageDeleteErrors: z
+      .array(z.object({ file: z.string().optional(), error: z.string() }))
       .optional(),
+    imagesDeletedRows: z.number().optional(),
+    pagesDeletedRows: z.number().optional(),
+    tasksDeletedRows: z.number().optional(),
+    tasksRemainingRows: z.number().optional(),
   }),
   handler: async ({ apiKey }: z.infer<typeof clearAllDataInput>) => {
     const expectedApiKey = config.env.zeroheightMcpAccessToken;

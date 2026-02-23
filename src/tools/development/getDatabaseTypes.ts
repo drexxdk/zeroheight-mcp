@@ -14,7 +14,7 @@ export const getDatabaseTypesTool: ToolDefinition<
   typeof dbTypesInput,
   DatabaseTypesResult | ReturnType<typeof createErrorResponse>
 > = {
-  title: "DEVELOPMENT_get-database-types",
+  title: "get_database_types",
   description: "Retrieve TypeScript type definitions for the database schema.",
   inputSchema: dbTypesInput,
   outputSchema: z.object({ content: z.string() }),

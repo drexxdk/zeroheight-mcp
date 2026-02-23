@@ -605,7 +605,6 @@ function makeQueueHelpers(opts: {
     rdirs: redirectsLocal,
     proc: processedLocal,
     wtrs: waitersLocal,
-    prog: _progressLocal,
     touchLastActivity,
     onDequeue,
   } = opts;
@@ -904,7 +903,7 @@ export const scrapeTool: ToolDefinition<
   typeof scrapeInput,
   ToolResponse | ScrapeResult | TasksGetResult | { message: string }
 > = {
-  title: "SCRAPER_scrape",
+  title: "scrape",
   description:
     "Start an asynchronous scraping job for the configured Zeroheight project. Seeds from the project root or provided page URLs; extracts pages and records page content and remote image URLs to the database as a background job.",
   inputSchema: scrapeInput,

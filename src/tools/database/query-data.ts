@@ -49,7 +49,7 @@ export const queryDataTool: ToolDefinition<
   typeof queryDataInput,
   QueryDataResult | ReturnType<typeof createErrorResponse>
 > = {
-  title: "DATABASE_query-data",
+  title: "query_data",
   description:
     "Query the cached Zeroheight data from the database. Supports searching by title, content, or URL, and can include image data with full Supabase storage URLs.",
   inputSchema: queryDataInput,

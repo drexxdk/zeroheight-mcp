@@ -4,8 +4,6 @@
 
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
-
-import runTool from "./utils/run-tool";
 import type { KnownModule } from "./utils/toolTypes";
 
 export type Command =
@@ -29,6 +27,7 @@ export async function run(
 ): Promise<void> {
   const { config } = await import("@/utils/config");
   const logger = (await import("@/utils/logger")).default;
+  const runTool = (await import("./utils/run-tool")).default;
   const argv = opts?.argv ?? [];
 
   switch (command) {

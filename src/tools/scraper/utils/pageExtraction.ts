@@ -30,29 +30,25 @@ export async function extractPageData({
   const title: string = await page.title();
 
   const content: string = await page
-    .$eval(
-      ".zh-content, .content, main .content, [data-testid='page-content'], .page-content",
-      (el: Element) => el.textContent?.trim() || "",
-    )
+    .$eval("#main-content", (el: Element) => {
+      // Use innerText to preserve visible spacing/layout so words aren't
+      // concatenated when nodes are adjacent in the DOM.
+      try {
+        return (el as HTMLElement).innerText?.trim() || "";
+      } catch {
+        return el.textContent?.trim() || "";
+      }
+    })
     .catch(async () => {
-      return page
-        .$eval("body", (body: HTMLElement) => {
-          const clone = body.cloneNode(true) as HTMLElement;
-          const navs = (clone as Element).querySelectorAll(
-            "nav, header, .navigation, .header, .sidebar",
-          );
-          navs.forEach((nav) => nav.remove());
-          const mainContent = clone.querySelector(
-            "main, .main, .content, .zh-content, [role='main']",
-          );
-          if (mainContent) return mainContent.textContent?.trim() || "";
-          return (
-            clone.textContent
-              ?.trim()
-              .substring(0, config.scraper.contentMaxChars) || ""
-          );
-        })
-        .catch(() => "");
+      // Fallback to body text if #main-content selector fails (e.g. on non-Zeroheight pages)
+      const body = await page.$("body");
+      if (body) {
+        return body.evaluate(
+          (el: HTMLElement) =>
+            (el.innerText?.trim() || el.textContent?.trim() || "") as string,
+        );
+      }
+      return "";
     });
 
   // Allow brief time for client-side rendered images/backgrounds to load.
