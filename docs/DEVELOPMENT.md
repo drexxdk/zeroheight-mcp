@@ -66,7 +66,7 @@ Regenerating DB types
 After running migrations or changing the database, regenerate the TypeScript DB schema and runtime types:
 
 ```bash
-npx -y supabase@2.72.8 gen types typescript --project-id <project-id> --schema public > src/database.schema.ts
+npx -y supabase@2.72.8 gen types typescript --project-id <project-id> --schema public > src/database-schema.ts
 npx tsx scripts/generate-database-types.ts
 ```
 

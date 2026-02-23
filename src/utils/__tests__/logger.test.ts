@@ -1,5 +1,5 @@
-import logger from "../logger";
-import { config } from "../config";
+import logger from "@/utils/logger";
+import { config } from "@/utils/config";
 
 describe("logger", () => {
   let origDebug: boolean;

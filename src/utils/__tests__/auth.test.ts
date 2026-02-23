@@ -1,4 +1,4 @@
-import { authenticateRequest } from "../auth";
+import { authenticateRequest } from "@/utils/auth";
 import { describe, test, expect } from "vitest";
 
 type NextRequestLike = {

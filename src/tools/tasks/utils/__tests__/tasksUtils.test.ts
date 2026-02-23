@@ -1,7 +1,10 @@
 /// <reference types="vitest/globals" />
-import { SERVER_SUGGESTED_TTL_MS, SERVER_MAX_TTL_MS } from "../ttl";
-import { mapStatusToSep } from "../status";
-import { TERMINAL } from "../terminal";
+import {
+  SERVER_SUGGESTED_TTL_MS,
+  SERVER_MAX_TTL_MS,
+} from "@/tools/tasks/utils/ttl";
+import { mapStatusToSep } from "@/tools/tasks/utils/status";
+import { TERMINAL } from "@/tools/tasks/utils/terminal";
 import { config } from "@/utils/config";
 
 describe("tasks utils", () => {

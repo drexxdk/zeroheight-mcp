@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { upsertItem, getProgressSnapshot } from "../progress";
+import { upsertItem, getProgressSnapshot } from "@/utils/common/progress";
 
 describe("progress singleton", () => {
   test("increment increases current and auto-reserves total", () => {

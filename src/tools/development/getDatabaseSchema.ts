@@ -16,11 +16,22 @@ export const getDatabaseSchemaTool: ToolDefinition<
   description:
     "Retrieve TypeScript type definitions for the complete database schema.",
   inputSchema: dbSchemaInput,
-  outputSchema: z.object({ content: z.string() }),
+  outputSchema: z.union([
+    z.object({ content: z.string() }),
+    // Allow returning a ToolResponse (error shape) from handler
+    z.object({
+      content: z.array(z.object({ type: z.literal("text"), text: z.string() })),
+    }),
+  ]),
   handler: async () => {
     try {
       // Read the database schema file
-      const schemaPath = join(process.cwd(), "database.schema.ts");
+      const schemaPath = join(
+        process.cwd(),
+        "src",
+        "generated",
+        "database-schema.ts",
+      );
       const schemaContent = readFileSync(schemaPath, "utf-8");
 
       return { content: schemaContent };

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { NextRequest } from "next/server";
-import { isRecord } from "../common/typeGuards";
+import { isRecord } from "@/utils/common/typeGuards";
 import { z } from "zod";
 
 type Bucket = { tokens: number; lastRefill: number };

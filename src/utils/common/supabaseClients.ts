@@ -1,6 +1,6 @@
-import { getSupabaseClient, getSupabaseAdminClient } from "../common";
+import { getSupabaseClient, getSupabaseAdminClient } from "@/utils/common";
 import { isRecord, getProp } from "@/utils/common/typeGuards";
-import { config } from "../config";
+import { config } from "@/utils/config";
 import logger from "@/utils/logger";
 import type { StorageUploadResult } from "@/utils/common/scraperHelpers";
 

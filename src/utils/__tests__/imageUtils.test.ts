@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { getBucketDebugInfo, clearStorageBucket } from "../image-utils";
+import { getBucketDebugInfo, clearStorageBucket } from "@/utils/image-utils";
 
 type FakeClient = {
   storage: {

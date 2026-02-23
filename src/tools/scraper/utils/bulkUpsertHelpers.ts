@@ -1,9 +1,9 @@
-import { isRecord, getProp } from "../../../utils/common/typeGuards";
+import { isRecord, getProp } from "@/utils/common/typeGuards";
 import { toErrorObj } from "@/utils/common/errorUtils";
 import logger from "@/utils/logger";
 import { config } from "@/utils/config";
 import { safeSerialize } from "@/utils/common/safeSerializer";
-import type { ImagesType } from "@/database.types";
+import type { ImagesType } from "@/generated/database-types";
 import { getProgressSnapshot } from "@/utils/common/progress";
 
 export async function queryExistingPages(

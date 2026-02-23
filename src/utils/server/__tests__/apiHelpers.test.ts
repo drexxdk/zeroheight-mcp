@@ -1,6 +1,6 @@
 /// <reference types="vitest/globals" />
 import { z } from "zod";
-import { parseAndValidateJson } from "../apiHelpers";
+import { parseAndValidateJson } from "@/utils/server/apiHelpers";
 
 function makeReq(body?: Record<string, unknown>): Request {
   const init: RequestInit = {

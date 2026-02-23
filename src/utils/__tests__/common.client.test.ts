@@ -7,8 +7,8 @@ vi.mock("@supabase/supabase-js", () => {
   };
 });
 
-import { getSupabaseClient, getSupabaseAdminClient } from "../common";
-import { config } from "../config";
+import { getSupabaseClient, getSupabaseAdminClient } from "@/utils/common";
+import { config } from "@/utils/config";
 
 describe("Supabase client helpers", () => {
   test("getSupabaseClient returns memoized client using config values", () => {

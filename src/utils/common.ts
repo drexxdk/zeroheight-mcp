@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../database.schema";
+import type { Database } from "@/generated/database-schema";
 import { config } from "./config";
 
 // Supabase client will be created when needed

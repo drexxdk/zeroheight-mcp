@@ -25,6 +25,8 @@ import { isRecord } from "../../../utils/common/typeGuards";
 import { parseJsonText } from "@/utils/server/apiHelpers";
 import logger from "@/utils/logger";
 
+// Argument normalization is handled in tool wrappers when required.
+
 const handler = createMcpHandler(
   async (server) => {
     // Register MCP tools. Task/job tools persist status/logs to the DB via
@@ -41,6 +43,7 @@ const handler = createMcpHandler(
     }) => {
       return async (args: unknown): Promise<ToolResponse> => {
         try {
+          // Validate input with the tool's Zod schema.
           const parsedIn = tool.inputSchema.safeParse(args);
           if (!parsedIn.success) {
             return createErrorResponse({
@@ -48,6 +51,31 @@ const handler = createMcpHandler(
             });
           }
           const res = await tool.handler(parsedIn.data);
+          try {
+            logger.debug("wrapTool handler raw result", {
+              type: typeof res,
+              value:
+                typeof res === "object" ? JSON.stringify(res) : String(res),
+            });
+          } catch {
+            /* ignore logging errors */
+          }
+          // If the handler already returned a `ToolResponse` shape, accept it
+          // as-is and bypass per-tool outputSchema validation. This allows
+          // handlers to return `createErrorResponse()` without requiring every
+          // tool to union its output schema with the error shape.
+          if (isRecord(res)) {
+            const maybeContent = Reflect.get(res, "content");
+            if (Array.isArray(maybeContent)) {
+              const allText = maybeContent.every(
+                (it) =>
+                  isRecord(it) &&
+                  Reflect.get(it, "type") === "text" &&
+                  typeof Reflect.get(it, "text") === "string",
+              );
+              if (allText) return res as ToolResponse;
+            }
+          }
 
           // If the tool provided an outputSchema, validate the result before
           // normalization. If validation fails, return an error ToolResponse.
@@ -111,7 +139,7 @@ const handler = createMcpHandler(
       wrapTool(tasksCancelTool),
     );
 
-    // Test tool to create short-lived demo tasks
+    // Test tool to create demo tasks
     server.registerTool(
       testTaskTool.title,
       {
@@ -132,11 +160,9 @@ const handler = createMcpHandler(
       wrapTool(tasksTailTool),
     );
 
-    // Database Inspection & Management Tools
-    // Database inspection/management tools removed: execute-sql, get-logs, list-migrations, list-tables
+    // Database inspection & management tools (some utilities removed)
 
-    // Development & Deployment Tools
-    // Example: { "method": "tools/call", "params": { "name": "Get Database Schema", "arguments": {} } }
+    // Development & deployment tools (tools/call examples are accepted)
     server.registerTool(
       getDatabaseSchemaTool.title,
       {
@@ -147,7 +173,7 @@ const handler = createMcpHandler(
       wrapTool(getDatabaseSchemaTool),
     );
 
-    // (Removed) get-project-url and get-publishable-api-keys tools — not needed
+    // Some deployment helper tools removed
 
     // Example: { "method": "tools/call", "params": { "name": "Get Database Types", "arguments": {} } }
     server.registerTool(
@@ -198,98 +224,28 @@ const handler = createMcpHandler(
     sseEndpoint: "/mcp",
   },
 );
-// Widen the handler type to accept plain `Request` objects in addition to
-// `NextRequest`. We perform a single, centralized cast here so call-sites
-// can forward `Request` instances without repeating unsafe casts.
+// Widen the handler type to accept plain `Request` in addition to `NextRequest`.
 const permissiveHandler = handler as (req: Request) => Promise<Response>;
 
-// The MCP handler expects a `NextRequest` in some environments, but we
-// sometimes need to forward plain `Request` instances (constructed above).
-// Create a small adapter typed for `Request` so call-sites can pass a
-// `Request` without repeated casts.
+// Adapter to allow forwarding plain `Request` instances to the MCP handler.
 type HandlerForRequest = (req: Request) => Promise<Response>;
 const handlerForRequest: HandlerForRequest = async (req) => {
-  return await permissiveHandler(req);
+  const res = await permissiveHandler(req as unknown as Request);
+  try {
+    const text = await res.text();
+    logger.debug("[mcp] handler response body", { body: text });
+    // Recreate the Response since the body stream has been consumed.
+    const headersObj: Record<string, string> = {};
+    res.headers.forEach((v, k) => (headersObj[k] = v));
+    return new Response(text, { status: res.status, headers: headersObj });
+  } catch (e) {
+    logger.warn("[mcp] failed to log handler response body", e);
+    return res;
+  }
 };
 
 // Export the underlying MCP handler for reuse by the JSON wrapper route.
 export const mcpHandler = handler;
-
-async function tryHandleFastTaskCall(
-  parsed: Record<string, unknown>,
-): Promise<Response | undefined> {
-  const params = isRecord(parsed?.["params"]) ? parsed!["params"] : undefined;
-  const toolName =
-    typeof params?.["name"] === "string" ? params!["name"] : undefined;
-  const args = isRecord(params?.["arguments"]) ? params!["arguments"] : {};
-
-  const taskTools = new Set([
-    tasksGetTool.title,
-    tasksResultTool.title,
-    tasksListTool.title,
-    tasksCancelTool.title,
-    testTaskTool.title,
-    tasksTailTool.title,
-  ]);
-
-  if (!(toolName && taskTools.has(toolName))) return undefined;
-
-  try {
-    const createFastHandler = <S extends import("zod").ZodTypeAny>(tool: {
-      handler: (a: import("zod").infer<S>) => Promise<unknown>;
-      inputSchema: S;
-    }) => {
-      return async (a?: unknown) => {
-        const parsedInput = tool.inputSchema.safeParse(a);
-        if (!parsedInput.success) throw new Error("Invalid input");
-        return tool.handler(parsedInput.data);
-      };
-    };
-
-    const toolMap: Record<string, (a?: unknown) => Promise<unknown>> = {
-      [tasksGetTool.title]: createFastHandler(tasksGetTool),
-      [tasksResultTool.title]: createFastHandler(tasksResultTool),
-      [tasksListTool.title]: createFastHandler(tasksListTool),
-      [tasksCancelTool.title]: createFastHandler(tasksCancelTool),
-      [testTaskTool.title]: createFastHandler(testTaskTool),
-      [tasksTailTool.title]: createFastHandler(tasksTailTool),
-    };
-
-    const handlerFn = toolMap[toolName];
-    const result = await handlerFn(args);
-
-    let rpcResult: unknown;
-    if (
-      isRecord(result) &&
-      Object.prototype.hasOwnProperty.call(result, "task")
-    ) {
-      rpcResult = result;
-    } else {
-      rpcResult = normalizeToToolResponse(result);
-    }
-
-    const rpc = {
-      jsonrpc: "2.0",
-      id: parsed["id"] ?? null,
-      result: rpcResult,
-    };
-    return new Response(JSON.stringify(rpc), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const rpc = {
-      jsonrpc: "2.0",
-      id: parsed["id"] ?? null,
-      error: { code: -32000, message: msg },
-    };
-    return new Response(JSON.stringify(rpc), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-}
 
 async function handleGetHeadForwarding(
   request: NextRequest,
@@ -391,17 +347,15 @@ async function authenticateAndParse(request: NextRequest): Promise<{
   };
 }
 
-// Authenticate the incoming request. For simple JSON-RPC `tools/call` calls
-// that target lightweight task tools we shortcut and call the tool handler
-// directly (avoids a full MCP roundtrip). Otherwise the request is forwarded
-// to the MCP handler.
+// Authenticate the request. Lightweight task tools may be short-circuited
+// to call handlers directly; other requests are forwarded to the MCP handler.
 async function authenticatedHandler(request: NextRequest): Promise<Response> {
   const {
     isValid,
     error,
     bodyText,
     contentType: _contentType,
-    parsed,
+    parsed: _parsed,
   } = await authenticateAndParse(request);
 
   if (!isValid) {
@@ -413,12 +367,6 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
       }),
       { status: 401, headers: { "Content-Type": "application/json" } },
     );
-  }
-
-  // Fast-path for lightweight task tools; delegate to helper
-  if (parsed && parsed["method"] === "tools/call") {
-    const fast = await tryHandleFastTaskCall(parsed);
-    if (fast) return fast;
   }
 
   // When forwarding to the MCP handler, recreate a Request with the same

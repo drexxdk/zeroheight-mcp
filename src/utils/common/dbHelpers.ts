@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.schema";
-import type { PagesType, ImagesType } from "../../database.types";
+import type { Database } from "@/generated/database-schema";
+import type { PagesType, ImagesType } from "@/generated/database-types";
 import { isRecord } from "@/utils/common/typeGuards";
 import { toErrorObj } from "@/utils/common/errorUtils";
 import logger from "@/utils/logger";

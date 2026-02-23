@@ -14,7 +14,6 @@ import progressService, {
   getItems,
   getProgressSummary,
 } from "@/utils/common/progress";
-import type { PagesType, ImagesType } from "@/database.types";
 import type { OverallProgress } from "./utils/processPageAndImages";
 import { extractPageData } from "./utils/pageExtraction";
 import type { ExtractedImage } from "./utils/pageExtraction";
@@ -894,6 +893,7 @@ export async function scrape({
 
 import type { ToolDefinition } from "@/tools/toolTypes";
 import type { ToolResponse } from "@/utils/toolResponses";
+import { PagesType, ImagesType } from "../../generated/database-types";
 
 const scrapeInput = z.object({
   pageUrls: z.array(z.string()).optional(),

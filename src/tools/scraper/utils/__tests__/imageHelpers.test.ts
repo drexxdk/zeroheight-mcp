@@ -1,5 +1,8 @@
 /// <reference types="vitest/globals" />
-import { normalizeImageUrl, hashFilenameFromUrl } from "../imageHelpers";
+import {
+  normalizeImageUrl,
+  hashFilenameFromUrl,
+} from "@/tools/scraper/utils/imageHelpers";
 
 describe("imageHelpers", () => {
   test("normalizeImageUrl strips query and preserves protocol/host/path", () => {

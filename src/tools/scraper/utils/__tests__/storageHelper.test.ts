@@ -1,6 +1,9 @@
 /// <reference types="vitest/globals" />
 import { describe, test, expect, vi } from "vitest";
-import { ensureBucket, uploadWithFallback } from "../storageHelper";
+import {
+  ensureBucket,
+  uploadWithFallback,
+} from "@/tools/scraper/utils/storageHelper";
 
 vi.mock("@/utils/common", () => ({
   getSupabaseAdminClient: vi.fn(),

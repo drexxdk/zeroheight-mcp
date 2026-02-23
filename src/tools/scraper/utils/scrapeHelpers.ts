@@ -2,7 +2,7 @@ import defaultLogger from "@/utils/logger";
 import { getClient } from "@/utils/common/supabaseClients";
 import type { BulkUpsertResult } from "./bulkUpsert";
 import { formatSummaryBox, bulkUpsertPagesAndImages } from "./bulkUpsert";
-import type { ImagesType, PagesType } from "@/database.types";
+import type { ImagesType, PagesType } from "@/generated/database-types";
 import type { OverallProgress } from "./processPageAndImages";
 import type { ExtractedImage } from "./pageExtraction";
 import type { SummaryParams } from "./bulkUpsertHelpers";

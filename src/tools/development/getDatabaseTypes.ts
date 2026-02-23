@@ -21,7 +21,12 @@ export const getDatabaseTypesTool: ToolDefinition<
   handler: async () => {
     try {
       // Read the database schema file
-      const schemaPath = join(process.cwd(), "src", "database.types.ts");
+      const schemaPath = join(
+        process.cwd(),
+        "src",
+        "generated",
+        "database-types.ts",
+      );
       const schemaContent = readFileSync(schemaPath, "utf-8");
 
       return { content: schemaContent };

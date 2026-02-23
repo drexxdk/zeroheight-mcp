@@ -24,9 +24,25 @@ export function createSuccessResponse<T>({ data }: { data: T }): ToolResponse {
 }
 
 import { isRecord } from "./common/typeGuards";
+import logger from "./logger";
 
 export function normalizeToToolResponse(result: unknown): ToolResponse {
-  if (!result) return createSuccessResponse({ data: result });
+  // Debug: log the raw result we receive from tools to help diagnose why
+  // callers sometimes receive a literal "null" text response.
+  try {
+    logger.debug("normalizeToToolResponse called with", {
+      type: typeof result,
+      short:
+        typeof result === "object" ? JSON.stringify(result) : String(result),
+    });
+  } catch {
+    /* ignore logging errors */
+  }
+
+  // Treat explicit `null` or `undefined` results as an error — returning
+  // a bare JSON `null` in the tool response is confusing for callers.
+  if (result === null || typeof result === "undefined")
+    return createErrorResponse({ message: "Tool returned null or undefined" });
 
   // If it's already a ToolResponse, return as-is
   if (isRecord(result) && Array.isArray(result.content)) {
@@ -48,9 +64,11 @@ export function normalizeToToolResponse(result: unknown): ToolResponse {
     }
   }
 
-  // If it looks like an error object, convert to an error response
-  if (isRecord(result) && "error" in result) {
-    const err = result.error;
+  // If it looks like an error object and the `error` field is present and
+  // non-null/undefined, convert to an error response. Ignore `error: null`
+  // which is commonly used on task records to indicate no error.
+  if (isRecord(result) && "error" in result && result.error != null) {
+    const err = result.error as unknown;
     let msg: string;
     if (typeof err === "string") msg = err;
     else if (isRecord(err) && typeof err.message === "string")
