@@ -104,7 +104,7 @@ export async function processAndUploadImage(options: {
     const visibleName =
       sanitizedUrl.split("/").filter(Boolean).pop() ?? filename;
     logProgress("✅", `Successfully uploaded image: ${visibleName}`);
-    return { uploaded: true, path };
+    return { uploaded: true, path, normalizedUrl: sanitizedUrl };
   } catch (e) {
     return {
       uploaded: false,

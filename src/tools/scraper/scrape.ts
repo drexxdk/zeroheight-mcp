@@ -11,6 +11,7 @@ import progressService, {
   getProgressSnapshot,
   upsertItem,
   getItems,
+  getProgressSummary,
 } from "@/utils/common/progress";
 import type { PagesType, ImagesType } from "@/database.types";
 import type { OverallProgress } from "./utils/processPageAndImages";
@@ -52,6 +53,7 @@ async function finalizeScrape({
   browser,
   rootUrl,
   progress,
+  runDurationMs,
 }: {
   pagesToUpsert: Array<Pick<PagesType, "url" | "title" | "content">>;
   pendingImageRecords: Array<{
@@ -72,6 +74,7 @@ async function finalizeScrape({
   browser: Browser;
   rootUrl: string;
   progress: OverallProgress;
+  runDurationMs?: number;
 }): Promise<ScrapeResult> {
   // Derive unique image sets from the progress items so the progress
   // service is the single source of truth for image categories.
@@ -99,6 +102,7 @@ async function finalizeScrape({
     browser,
     rootUrl,
     progress,
+    runDurationMs,
   });
 }
 
@@ -198,7 +202,7 @@ async function prepareSeedsForScrape({
     height: config.scraper.viewport.height,
   });
   try {
-    await attachDefaultInterception(p).catch(() => {});
+    await attachDefaultInterception(p, { blockImages: true }).catch(() => {});
   } catch (e) {
     defaultLogger.warn("Failed to prefetch seeds:", e);
   }
@@ -391,7 +395,9 @@ async function runWorkerForScrape(options: {
     height: config.scraper.viewport.height,
   });
   try {
-    await attachDefaultInterception(page).catch(() => {});
+    await attachDefaultInterception(page, { blockImages: true }).catch(
+      () => {},
+    );
   } catch (e) {
     defaultLogger.debug("URL parse failed while normalizing seed:", e);
   }
@@ -651,6 +657,7 @@ export async function scrape({
     const redirects = new Map<string, string>();
     let inProgressCount = 0;
     let lastActivity = Date.now();
+    const runStart = Date.now();
 
     // Capture a start-of-run snapshot of progress (use snapshot API)
     const progress = getProgressSnapshot();
@@ -821,27 +828,15 @@ export async function scrape({
     const finalSnap = getProgressSnapshot();
     // Derive final image stats from progress items so the ProgressService is
     // the single source of truth for image outcomes.
-    const items = getItems();
-    const imageItems = items.filter((it) => it.type === "image");
-    const imagesUploaded = imageItems.filter(
-      (i) => i.reason === "uploaded",
-    ).length;
-    const imagesSkipped = imageItems.filter(
-      (i) =>
-        i.status === "skipped" ||
-        i.reason === "unsupported" ||
-        i.reason === "already_present" ||
-        i.reason === "duplicate",
-    ).length;
-    const imagesFailed = imageItems.filter(
-      (i) => i.status === "failed" || i.reason === "failed",
-    ).length;
+    const summary = getProgressSummary();
     const finalImagesStats = {
       processed: finalSnap.imagesProcessed,
-      uploaded: imagesUploaded,
-      skipped: imagesSkipped,
-      failed: imagesFailed,
+      uploaded: summary.uploadedCount,
+      skipped: summary.uniqueSkipped,
+      failed: summary.failedCount,
     };
+    const runDurationMs = Date.now() - runStart;
+
     return await finalizeScrape({
       pagesToUpsert,
       pendingImageRecords,
@@ -855,6 +850,7 @@ export async function scrape({
       browser,
       rootUrl,
       progress: finalSnap,
+      runDurationMs,
     });
   } catch (err) {
     if (err instanceof JobCancelled) return { message: "Job cancelled" };

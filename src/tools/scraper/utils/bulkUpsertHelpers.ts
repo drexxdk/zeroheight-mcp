@@ -422,6 +422,7 @@ export type SummaryParams = Readonly<{
   imagesFailed: number;
   imagesDbInsertedCount: number;
   imagesAlreadyAssociatedCount: number;
+  runtimeMs?: number;
 }>;
 
 export function buildSummaryParams(opts: {
@@ -444,6 +445,7 @@ export function buildSummaryParams(opts: {
   dbExistingImageUrls: Set<string>;
   /** Optional precomputed unique-skipped count to prefer over DB-derived value */
   uniqueSkippedOverride?: number;
+  runDurationMs?: number;
 }): SummaryParams {
   const {
     providedCount,
@@ -515,6 +517,7 @@ export function buildSummaryParams(opts: {
     imagesFailed: imagesStats.failed,
     imagesDbInsertedCount,
     imagesAlreadyAssociatedCount,
+    runtimeMs: opts.runDurationMs,
   };
 }
 

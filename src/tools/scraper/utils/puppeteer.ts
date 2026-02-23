@@ -4,6 +4,8 @@ import logger from "@/utils/logger";
 type BlockOptions = {
   allow?: Set<string>;
   block?: Set<string>;
+  // When true, block image resource requests except for supported types
+  blockImages?: boolean;
   onRequest?: (
     req: HTTPRequest,
     decision: "blocked" | "continued",
@@ -16,6 +18,7 @@ export function getBlockReason(
   rType: string,
   allowSetLocal: Set<string>,
   blockSetLocal: Set<string>,
+  blockImages = false,
 ): string | null {
   const rTypeLower = rType.toLowerCase();
   if (allowSetLocal.has(rTypeLower)) return null;
@@ -33,6 +36,25 @@ export function getBlockReason(
     }
   })();
 
+  // If images are being blocked, handle image resource types specially:
+  if (rTypeLower === "image") {
+    // supported image extensions - allow these even when blocking images
+    const supportedImageExtRe = /\.(jpe?g|png|webp|avif|bmp)(?:[?#]|$)/i;
+    if (!blockImages) {
+      // Default behaviour: still block a small set of undesired image extensions
+      if (hasBlockedExtension(parsedPathLower)) return "blocked-ext";
+    } else {
+      // blockImages=true: only allow supported image extensions and common data URIs
+      if (supportedImageExtRe.test(parsedPathLower)) return null;
+      // allow data: URIs for supported image types
+      if (
+        urlLower.startsWith("data:") &&
+        /image\/(png|jpeg|jpg|webp|avif)/.test(urlLower)
+      )
+        return null;
+      return "blocked-image";
+    }
+  }
   if (isBlockedResourceType(rTypeLower)) return "blocked-resource-type";
   if (hasBlockedExtension(parsedPathLower)) return "blocked-ext";
   if (isBlockedDataUri(urlLower)) return "blocked-data-uri";
@@ -104,6 +126,7 @@ export async function attachDefaultInterception(
 ): Promise<void> {
   const allowSet = opts?.allow ?? new Set<string>();
   const blockSet = opts?.block ?? new Set<string>();
+  const blockImages = opts?.blockImages ?? false;
   try {
     await page.setRequestInterception(true);
   } catch (e) {
@@ -116,6 +139,7 @@ export async function attachDefaultInterception(
       req.resourceType(),
       allowSet,
       blockSet,
+      blockImages,
     );
     if (reason) {
       opts?.onRequest?.(req, "blocked", reason);

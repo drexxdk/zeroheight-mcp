@@ -153,10 +153,21 @@ export async function navigateAndResolveProcessingLink(args: {
   } = args;
   // `rootUrl` removed from args list; ensure not referenced below
 
+  const _navStart = Date.now();
   await page.goto(link, {
     waitUntil: config.scraper.viewport.navWaitUntil,
     timeout: config.scraper.viewport.navTimeoutMs,
   });
+  try {
+    const navMs = Date.now() - _navStart;
+    // log a simple navigation timing if logger is provided
+    if (logger)
+      logger(
+        `Navigation to ${formatLinkForConsole(link)} completed in ${navMs}ms`,
+      );
+  } catch {
+    // ignore
+  }
 
   await tryLoginIfNeeded({
     page,
@@ -331,6 +342,8 @@ export async function extractAndProcessPage(args: {
     })();
   }
 
+  // time the page+image processing to identify hotspots
+  const _procStart = Date.now();
   const {
     pageUpsert,
     processedPageEntry,
@@ -358,6 +371,16 @@ export async function extractAndProcessPage(args: {
       pageLinks,
     },
   });
+  try {
+    const procMs = Date.now() - _procStart;
+    try {
+      logProgress("⏱️", `Processed ${processingLink} in ${procMs}ms`);
+    } catch {
+      // best-effort
+    }
+  } catch {
+    // ignore
+  }
 
   return {
     pageUpsert,
@@ -488,15 +511,26 @@ export function postProcessPageResults(args: {
       const supportedSet = new Set((retSupported || []).map((s) => s.src));
       for (const img of retNorm || []) {
         try {
+          // Normalize discovered image URLs so that later processing and
+          // upload code operate on the same canonical form used by the
+          // ProgressService. This prevents mismatches where pending items
+          // and uploaded items use different keys.
+          let key = String(img.src || "");
+          try {
+            key = normalizeImageUrl({ src: img.src });
+          } catch {
+            // fall back to raw src on normalization failure
+            key = String(img.src || "");
+          }
           if (supportedSet.has(img.src)) {
             try {
-              markImagePending(img.src);
+              markImagePending(key);
             } catch {
               // best-effort
             }
           } else {
             try {
-              markImageUnsupported(img.src);
+              markImageUnsupported(key);
             } catch {
               // best-effort
             }
@@ -691,6 +725,7 @@ type PerformArgs = {
   providedCount: number;
   logger?: (s: string) => void;
   dryRun?: boolean;
+  runDurationMs?: number;
 };
 
 export async function performBulkUpsertSummary(
@@ -770,6 +805,7 @@ export async function performBulkUpsertSummary(
       pagesFailed,
       providedCount,
       dryRun: dry,
+      runDurationMs: args.runDurationMs,
     });
   };
 
@@ -822,6 +858,7 @@ function computeFallbackSummary(args: {
   pagesFailed: number;
   providedCount: number;
   logger?: (s: string) => void;
+  runDurationMs?: number;
 }): string[] | undefined {
   const {
     pagesToUpsert,
@@ -907,6 +944,8 @@ function computeFallbackSummary(args: {
     imagesAlreadyAssociatedCount: Array.from(uniqueAllowed).filter((u) =>
       allExistingImageUrls.has(u),
     ).length,
+    // include runtime when available so boxed summary can show it
+    runtimeMs: args.runDurationMs,
   };
   const boxed = formatSummaryBox({ p: params });
   if (boxed && boxed.length) {
@@ -945,6 +984,7 @@ export async function logSummaryAndClose(args: {
   browser: Browser;
   rootUrl: string;
   progress: OverallProgress;
+  runDurationMs?: number;
 }): Promise<{ debug: { seedUrl: string }; progress: OverallProgress }> {
   const {
     pagesToUpsert,
@@ -1002,6 +1042,7 @@ export async function logSummaryAndClose(args: {
     pagesFailed,
     providedCount,
     logger,
+    runDurationMs: args.runDurationMs,
   });
 
   try {

@@ -22,6 +22,25 @@ export type LogProgressFn = (icon: string, message: string) => void;
 // Module-level set to prevent duplicate uploads across concurrent page workers.
 const GLOBAL_IN_PROGRESS = new Set<string>();
 
+// Global semaphore to limit concurrent image uploads across all page workers.
+// This prevents unbounded parallel uploads when many pages run concurrently.
+const cfg = config.scraper as {
+  imageConcurrency: number;
+  imageConcurrencyTotal?: number;
+};
+const GLOBAL_UPLOAD_LIMIT = cfg.imageConcurrencyTotal ?? cfg.imageConcurrency;
+let GLOBAL_UPLOAD_CURRENT = 0;
+const acquireGlobalUpload = async (): Promise<void> => {
+  // simple spin-wait with small delay
+  while (GLOBAL_UPLOAD_CURRENT >= GLOBAL_UPLOAD_LIMIT) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  GLOBAL_UPLOAD_CURRENT += 1;
+};
+const releaseGlobalUpload = (): void => {
+  GLOBAL_UPLOAD_CURRENT = Math.max(0, GLOBAL_UPLOAD_CURRENT - 1);
+};
+
 export type ProcessImagesResult = {
   processed: number;
   uploaded: number;
@@ -186,15 +205,20 @@ export async function processImagesForPage(options: {
       const downloadUrl = img.originalSrc || img.src;
       let result;
       try {
-        result = await processAndUploadImage({
-          storage,
-          downloadUrl,
-          link,
-          logProgress,
-          pendingImageRecords,
-          allExistingImageUrls,
-          shouldCancel,
-        });
+        await acquireGlobalUpload();
+        try {
+          result = await processAndUploadImage({
+            storage,
+            downloadUrl,
+            link,
+            logProgress,
+            pendingImageRecords,
+            allExistingImageUrls,
+            shouldCancel,
+          });
+        } finally {
+          releaseGlobalUpload();
+        }
       } finally {
         // Ensure we release the in-progress lock so other occurrences can be
         // considered (they will now see the URL in `allExistingImageUrls`).
@@ -206,12 +230,16 @@ export async function processImagesForPage(options: {
           // Derive a concise reason for the processed state so summary
           // derivation can be exact. Prefer explicit outcomes when
           // available.
+          const keyToMark =
+            result && (result as any).normalizedUrl
+              ? (result as any).normalizedUrl
+              : normalizedSrc;
           if (result && result.uploaded) {
-            markImageUploaded(normalizedSrc);
+            markImageUploaded(keyToMark);
           } else if (result && result.error) {
-            markImageFailed(normalizedSrc, String(result.error));
+            markImageFailed(keyToMark, String(result.error));
           } else {
-            markImageFailed(normalizedSrc);
+            markImageFailed(keyToMark);
           }
         } catch {
           // best-effort
