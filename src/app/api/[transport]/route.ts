@@ -60,6 +60,23 @@ const handler = createMcpHandler(
           } catch {
             /* ignore logging errors */
           }
+          // If the handler already returned a `ToolResponse` shape, accept it
+          // as-is and bypass per-tool outputSchema validation. This allows
+          // handlers to return `createErrorResponse()` without requiring every
+          // tool to union its output schema with the error shape.
+          if (isRecord(res)) {
+            const maybeContent = Reflect.get(res, "content");
+            if (Array.isArray(maybeContent)) {
+              const allText = maybeContent.every(
+                (it) =>
+                  isRecord(it) &&
+                  Reflect.get(it, "type") === "text" &&
+                  typeof Reflect.get(it, "text") === "string",
+              );
+              if (allText) return res as ToolResponse;
+            }
+          }
+
           // If the tool provided an outputSchema, validate the result before
           // normalization. If validation fails, return an error ToolResponse.
           if (tool.outputSchema) {
@@ -338,7 +355,7 @@ async function authenticatedHandler(request: NextRequest): Promise<Response> {
     error,
     bodyText,
     contentType: _contentType,
-    parsed,
+    parsed: _parsed,
   } = await authenticateAndParse(request);
 
   if (!isValid) {

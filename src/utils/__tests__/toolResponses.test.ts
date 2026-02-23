@@ -3,7 +3,7 @@ import {
   createErrorResponse,
   createSuccessResponse,
   normalizeToToolResponse,
-} from "../toolResponses";
+} from "@/utils/toolResponses";
 
 describe("toolResponses", () => {
   test("createErrorResponse wraps message", () => {

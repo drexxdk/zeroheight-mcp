@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { config } from "../config";
+import { config } from "@/utils/config";
 
 describe("config defaults in test env", () => {
   test("env defaults are present and valid types", () => {

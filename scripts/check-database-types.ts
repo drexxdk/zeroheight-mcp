@@ -3,11 +3,11 @@ import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import logger from "../src/utils/logger";
 
-// This script regenerates `src/database.types.ts` in-memory and compares it
+// This script regenerates `src/database-types.ts` in-memory and compares it
 // with the on-disk file. Exit code 0 if identical, 1 if different.
 
 function extractTableNames(): string[] {
-  const schemaPath = join(process.cwd(), "src", "database.schema.ts");
+  const schemaPath = join(process.cwd(), "src", "database-schema.ts");
   const content = readFileSync(schemaPath, "utf-8");
 
   const tablesStart = content.indexOf("Tables: {");
@@ -90,7 +90,7 @@ function parseTableRow(
 }
 
 function generateZodSchema(tableName: string): string {
-  const schemaPath = join(process.cwd(), "src", "database.schema.ts");
+  const schemaPath = join(process.cwd(), "src", "database-schema.ts");
   const content = readFileSync(schemaPath, "utf-8");
   const fields = parseTableRow(tableName, content);
   if (Object.keys(fields).length === 0) {
@@ -119,9 +119,9 @@ function generateSchemasFromDatabase(): { schemas: string[]; types: string[] } {
 
 const { schemas, types } = generateSchemasFromDatabase();
 const schemasContent = `import { z } from 'zod';
-import type { Database } from './database.schema';
+import type { Database } from './database-schema';
 
-// Auto-generated Zod schemas based on database.schema.ts
+// Auto-generated Zod schemas based on database-schema.ts
 
 ${schemas.join("\n\n")}
 
@@ -132,11 +132,11 @@ ${types.join("\n")}
 export type SupabaseDatabase = Database;
 `;
 
-const outputPath = join(process.cwd(), "src", "database.types.ts");
+const outputPath = join(process.cwd(), "src", "database-types.ts");
 const current = readFileSync(outputPath, "utf-8");
 if (current !== schemasContent) {
   logger.error(
-    "src/database.types.ts is out of date. Run 'npx tsx scripts/generate-database-types.ts' to regenerate.",
+    "src/database-types.ts is out of date. Run 'npx tsx scripts/generate-database-types.ts' to regenerate.",
   );
   // Write a diagnostics file to help debugging
   const tmpDir = join(process.cwd(), "tmp");
@@ -150,11 +150,11 @@ if (current !== schemasContent) {
     // ignore
   }
   writeFileSync(
-    join(process.cwd(), "tmp", "expected-database.types.ts"),
+    join(process.cwd(), "tmp", "expected-database-types.ts"),
     schemasContent,
     "utf-8",
   );
   process.exit(1);
 }
 
-logger.log("src/database.types.ts is up to date.");
+logger.log("src/database-types.ts is up to date.");

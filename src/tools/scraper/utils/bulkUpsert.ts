@@ -1,6 +1,5 @@
 ﻿import "dotenv/config";
 import { config } from "@/utils/config";
-import type { PagesType, ImagesType } from "@/database.types";
 import type { TestDbClient } from "./mockDb";
 import { getClient } from "@/utils/common/supabaseClients";
 import boxen from "boxen";
@@ -16,6 +15,7 @@ import {
   getDbExistingImageUrls,
   computeImagesAlreadyAssociatedCount,
 } from "./bulkUpsertHelpers";
+import { PagesType, ImagesType } from "@/generated/database-types";
 
 // Allow either the real Supabase client or a lightweight test stub that
 // provides a `from` method. Tests supply a `MockSupabaseClient` with a

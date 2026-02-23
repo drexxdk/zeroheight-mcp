@@ -1,6 +1,6 @@
 /// <reference types="vitest/globals" />
 import { describe, test, expect, vi } from "vitest";
-import { bulkUpsertPagesAndImages } from "../bulkUpsert";
+import { bulkUpsertPagesAndImages } from "@/tools/scraper/utils/bulkUpsert";
 import logger from "@/utils/logger";
 import {
   makeSupabaseStub,

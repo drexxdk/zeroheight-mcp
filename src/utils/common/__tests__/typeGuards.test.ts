@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { isRecord, hasStringProp, isJson, getProp } from "../typeGuards";
+import {
+  isRecord,
+  hasStringProp,
+  isJson,
+  getProp,
+} from "@/utils/common/typeGuards";
 
 describe("typeGuards", () => {
   it("isRecord recognizes objects and rejects null/primitive", () => {

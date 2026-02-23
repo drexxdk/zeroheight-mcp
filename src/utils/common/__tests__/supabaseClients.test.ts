@@ -25,7 +25,10 @@ vi.mock("../common", () => ({
   })),
 }));
 
-import { getClient, checkProgressInvariant } from "../supabaseClients";
+import {
+  getClient,
+  checkProgressInvariant,
+} from "@/utils/common/supabaseClients";
 import logger from "@/utils/logger";
 
 describe("getClient/storage helpers", () => {

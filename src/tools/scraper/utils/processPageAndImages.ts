@@ -1,7 +1,7 @@
 import type { Page } from "puppeteer";
 import { extractPageData } from "./pageExtraction";
 import { processImagesForPage } from "./pageProcessors";
-import type { ImagesType } from "@/database.types";
+import type { ImagesType } from "@/generated/database-types";
 
 export type OverallProgress = {
   current: number;

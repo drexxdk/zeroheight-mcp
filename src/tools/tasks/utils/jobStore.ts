@@ -1,8 +1,8 @@
-import type { TasksType } from "@/database.types";
-import type { Json } from "@/database.schema";
+import type { TasksType } from "@/generated/database-types";
+import type { Json } from "@/generated/database-schema";
 import { getSupabaseAdminClient } from "@/utils/common";
 import { config } from "@/utils/config";
-import { isRecord, isJson, getProp } from "../../../utils/common/typeGuards";
+import { isRecord, isJson, getProp } from "@/utils/common/typeGuards";
 import logger from "@/utils/logger";
 
 export type JobRecord = TasksType;

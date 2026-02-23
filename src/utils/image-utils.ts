@@ -1,9 +1,9 @@
 import sharp from "sharp";
 import { isRecord, getProp } from "@/utils/common/typeGuards";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../database.schema";
 import { config } from "./config";
 import logger from "@/utils/logger";
+import { Database } from "@/generated/database-schema";
 
 type StorageLike = {
   storage: {

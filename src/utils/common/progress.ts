@@ -1,6 +1,6 @@
 // Items-based progress tracker
 
-import defaultLogger from "../logger";
+import defaultLogger from "@/utils/logger";
 
 export type ItemType = "page" | "image";
 export type ItemStatus =

@@ -1,4 +1,4 @@
-import { mapSqlTypeToTs } from "../common";
+import { mapSqlTypeToTs } from "@/utils/common";
 
 describe("mapSqlTypeToTs", () => {
   test("maps common numeric types to number", () => {

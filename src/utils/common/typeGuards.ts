@@ -1,3 +1,5 @@
+import { Json } from "@/generated/database-schema";
+
 export function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null;
 }
@@ -10,8 +12,6 @@ export function hasStringProp(
   const val = obj[prop];
   return typeof val === "string";
 }
-
-import type { Json } from "../../database.schema";
 
 export function isJson(x: unknown): x is Json {
   try {

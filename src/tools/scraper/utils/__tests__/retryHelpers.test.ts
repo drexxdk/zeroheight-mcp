@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { retryWithBackoff } from "../retryHelpers";
+import { retryWithBackoff } from "@/tools/scraper/utils/retryHelpers";
 
 describe("retryWithBackoff", () => {
   test("returns value when fn resolves non-null", async (): Promise<void> => {

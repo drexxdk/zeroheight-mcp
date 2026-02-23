@@ -1,7 +1,7 @@
-import { z } from "zod";
-import type { Database } from "./database.schema";
+import { z } from 'zod';
+import type { Database } from './database-schema';
 
-// Auto-generated Zod schemas based on database.schema.ts
+// Auto-generated Zod schemas based on database-schema.ts
 
 export const publicImagesSchema = z.object({
   id: z.number(),

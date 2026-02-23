@@ -6,8 +6,11 @@ vi.mock("../storageHelper", () => ({
   uploadWithFallback: vi.fn(),
 }));
 
-import { uploadBufferToStorage } from "../uploadHelpers";
-import { ensureBucket, uploadWithFallback } from "../storageHelper";
+import { uploadBufferToStorage } from "@/tools/scraper/utils/uploadHelpers";
+import {
+  ensureBucket,
+  uploadWithFallback,
+} from "@/tools/scraper/utils/storageHelper";
 import type { MockedFn, MockStorage } from "./testHelpers";
 
 describe("uploadBufferToStorage", () => {

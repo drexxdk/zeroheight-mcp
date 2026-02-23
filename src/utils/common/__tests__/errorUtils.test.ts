@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { toErrorObj } from "../errorUtils";
+import { toErrorObj } from "@/utils/common/errorUtils";
 
 describe("toErrorObj", () => {
   test("returns message for Error instances", () => {

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
 import type { TasksResultResponse } from "./types";
-import { isRecord } from "../../utils/common/typeGuards";
+import { isRecord } from "@/utils/common/typeGuards";
 
 const tasksResultInput = z.object({
   taskId: z.string(),

@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { retryAsync, uploadWithRetry } from "../scraperHelpers";
+import { retryAsync, uploadWithRetry } from "@/utils/common/scraperHelpers";
 import { vi } from "vitest";
 
 describe("retryAsync", () => {
