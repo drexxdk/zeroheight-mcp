@@ -5,14 +5,30 @@ import type { ToolDefinition } from "@/tools/toolTypes";
 import { getJobFromDb } from "./utils/jobStore";
 import { isRecord } from "@/utils/common/typeGuards";
 
-const tasksTailInput = z
-  .object({
-    taskId: z.string(),
-    sinceLine: z.number().int().nonnegative().optional(),
-    timeoutMs: z.number().int().nonnegative().optional(),
-    intervalMs: z.number().int().nonnegative().optional(),
-  })
-  .required();
+const tasksTailInput = z.object({
+  taskId: z.string(),
+  sinceLine: z.preprocess((val) => {
+    if (typeof val === "string") {
+      const n = Number(val);
+      return Number.isFinite(n) ? n : val;
+    }
+    return val;
+  }, z.number().int().nonnegative().optional()),
+  timeoutMs: z.preprocess((val) => {
+    if (typeof val === "string") {
+      const n = Number(val);
+      return Number.isFinite(n) ? n : val;
+    }
+    return val;
+  }, z.number().int().nonnegative().optional()),
+  intervalMs: z.preprocess((val) => {
+    if (typeof val === "string") {
+      const n = Number(val);
+      return Number.isFinite(n) ? n : val;
+    }
+    return val;
+  }, z.number().int().nonnegative().optional()),
+});
 
 export type TasksTailResult = {
   taskId: string;

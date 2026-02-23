@@ -51,7 +51,15 @@ const handler = createMcpHandler(
             });
           }
           const res = await tool.handler(parsedIn.data);
-
+          try {
+            logger.debug("wrapTool handler raw result", {
+              type: typeof res,
+              value:
+                typeof res === "object" ? JSON.stringify(res) : String(res),
+            });
+          } catch {
+            /* ignore logging errors */
+          }
           // If the tool provided an outputSchema, validate the result before
           // normalization. If validation fails, return an error ToolResponse.
           if (tool.outputSchema) {
@@ -205,7 +213,18 @@ const permissiveHandler = handler as (req: Request) => Promise<Response>;
 // Adapter to allow forwarding plain `Request` instances to the MCP handler.
 type HandlerForRequest = (req: Request) => Promise<Response>;
 const handlerForRequest: HandlerForRequest = async (req) => {
-  return await permissiveHandler(req);
+  const res = await permissiveHandler(req as unknown as Request);
+  try {
+    const text = await res.text();
+    logger.debug("[mcp] handler response body", { body: text });
+    // Recreate the Response since the body stream has been consumed.
+    const headersObj: Record<string, string> = {};
+    res.headers.forEach((v, k) => (headersObj[k] = v));
+    return new Response(text, { status: res.status, headers: headersObj });
+  } catch (e) {
+    logger.warn("[mcp] failed to log handler response body", e);
+    return res;
+  }
 };
 
 // Export the underlying MCP handler for reuse by the JSON wrapper route.
