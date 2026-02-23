@@ -3,6 +3,7 @@ import { JobCancelled } from "@/utils/common/errors";
 import type { StorageHelper } from "@/utils/common/scraperHelpers";
 import { normalizeImageUrl } from "./imageHelpers";
 import { processAndUploadImage } from "./imagePipeline";
+import type { ProcessAndUploadResult } from "./imagePipeline";
 import { mapWithConcurrency } from "./concurrency";
 import { config } from "@/utils/config";
 import logger from "@/utils/logger";
@@ -203,7 +204,7 @@ export async function processImagesForPage(options: {
       logProgress("📷", `Processing image: ${img.src.split("/").pop()}`);
 
       const downloadUrl = img.originalSrc || img.src;
-      let result;
+      let result: ProcessAndUploadResult | undefined;
       try {
         await acquireGlobalUpload();
         try {
@@ -231,8 +232,8 @@ export async function processImagesForPage(options: {
           // derivation can be exact. Prefer explicit outcomes when
           // available.
           const keyToMark =
-            result && (result as any).normalizedUrl
-              ? (result as any).normalizedUrl
+            result && result.normalizedUrl
+              ? result.normalizedUrl
               : normalizedSrc;
           if (result && result.uploaded) {
             markImageUploaded(keyToMark);

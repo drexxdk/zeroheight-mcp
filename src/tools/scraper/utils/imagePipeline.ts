@@ -26,6 +26,7 @@ export type ProcessAndUploadResult = {
   uploaded: boolean;
   path?: string;
   error?: string;
+  normalizedUrl?: string;
 };
 
 export async function processAndUploadImage(options: {
