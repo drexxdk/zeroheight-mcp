@@ -8,12 +8,19 @@ import { createErrorResponse } from "@/utils/toolResponses";
 import type { ToolDefinition } from "@/tools/toolTypes";
 import type { TasksGetResult } from "./types";
 
-const tasksGetInput = z
-  .object({
-    taskId: z.string(),
-    requestedTtlMs: z.number().int().nonnegative().optional(),
-  })
-  .required();
+const tasksGetInput = z.object({
+  taskId: z.string(),
+  // Accept either a number or a numeric string for requestedTtlMs; coerce
+  // string values to numbers so clients (Inspector/SDK) can send
+  // shorthand string payloads without failing validation.
+  requestedTtlMs: z.preprocess((val) => {
+    if (typeof val === "string") {
+      const n = Number(val);
+      return Number.isFinite(n) ? n : val;
+    }
+    return val;
+  }, z.number().int().nonnegative().optional()),
+});
 
 export const tasksGetTool: ToolDefinition<
   typeof tasksGetInput,
