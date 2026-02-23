@@ -12,6 +12,16 @@ const queryDataInput = z.object({
     .string()
     .optional()
     .describe("Search term to find in page titles or content"),
+  searchTitle: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe("Whether to search in page titles"),
+  searchContent: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe("Whether to search in page content"),
   url: z.string().optional().describe("Specific page URL to retrieve"),
   includeImages: z
     .boolean()
@@ -55,6 +65,8 @@ export const queryDataTool: ToolDefinition<
   }),
   handler: async ({
     search,
+    searchTitle,
+    searchContent,
     url,
     includeImages,
     limit,
@@ -73,43 +85,73 @@ export const queryDataTool: ToolDefinition<
     let pages: PageData[] = [];
 
     if (search) {
-      // Use separate queries to avoid complex OR conditions that can cause parsing issues
-      const titleQuery = supabase
-        .from("pages")
-        .select("id, title, url, content, images (original_url, storage_path)")
-        .ilike("title", `%${search}%`);
-      const contentQuery = supabase
-        .from("pages")
-        .select("id, title, url, content, images (original_url, storage_path)")
-        .ilike("content", `%${search}%`);
+      const runSearch = async (): Promise<null | ReturnType<
+        typeof createErrorResponse
+      >> => {
+        const effectiveSearchTitle = searchTitle ?? true;
+        const effectiveSearchContent = searchContent ?? true;
 
-      const [titleResult, contentResult] = await Promise.all([
-        titleQuery,
-        contentQuery,
-      ]);
+        if (!effectiveSearchTitle && !effectiveSearchContent) {
+          return createErrorResponse({
+            message:
+              "When providing a search term, enable at least one of searchTitle or searchContent",
+          });
+        }
 
-      if (titleResult.error) {
-        defaultLogger.error("Error querying titles:", titleResult.error);
-        return createErrorResponse({
-          message: "Error querying data: " + titleResult.error.message,
-        });
-      }
-      if (contentResult.error) {
-        defaultLogger.error("Error querying content:", contentResult.error);
-        return createErrorResponse({
-          message: "Error querying data: " + contentResult.error.message,
-        });
-      }
+        // Execute title/content queries individually so types are inferred
+        let titleResult: {
+          data?: PageData[] | null;
+          error?: { message: string } | null;
+        } | null = null;
+        let contentResult: {
+          data?: PageData[] | null;
+          error?: { message: string } | null;
+        } | null = null;
 
-      // Combine and deduplicate results
-      const allPages = [
-        ...(titleResult.data || []),
-        ...(contentResult.data || []),
-      ];
-      pages = allPages.filter(
-        (page, index, self) =>
-          index === self.findIndex((p) => p.id === page.id),
-      );
+        if (effectiveSearchTitle) {
+          titleResult = await supabase
+            .from("pages")
+            .select(
+              "id, title, url, content, images (original_url, storage_path)",
+            )
+            .ilike("title", `%${search}%`);
+          if (titleResult.error) {
+            defaultLogger.error("Error querying titles:", titleResult.error);
+            return createErrorResponse({
+              message: "Error querying data: " + titleResult.error.message,
+            });
+          }
+        }
+
+        if (effectiveSearchContent) {
+          contentResult = await supabase
+            .from("pages")
+            .select(
+              "id, title, url, content, images (original_url, storage_path)",
+            )
+            .ilike("content", `%${search}%`);
+          if (contentResult.error) {
+            defaultLogger.error("Error querying content:", contentResult.error);
+            return createErrorResponse({
+              message: "Error querying data: " + contentResult.error.message,
+            });
+          }
+        }
+
+        const allPages = [
+          ...(titleResult?.data || []),
+          ...(contentResult?.data || []),
+        ];
+        pages = allPages.filter(
+          (page, index, self) =>
+            index === self.findIndex((p) => p.id === page.id),
+        );
+
+        return null;
+      };
+
+      const searchErr = await runSearch();
+      if (searchErr) return searchErr;
     } else if (url) {
       // Query by URL
       const { data: urlPages, error: urlError } = await supabase
