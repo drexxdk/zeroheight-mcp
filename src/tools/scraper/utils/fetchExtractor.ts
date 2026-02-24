@@ -30,12 +30,19 @@ export async function fetchAndExtract(options: {
     // Detect likely login/guard pages so callers can fallback to Puppeteer.
     // Zeroheight renders a `window.USER_INFO` blob and `needsPassword` when
     // a password is required; other sites may include a password input.
-    const loginHints = ["needsPassword", "window.USER_INFO", "hasStyleguidePassword"];
+    const loginHints = [
+      "needsPassword",
+      "window.USER_INFO",
+      "hasStyleguidePassword",
+    ];
     const hasPasswordInput = /<input[^>]+type=["']?password["']?/i.test(text);
-    for (const hint of loginHints) if (text.includes(hint) || hasPasswordInput) {
-      logger.debug("fetchExtractor detected login page, aborting to allow Puppeteer fallback");
-      throw new Error("login-required");
-    }
+    for (const hint of loginHints)
+      if (text.includes(hint) || hasPasswordInput) {
+        logger.debug(
+          "fetchExtractor detected login page, aborting to allow Puppeteer fallback",
+        );
+        throw new Error("login-required");
+      }
     const $ = load(text);
 
     const title = ($("title").first().text() || "").trim();
@@ -74,7 +81,11 @@ export async function fetchAndExtract(options: {
       let src = img.src;
       try {
         const u = new URL(src);
-        if (u.hostname.includes("cdn.zeroheight.com") || u.hostname.includes("amazonaws.com") || u.hostname.includes("s3.")) {
+        if (
+          u.hostname.includes("cdn.zeroheight.com") ||
+          u.hostname.includes("amazonaws.com") ||
+          u.hostname.includes("s3.")
+        ) {
           src = `${u.protocol}//${u.hostname}${u.pathname}`;
         }
       } catch (e) {
@@ -85,7 +96,8 @@ export async function fetchAndExtract(options: {
 
     const supportedImages = normalizedImages.filter((img) => {
       const lower = img.src.toLowerCase();
-      for (const ext of config.image.excludeFormats) if (lower.includes(`.${ext}`)) return false;
+      for (const ext of config.image.excludeFormats)
+        if (lower.includes(`.${ext}`)) return false;
       return true;
     });
 
@@ -108,6 +120,8 @@ export async function fetchAndExtract(options: {
   }
 }
 
-export function serializeCookies(cookies: Array<{ name: string; value: string }>): string {
+export function serializeCookies(
+  cookies: Array<{ name: string; value: string }>,
+): string {
   return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 }

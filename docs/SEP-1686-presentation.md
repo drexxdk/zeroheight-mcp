@@ -1,28 +1,44 @@
 # SEP-1686 — Background Tasks in zeroheight-mcp
+
 Short, focused notes on how SEP-1686 is applied here.
+
 ## What SEP-1686 is (brief)
+
 - A concise job shape: create a job, track status, append logs, return structured results, support polling/tailing.
+
 ## Why SEP-1686
+
 - Immediate job id for async work.
 - Structured logs/results for easier debugging and automation.
 - Reusable tools and consistent lifecycle.
+
 ## How this project uses SEP-1686
+
 - Database & types: `tasks` table with `id, name, status, started_at, finished_at, logs, result`; generated TS types in `src/generated/`.
+
 ### Job lifecycle (short)
+
 - Create: `createJob({ name, args })` → immediate `jobId`.
 - Process: workers atomically claim, append logs, then `finishJob({ jobId, success, result })` or schedule retry.
 - Retry/idempotency: attempt metadata + optional `idempotency_key` prevent duplicate side-effects.
+
 ### Tooling & RPC surface
+
 - Tools: `createJob`, `getJob`, `tailJob`, `getResult` (+ admin variants).
 - Validation: `zod` schemas at the RPC boundary.
 - Options: `requestedTtlMs`, `pollInterval`, `tailFrom` for polling and tailing.
+
 ### Worker model (how it works)
+
 - Claim: atomic claims (e.g. `UPDATE ... RETURNING` or `SELECT ... FOR UPDATE SKIP LOCKED`).
 - Work: set `started_at`, append logs, perform task.
 - Finish/retry: set `status`, write compact `result`, or increment attempts and set `next_attempt_at` with backoff.
+
 ### Operational notes
+
 - Index jobs on `status` + `next_attempt_at`.
 - Append logs incrementally and keep `result` compact.
+
 # SEP-1686 — Background Tasks in zeroheight-mcp
 
 ## What SEP-1686 is (brief)
