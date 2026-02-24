@@ -154,11 +154,11 @@ async function quickScrollForLinks(page: Page): Promise<void> {
     await page.evaluate(async () => {
       try {
         const h = Math.min(
-          window.innerHeight * 1.5,
+          window.innerHeight * 2.0,
           document.body.scrollHeight || 0,
         );
         window.scrollBy(0, h);
-        await new Promise((r) => setTimeout(r, 150));
+        await new Promise((r) => setTimeout(r, 300));
         window.scrollTo(0, 0);
       } catch {
         // ignore
@@ -178,11 +178,11 @@ async function quickScrollForLinks(page: Page): Promise<void> {
         await page.evaluate(async () => {
           try {
             const h = Math.min(
-              window.innerHeight * 1.5,
+              window.innerHeight * 2.0,
               document.body.scrollHeight || 0,
             );
             window.scrollBy(0, h);
-            await new Promise((r) => setTimeout(r, 600));
+            await new Promise((r) => setTimeout(r, 900));
             window.scrollTo(0, 0);
           } catch {
             // ignore
@@ -225,7 +225,7 @@ async function quickScrollForLinks(page: Page): Promise<void> {
                   // ignore
                 }
                 resolve(false);
-              }, 800);
+              }, 1500);
             } catch {
               resolve(false);
             }
