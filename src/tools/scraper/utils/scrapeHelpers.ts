@@ -39,6 +39,133 @@ export function formatPathForConsole(u: string): string {
   }
 }
 
+async function getExtractionResult(opts: {
+  page: Page;
+  processingLink: string;
+  hostname: string;
+  preExtractedMap: Map<string, PreExtracted> | undefined;
+  includeImages?: boolean;
+}): Promise<{
+  title: string;
+  content: string;
+  supportedImages: ExtractedImage[];
+  normalizedImages: Array<{ src: string; alt: string }>;
+  pageLinks: string[];
+}> {
+  const { page, processingLink, hostname, preExtractedMap, includeImages } =
+    opts;
+  if (preExtractedMap && preExtractedMap.has(processingLink)) {
+    const e = preExtractedMap.get(processingLink)!;
+    return {
+      title: e.title,
+      content: e.content,
+      supportedImages: e.supportedImages || [],
+      normalizedImages: e.normalizedImages || [],
+      pageLinks: e.pageLinks || [],
+    };
+  }
+
+  try {
+    const extracted = await extractPageData({
+      page,
+      pageUrl: processingLink,
+      allowedHostname: hostname,
+      includeImages,
+    });
+    return {
+      title: extracted.title,
+      content: extracted.content,
+      supportedImages: extracted.supportedImages || [],
+      normalizedImages: extracted.normalizedImages || [],
+      pageLinks: extracted.pageLinks || [],
+    };
+  } catch {
+    return {
+      title: "",
+      content: "",
+      supportedImages: [],
+      normalizedImages: [],
+      pageLinks: [],
+    };
+  }
+}
+
+function reserveImageItemsForSupported(
+  supportedImages: ExtractedImage[],
+  processingLink: string,
+  logProgress?: (s1: string, s2: string) => void,
+): void {
+  if (!supportedImages || supportedImages.length === 0) return;
+  (async function reserveImageItems() {
+    try {
+      for (const img of supportedImages) {
+        try {
+          const normalized = normalizeImageUrl({ src: img.src });
+          upsertItem({ url: normalized, type: "image", status: "pending" });
+        } catch {
+          upsertItem({
+            url: String(img.src || ""),
+            type: "image",
+            status: "pending",
+          });
+        }
+      }
+    } catch {
+      try {
+        progressService.reserve(supportedImages.length, undefined);
+      } catch {
+        // ignore
+      }
+    }
+    // progress invariant check is performed by caller
+    try {
+      if (logProgress)
+        logProgress(
+          "📷",
+          `Reserved ${supportedImages.length} images for ${formatPathForConsole(processingLink)} (+${supportedImages.length})`,
+        );
+    } catch {
+      // best-effort
+    }
+  })();
+}
+
+function markDiscoveredImages(
+  normalizedImages: Array<{ src: string; alt: string }> | undefined,
+  supportedImages: ExtractedImage[] | undefined,
+): void {
+  try {
+    const supportedSet = new Set((supportedImages || []).map((s) => s.src));
+    for (const img of normalizedImages || []) {
+      try {
+        let key = String(img.src || "");
+        try {
+          key = normalizeImageUrl({ src: img.src });
+        } catch {
+          key = String(img.src || "");
+        }
+        if (supportedSet.has(img.src)) {
+          try {
+            markImagePending(key);
+          } catch {
+            // best-effort
+          }
+        } else {
+          try {
+            markImageUnsupported(key);
+          } catch {
+            // best-effort
+          }
+        }
+      } catch {
+        // best-effort
+      }
+    }
+  } catch {
+    // best-effort
+  }
+}
+
 async function tryLoginIfNeeded(opts: {
   page: Page;
   rootUrl: string;
@@ -263,39 +390,14 @@ export async function extractAndProcessPage(args: {
   let normalizedImages: Array<{ src: string; alt: string }>;
   let pageLinks: string[];
 
-  if (preExtractedMap && preExtractedMap.has(processingLink)) {
-    const e = preExtractedMap.get(processingLink)!;
-    title = e.title;
-    content = e.content;
-    supportedImages = e.supportedImages || [];
-    normalizedImages = e.normalizedImages || [];
-    pageLinks = e.pageLinks || [];
-  } else {
-    type ExtractResult = {
-      pageLinks: string[];
-      normalizedImages: ExtractedImage[];
-      supportedImages: ExtractedImage[];
-      title: string;
-      content: string;
-    };
-    const fallback: ExtractResult = {
-      pageLinks: [],
-      normalizedImages: [],
-      supportedImages: [],
-      title: "",
-      content: "",
-    };
-    let extracted: ExtractResult = fallback;
-    try {
-      extracted = (await extractPageData({
-        page,
-        pageUrl: processingLink,
-        allowedHostname: hostname,
-        includeImages: args.includeImages,
-      })) as ExtractResult;
-    } catch {
-      extracted = fallback;
-    }
+  {
+    const extracted = await getExtractionResult({
+      page,
+      processingLink,
+      hostname,
+      preExtractedMap,
+      includeImages: args.includeImages,
+    });
     title = extracted.title;
     content = extracted.content;
     supportedImages = extracted.supportedImages || [];
@@ -321,84 +423,22 @@ export async function extractAndProcessPage(args: {
   }
 
   if (supportedImages.length > 0) {
-    await (async function reserveImageItems() {
-      try {
-        for (const img of supportedImages) {
-          try {
-            const normalized = normalizeImageUrl({ src: img.src });
-            upsertItem({ url: normalized, type: "image", status: "pending" });
-          } catch {
-            upsertItem({
-              url: String(img.src || ""),
-              type: "image",
-              status: "pending",
-            });
-          }
-        }
-      } catch {
-        // fallback to coarse reservation if per-image upserts fail
-        try {
-          progressService.reserve(supportedImages.length, undefined);
-        } catch {
-          // ignore
-        }
-      }
-      try {
-        const s = getProgressSnapshot();
-        if (s.current > s.total)
-          checkProgressInvariant(
-            {
-              current: s.current,
-              total: s.total,
-            } as unknown as OverallProgress,
-            "reserve images for page-v2",
-          );
-      } catch {
-        // ignore
-      }
-      try {
-        logProgress(
-          "📷",
-          `Reserved ${supportedImages.length} images for ${formatPathForConsole(processingLink)} (+${supportedImages.length})`,
+    reserveImageItemsForSupported(supportedImages, processingLink, logProgress);
+    try {
+      const s = getProgressSnapshot();
+      if (s.current > s.total)
+        checkProgressInvariant(
+          { current: s.current, total: s.total } as unknown as OverallProgress,
+          "reserve images for page-v2",
         );
-      } catch {
-        // best-effort
-      }
-    })();
+    } catch {
+      // ignore
+    }
   }
 
   // Record discovered images as progress items *before* processing so the
   // pending "supported" state is set and preserved even if processing fails.
-  try {
-    const supportedSet = new Set((supportedImages || []).map((s) => s.src));
-    for (const img of normalizedImages || []) {
-      try {
-        let key = String(img.src || "");
-        try {
-          key = normalizeImageUrl({ src: img.src });
-        } catch {
-          key = String(img.src || "");
-        }
-        if (supportedSet.has(img.src)) {
-          try {
-            markImagePending(key);
-          } catch {
-            // best-effort
-          }
-        } else {
-          try {
-            markImageUnsupported(key);
-          } catch {
-            // best-effort
-          }
-        }
-      } catch {
-        // best-effort
-      }
-    }
-  } catch {
-    // best-effort
-  }
+  markDiscoveredImages(normalizedImages, supportedImages);
 
   // time the page+image processing to identify hotspots
   const _procStart = Date.now();
@@ -407,8 +447,8 @@ export async function extractAndProcessPage(args: {
     processedPageEntry,
     imgStats,
     pageLinks: returnedPageLinks,
-    normalizedImages: retNorm,
-    supportedImages: retSupported,
+    normalizedImages: _retNorm,
+    supportedImages: _retSupported,
   } = await processPageAndImages({
     page,
     link: processingLink,
@@ -448,8 +488,8 @@ export async function extractAndProcessPage(args: {
     // imgStats intentionally not used here; callers handle image progress
     returnedPageLinks,
     originalPageLinks: pageLinks,
-    retNorm,
-    retSupported,
+    retNorm: _retNorm,
+    retSupported: _retSupported,
   };
 }
 
@@ -469,8 +509,6 @@ export function postProcessPageResults(args: {
   };
   returnedPageLinks: string[];
   originalPageLinks: string[];
-  retNorm: Array<{ src: string; alt: string }>;
-  retSupported: Array<{ src: string; alt: string }>;
   processingLink: string;
   rootUrl: string;
   hostname: string;
@@ -490,8 +528,6 @@ export function postProcessPageResults(args: {
     processedPageEntry,
     returnedPageLinks,
     originalPageLinks,
-    retNorm,
-    retSupported,
     processingLink,
     rootUrl,
     hostname,
@@ -650,8 +686,6 @@ export async function processLinkForWorker(args: {
     imgStats,
     returnedPageLinks,
     originalPageLinks,
-    retNorm,
-    retSupported,
   } = await extractAndProcessPage({
     page,
     processingLink,
@@ -665,15 +699,12 @@ export async function processLinkForWorker(args: {
     checkProgressInvariant,
     includeImages,
   });
-
   postProcessPageResults({
     pageUpsert,
     processedPageEntry,
     imgStats,
     returnedPageLinks,
     originalPageLinks,
-    retNorm,
-    retSupported,
     processingLink,
     rootUrl,
     hostname,

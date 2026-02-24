@@ -66,7 +66,6 @@ export async function run(
             }
           }
           // fall back to npm-config env vars (npm interprets flags)
-          /* eslint-disable-next-line no-process-env */
           for (const name of names) {
             const envKey = `npm_config_${name.toLowerCase().replace(/-/g, "_")}`;
             // eslint-disable-next-line no-restricted-properties
