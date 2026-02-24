@@ -30,6 +30,7 @@ export type ProcessPageParams = {
   shouldCancel?: () => boolean;
   // helpers for marking attempts and invariant checks
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
+  includeImages?: boolean;
 };
 export type ProcessPageResult = {
   usedLink: string;
@@ -77,22 +78,22 @@ export async function processPageAndImages(
     link,
     allowedHostname,
     storage,
-
     allExistingImageUrls,
     pendingImageRecords,
     logProgress,
     shouldCancel,
+    includeImages,
     preExtracted,
   } = params;
   // Caller is expected to have navigated the `page` to `link` and handled redirects.
   const usedLink = link;
 
   const {
-    title: pageTitle,
-    content: pageContent,
-    supportedImages,
-    normalizedImages,
-    pageLinks,
+    title: _pageTitle,
+    content: _pageContent,
+    supportedImages: _supportedImages,
+    normalizedImages: _normalizedImages,
+    pageLinks: _pageLinks,
   } = (preExtracted as
     | undefined
     | {
@@ -106,7 +107,24 @@ export async function processPageAndImages(
         normalizedImages: Array<{ src: string; alt: string }>;
         pageLinks: string[];
       }) ??
-  (await extractPageData({ page, pageUrl: usedLink, allowedHostname }));
+  (await extractPageData({
+    page,
+    pageUrl: usedLink,
+    allowedHostname,
+    includeImages,
+  }));
+  const pageTitle = _pageTitle;
+  const pageContent = _pageContent;
+  let supportedImages = _supportedImages;
+  let normalizedImages = _normalizedImages;
+
+  const pageLinks = _pageLinks;
+  // If images are disabled for this run, clear discovered images so the
+  // downstream pipeline treats this as a page-only scrape.
+  if (!includeImages) {
+    supportedImages = [];
+    normalizedImages = [];
+  }
 
   // Update progress counters for images
   // Note: callers should reserve `overallProgress.total` for images before

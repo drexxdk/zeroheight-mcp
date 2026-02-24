@@ -183,6 +183,7 @@ async function prepareSeedsForScrape({
   password,
   logger,
   preExtractedMap,
+  includeImages,
   enqueueLinks,
   loggedInHostnames,
 }: {
@@ -193,6 +194,7 @@ async function prepareSeedsForScrape({
   password?: string;
   logger?: (s: string) => void;
   preExtractedMap: Map<string, PreExtracted>;
+  includeImages?: boolean;
   enqueueLinks: (links: string[]) => number;
   loggedInHostnames: Set<string>;
 }): Promise<void> {
@@ -208,6 +210,7 @@ async function prepareSeedsForScrape({
       password,
       concurrency: config.scraper.seedPrefetchConcurrency,
       logger,
+      includeImages: !!includeImages,
     });
 
     for (const [k, v] of seedMap) {
@@ -225,7 +228,12 @@ async function prepareSeedsForScrape({
     height: config.scraper.viewport.height,
   });
   try {
-    await attachDefaultInterception(p, { blockImages: true }).catch(() => {});
+    // If `includeImages` is falsy we block image requests to keep the run
+    // strictly page-only. Default behavior is to block images (includeImages
+    // off), so coerce undefined -> false.
+    await attachDefaultInterception(p, {
+      includeImages: !!includeImages,
+    }).catch(() => {});
   } catch (e) {
     defaultLogger.warn("Failed to prefetch seeds:", e);
   }
@@ -255,6 +263,7 @@ async function prepareSeedsForScrape({
     page: p,
     pageUrl: rootUrl,
     allowedHostname: hostname,
+    includeImages: includeImages,
   }).catch(() => fallbackRoot);
 
   const initial = await computeInitialLinksFromPage(p, rootUrl, extracted);
@@ -304,6 +313,7 @@ async function processLinkUnit(
     logProgress: (icon: string, msg: string) => void;
     progress: OverallProgress;
     checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
+    includeImages?: boolean;
     onLinkDone?: () => void;
     touchLastActivity?: () => void;
     onPageError?: (link: string, err: unknown) => void;
@@ -354,6 +364,7 @@ async function processLinkUnit(
           formatLinkForConsole: opts.formatLinkForConsole,
           logProgress: opts.logProgress,
           progress: opts.progress,
+          includeImages: opts.includeImages,
           checkProgressInvariant: opts.checkProgressInvariant,
         });
       } finally {
@@ -382,6 +393,7 @@ async function processLinkUnit(
 
 async function runWorkerForScrape(options: {
   browser: Browser;
+  includeImages?: boolean;
   shouldCancel?: () => boolean | Promise<boolean>;
   getNextLink: () => Promise<string | null>;
   logProgress: (icon: string, msg: string) => void;
@@ -412,12 +424,15 @@ async function runWorkerForScrape(options: {
   progress: OverallProgress;
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
 }): Promise<void> {
-  const { shouldCancel, getNextLink, pagePool } = options;
+  const { shouldCancel, getNextLink, pagePool, includeImages } = options;
+  defaultLogger.debug(
+    `[debug] runWorkerForScrape start includeImages=${Boolean(includeImages)}`,
+  );
   const page: Page = await pagePool.acquire();
   try {
-    await attachDefaultInterception(page, { blockImages: true }).catch(
-      () => {},
-    );
+    await attachDefaultInterception(page, {
+      includeImages: !!includeImages,
+    }).catch(() => {});
   } catch (e) {
     defaultLogger.debug("URL parse failed while normalizing seed:", e);
   }
@@ -446,6 +461,7 @@ async function runWorkerForScrape(options: {
           formatLinkForConsole: options.formatLinkForConsole,
           logProgress: options.logProgress,
           progress: options.progress,
+          includeImages: options.includeImages,
           checkProgressInvariant: options.checkProgressInvariant,
           onLinkDone: options.onLinkDone,
           touchLastActivity: options.touchLastActivity,
@@ -473,6 +489,7 @@ async function startWorkersForScrape(options: {
   pagePool: PagePool;
   concurrency: number;
   browser: Browser;
+  includeImages?: boolean;
   shouldCancel?: () => boolean | Promise<boolean>;
   getNextLink: () => Promise<string | null>;
   logProgress: (icon: string, msg: string) => void;
@@ -507,6 +524,7 @@ async function startWorkersForScrape(options: {
     workers.push(
       runWorkerForScrape({
         browser: options.browser,
+        includeImages: options.includeImages,
         pagePool: options.pagePool,
         shouldCancel: options.shouldCancel,
         getNextLink: options.getNextLink,
@@ -664,16 +682,21 @@ export async function scrape({
   pageUrls,
   logger,
   shouldCancel,
+  includeImages,
 }: {
   rootUrl: string;
   password?: string;
   pageUrls?: string[];
   logger?: (s: string) => void;
   shouldCancel?: () => boolean | Promise<boolean>;
+  includeImages?: boolean;
 }): Promise<
   ScrapeResult | ReturnType<typeof createErrorResponse> | { message: string }
 > {
   try {
+    defaultLogger.debug(
+      `[debug] scrape() called includeImages=${Boolean(includeImages)}`,
+    );
     const concurrency = config.scraper.concurrency;
     const idleTimeout = config.scraper.idleTimeoutMs;
     const browser = await launchBrowser();
@@ -789,6 +812,7 @@ export async function scrape({
       password,
       logger,
       preExtractedMap,
+      includeImages,
       enqueueLinks,
       loggedInHostnames,
     });
@@ -797,6 +821,7 @@ export async function scrape({
       concurrency,
       browser,
       pagePool,
+      includeImages,
       shouldCancel,
       getNextLink,
       logProgress,
@@ -897,6 +922,7 @@ import { PagesType, ImagesType } from "../../generated/database-types";
 const scrapeInput = z.object({
   pageUrls: z.array(z.string()).optional(),
   password: z.string().optional(),
+  includeImages: z.boolean().optional(),
 });
 
 export const scrapeTool: ToolDefinition<
@@ -918,7 +944,11 @@ export const scrapeTool: ToolDefinition<
       pollInterval: z.number().optional(),
     }),
   }),
-  handler: async ({ pageUrls, password }: z.infer<typeof scrapeInput>) => {
+  handler: async ({
+    pageUrls,
+    password,
+    includeImages,
+  }: z.infer<typeof scrapeInput>) => {
     const projectUrl = config.env.zeroheightProjectUrl;
     if (!projectUrl)
       return createErrorResponse({ message: "ZEROHEIGHT_PROJECT_URL not set" });
@@ -927,7 +957,10 @@ export const scrapeTool: ToolDefinition<
     try {
       const created = await createJobInDb({
         name: "scrape",
-        args: { pageUrls: pageUrls || null },
+        args: {
+          pageUrls: pageUrls || null,
+          includeImages: includeImages ?? false,
+        },
       });
       if (created) jobId = created;
       else
@@ -957,6 +990,7 @@ export const scrapeTool: ToolDefinition<
           rootUrl: projectUrl,
           password,
           pageUrls: pageUrls || undefined,
+          includeImages: includeImages ?? false,
           logger: (msg: string) => {
             void logger(msg);
           },

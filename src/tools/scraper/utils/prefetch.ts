@@ -116,6 +116,7 @@ export async function prefetchSeeds(options: {
   password?: string;
   concurrency?: number;
   logger?: (s: string) => void;
+  includeImages?: boolean;
   pagePool?: PagePool;
 }): Promise<{
   preExtractedMap: Map<string, PreExtracted>;
@@ -162,7 +163,9 @@ export async function prefetchSeeds(options: {
               }
             }
             await p.goto(u, {
-              waitUntil: config.scraper.viewport.navWaitUntil,
+              waitUntil: options.includeImages
+                ? config.scraper.viewport.navWaitUntil
+                : ("domcontentloaded" as const),
               timeout: config.scraper.viewport.navTimeoutMs,
             });
             if (password) {
@@ -175,37 +178,56 @@ export async function prefetchSeeds(options: {
               }
             }
 
-            // Small wait + gentle scroll to surface lazy-loaded content
+            // Small wait + gentle scroll to surface lazy-loaded content.
+            // If images are enabled do the full gentle scroll; otherwise do a
+            // fast single scroll to reveal lazy content (links) without the
+            // heavier waits used for images.
             try {
-              const stepPx = config.scraper.prefetch.scrollStepPx;
-              const stepMs = config.scraper.prefetch.scrollStepMs;
-              const finalWait = config.scraper.prefetch.finalWaitMs;
-              await p.evaluate(
-                async (
-                  stepPxArg: number,
-                  stepMsArg: number,
-                  finalWaitArg: number,
-                  fallbackArg: number,
-                ) => {
-                  const step = stepPxArg || window.innerHeight || fallbackArg;
-                  let pos = 0;
-                  const max =
-                    document.body.scrollHeight ||
-                    document.documentElement.scrollHeight;
-                  while (pos < max) {
-                    window.scrollBy(0, step);
-                    // small pause between scroll steps
-                    await new Promise((rr) => setTimeout(rr, stepMsArg));
-                    pos += step;
+              if (options.includeImages) {
+                const stepPx = config.scraper.prefetch.scrollStepPx;
+                const stepMs = config.scraper.prefetch.scrollStepMs;
+                const finalWait = config.scraper.prefetch.finalWaitMs;
+                await p.evaluate(
+                  async (
+                    stepPxArg: number,
+                    stepMsArg: number,
+                    finalWaitArg: number,
+                    fallbackArg: number,
+                  ) => {
+                    const step = stepPxArg || window.innerHeight || fallbackArg;
+                    let pos = 0;
+                    const max =
+                      document.body.scrollHeight ||
+                      document.documentElement.scrollHeight;
+                    while (pos < max) {
+                      window.scrollBy(0, step);
+                      // small pause between scroll steps
+                      await new Promise((rr) => setTimeout(rr, stepMsArg));
+                      pos += step;
+                    }
+                    await new Promise((rr) => setTimeout(rr, finalWaitArg));
+                    window.scrollTo(0, 0);
+                  },
+                  stepPx,
+                  stepMs,
+                  finalWait,
+                  config.scraper.prefetch.scrollStepPx,
+                );
+              } else {
+                await p.evaluate(async () => {
+                  try {
+                    const h = Math.min(
+                      window.innerHeight * 1.5,
+                      document.body.scrollHeight || 0,
+                    );
+                    window.scrollBy(0, h);
+                    await new Promise((r) => setTimeout(r, 150));
+                    window.scrollTo(0, 0);
+                  } catch {
+                    // ignore
                   }
-                  await new Promise((rr) => setTimeout(rr, finalWaitArg));
-                  window.scrollTo(0, 0);
-                },
-                stepPx,
-                stepMs,
-                finalWait,
-                config.scraper.prefetch.scrollStepPx,
-              );
+                });
+              }
             } catch (e) {
               defaultLogger.debug("prefetch inner error:", e);
             }
@@ -221,6 +243,7 @@ export async function prefetchSeeds(options: {
               page: p,
               pageUrl: u,
               allowedHostname: hostname,
+              includeImages: options.includeImages,
             }).catch(() => fallback);
 
             preExtractedMap.set(u, extracted);

@@ -384,7 +384,24 @@ class ProgressService {
   }
 
   public markImageFailed(url: string, err?: string): ProgressItem {
-    // store the error string as the reason when available, otherwise "failed"
+    // If the image was previously marked as `supported` we want to preserve
+    // that classification so summaries report how many images were supported
+    // by format even when they ultimately failed to upload. Otherwise store
+    // the error string as the reason when available, falling back to
+    // "failed".
+    try {
+      const existing = this.items.get(url);
+      if (existing && existing.reason === "supported") {
+        return this.upsertItem({
+          url,
+          type: "image",
+          status: "processed",
+          reason: "supported",
+        });
+      }
+    } catch {
+      // ignore and fall through
+    }
     const reason: Reason = (err && (err as unknown as Reason)) || "failed";
     return this.upsertItem({ url, type: "image", status: "processed", reason });
   }

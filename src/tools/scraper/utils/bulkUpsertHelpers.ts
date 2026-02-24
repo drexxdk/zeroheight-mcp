@@ -469,13 +469,23 @@ export function buildSummaryParams(opts: {
   const skippedCount =
     providedCount > 0 ? Math.max(0, providedCount - totalUniquePages) : 0;
   const progressSnap = getProgressSnapshot();
-  const pagesAnalyzed =
+  // Prefer the progress snapshot when it accurately reflects work done,
+  // but ensure the reported `pagesAnalyzed` is at least the number of
+  // unique pages we attempted to insert so summaries cannot report
+  // "Pages inserted" greater than "Pages analyzed" which is confusing.
+  let pagesAnalyzed = 0;
+  if (
     typeof progressSnap.pagesProcessed === "number" &&
     progressSnap.pagesProcessed > 0
-      ? progressSnap.pagesProcessed
-      : providedCount > 0
-        ? providedCount
-        : totalUniquePages + pagesFailed;
+  ) {
+    pagesAnalyzed = progressSnap.pagesProcessed;
+  } else if (providedCount > 0) {
+    pagesAnalyzed = providedCount;
+  } else {
+    pagesAnalyzed = totalUniquePages + pagesFailed;
+  }
+  // Ensure analyzed >= unique pages attempted to insert
+  pagesAnalyzed = Math.max(pagesAnalyzed, totalUniquePages);
 
   const pagesRedirected =
     typeof progressSnap.pagesRedirected === "number"

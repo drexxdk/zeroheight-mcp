@@ -85,6 +85,10 @@ export async function processImagesForPage(options: {
   const inProgress = GLOBAL_IN_PROGRESS;
 
   /* eslint-disable complexity */
+  logProgress(
+    "🐛",
+    `Starting image processing for page ${link} with ${supportedImages.length} images`,
+  );
   const results = await mapWithConcurrency(
     supportedImages,
     async (img) => {
@@ -217,6 +221,10 @@ export async function processImagesForPage(options: {
             allExistingImageUrls,
             shouldCancel,
           });
+          logProgress(
+            "🐛",
+            `processAndUploadImage result for ${downloadUrl}: ${JSON.stringify(result)}`,
+          );
         } finally {
           releaseGlobalUpload();
         }

@@ -9,6 +9,7 @@ import type { KnownModule } from "./utils/toolTypes";
 export type Command =
   | "scrape-pages"
   | "scrape-project"
+  | "scrape"
   | "run-tool"
   | "check-task-status"
   | "clear-data"
@@ -31,6 +32,84 @@ export async function run(
   const argv = opts?.argv ?? [];
 
   switch (command) {
+    case "scrape":
+      {
+        // unified scrape entry that accepts flags for includeImages and fullScrape
+        const parseBoolFlag = (names: string[]): boolean => {
+          // check opts.args first
+          if (
+            opts?.args &&
+            typeof opts.args === "object" &&
+            opts.args !== null
+          ) {
+            for (const n of names) {
+              const v = Reflect.get(opts.args as object, n);
+              if (typeof v === "boolean") return v;
+              if (typeof v === "string") {
+                if (v === "true") return true;
+                if (v === "false") return false;
+              }
+            }
+          }
+          // fall back to argv parsing
+          for (const a of argv) {
+            for (const name of names) {
+              const kebab = name.replace(
+                /([A-Z])/g,
+                (m) => `-${m.toLowerCase()}`,
+              );
+              if (a === `--${name}` || a === `--${kebab}`) return true;
+              if (a.startsWith(`--${name}=`) || a.startsWith(`--${kebab}=`)) {
+                const rhs = a.split("=")[1];
+                return rhs === "true" || rhs === "1";
+              }
+            }
+          }
+          // fall back to npm-config env vars (npm interprets flags)
+          /* eslint-disable-next-line no-process-env */
+          for (const name of names) {
+            const envKey = `npm_config_${name.toLowerCase().replace(/-/g, "_")}`;
+            // eslint-disable-next-line no-restricted-properties
+            const envVal = process.env[envKey];
+            if (typeof envVal === "string") {
+              if (envVal === "true" || envVal === "1") return true;
+              if (envVal === "false" || envVal === "0") return false;
+            }
+          }
+
+          return false;
+        };
+
+        const includeImages = parseBoolFlag([
+          "includeImages",
+          "include-images",
+        ]);
+        const fullScrape = parseBoolFlag(["fullScrape", "full-scrape"]);
+
+        const password = (await import("@/utils/config")).config.env
+          .zeroheightProjectPassword as string | undefined;
+
+        if (fullScrape) {
+          await runTool("@/tools/scraper/scrape" as KnownModule, {
+            exportName: "scrapeTool",
+            args: { password, includeImages },
+          });
+          return;
+        }
+
+        // page-only default
+        const urls: string[] = (opts?.args &&
+          (opts.args.pageUrls as unknown as string[])) ?? [
+          "https://designsystem.lruddannelse.dk/10548dffa/p/51380f-graph-patterns-wip",
+          "https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system",
+        ];
+        await runTool("@/tools/scraper/scrape" as KnownModule, {
+          exportName: "scrapeTool",
+          args: { pageUrls: urls, password, includeImages },
+        });
+      }
+      return;
+
     case "scrape-pages": {
       const urls: string[] = (opts?.args &&
         (opts.args.pageUrls as unknown as string[])) ?? [
@@ -97,18 +176,12 @@ export async function run(
 
       logger.log(`Calling clear-all-data tool (destructive) ...`);
 
-      const res = await runTool(
-        "@/tools/database/clear-all-data" as KnownModule,
-        {
-          exportName: "clearAllDataTool",
-          args: { apiKey: config.env.zeroheightMcpAccessToken },
-        },
-      );
-      try {
-        logger.log(JSON.stringify(res, null, 2));
-      } catch {
-        logger.log(String(res));
-      }
+      // `runTool` already logs the structured result; avoid duplicate logging
+      // here to prevent printing the same payload twice.
+      await runTool("@/tools/database/clear-all-data" as KnownModule, {
+        exportName: "clearAllDataTool",
+        args: { apiKey: config.env.zeroheightMcpAccessToken },
+      });
       return;
     }
 
@@ -303,6 +376,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       }
       // runtime-validate command string
       const validCommands: Command[] = [
+        "scrape",
         "scrape-pages",
         "scrape-project",
         "run-tool",
@@ -310,6 +384,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         "clear-data",
         "run-tools-list",
         "test-mcp-list",
+        "cancel-task",
+        "tail-job",
+        "tail-job-long",
+        "tail-job-admin",
+        "start-test-task",
+        "check-task",
       ];
       if (!validCommands.includes(commandRaw as Command)) {
         const logger = (await import("@/utils/logger")).default;

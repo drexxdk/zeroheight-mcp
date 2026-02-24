@@ -4,8 +4,11 @@ import logger from "@/utils/logger";
 type BlockOptions = {
   allow?: Set<string>;
   block?: Set<string>;
-  // When true, block image resource requests except for supported types
-  blockImages?: boolean;
+  // When true, include image resource requests (do not aggressively block images).
+  // Default `false` will behave like the historical default which blocks
+  // certain undesirable image types and may block images entirely when the
+  // caller opts out of including images.
+  includeImages?: boolean;
   onRequest?: (
     req: HTTPRequest,
     decision: "blocked" | "continued",
@@ -18,7 +21,7 @@ export function getBlockReason(
   rType: string,
   allowSetLocal: Set<string>,
   blockSetLocal: Set<string>,
-  blockImages = false,
+  includeImages = false,
 ): string | null {
   const rTypeLower = rType.toLowerCase();
   if (allowSetLocal.has(rTypeLower)) return null;
@@ -36,24 +39,29 @@ export function getBlockReason(
     }
   })();
 
-  // If images are being blocked, handle image resource types specially:
+  // Image handling: `includeImages` flips the historical `blockImages` flag.
+  // When `includeImages` is true we follow the historical non-blocking
+  // behaviour (still blocking a few undesired extensions). When false we
+  // aggressively block images except for a small set of supported types.
   if (rTypeLower === "image") {
-    // supported image extensions - allow these even when blocking images
     const supportedImageExtRe = /\.(jpe?g|png|webp|avif|bmp)(?:[?#]|$)/i;
-    if (!blockImages) {
-      // Default behaviour: still block a small set of undesired image extensions
+    // When includeImages is true we allow supported raster images and
+    // permissive data: URIs, while still blocking known undesired
+    // extensions (svg, gif, ico) and font files. When includeImages is
+    // false we aggressively block all images.
+    if (includeImages) {
       if (hasBlockedExtension(parsedPathLower)) return "blocked-ext";
-    } else {
-      // blockImages=true: only allow supported image extensions and common data URIs
       if (supportedImageExtRe.test(parsedPathLower)) return null;
-      // allow data: URIs for supported image types
       if (
         urlLower.startsWith("data:") &&
         /image\/(png|jpeg|jpg|webp|avif)/.test(urlLower)
       )
         return null;
+      // Unknown image path/extension: block by default to be safe.
       return "blocked-image";
     }
+    // includeImages === false -> block images unconditionally
+    return "blocked-image";
   }
   if (isBlockedResourceType(rTypeLower)) return "blocked-resource-type";
   if (hasBlockedExtension(parsedPathLower)) return "blocked-ext";
@@ -122,11 +130,13 @@ export async function launchBrowser(): Promise<Browser> {
 
 export async function attachDefaultInterception(
   page: Page,
-  opts?: BlockOptions,
+  {
+    allow = new Set<string>(),
+    block = new Set<string>(),
+    includeImages = false,
+    onRequest,
+  }: BlockOptions = {},
 ): Promise<void> {
-  const allowSet = opts?.allow ?? new Set<string>();
-  const blockSet = opts?.block ?? new Set<string>();
-  const blockImages = opts?.blockImages ?? false;
   try {
     await page.setRequestInterception(true);
   } catch (e) {
@@ -137,16 +147,38 @@ export async function attachDefaultInterception(
     const reason = getBlockReason(
       req.url(),
       req.resourceType(),
-      allowSet,
-      blockSet,
-      blockImages,
+      allow,
+      block,
+      includeImages,
     );
+
+    // Helper to detect if the interception has already been resolved.
+    const isHandled = (() => {
+      try {
+        const fn = (
+          req as unknown as { isInterceptResolutionHandled?: () => boolean }
+        ).isInterceptResolutionHandled;
+        if (typeof fn === "function") return fn.call(req as unknown);
+        return false;
+      } catch {
+        return false;
+      }
+    })();
+
     if (reason) {
-      opts?.onRequest?.(req, "blocked", reason);
+      onRequest?.(req, "blocked", reason);
+      if (isHandled) {
+        logger.debug("Skipping abort: request already handled", req.url());
+        return;
+      }
       void req.abort().catch((e) => logger.debug("req.abort error:", e));
       return;
     }
-    opts?.onRequest?.(req, "continued");
+    onRequest?.(req, "continued");
+    if (isHandled) {
+      logger.debug("Skipping continue: request already handled", req.url());
+      return;
+    }
     void req.continue().catch((e) => logger.debug("req.continue error:", e));
   });
 

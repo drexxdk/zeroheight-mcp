@@ -22,10 +22,12 @@ export async function extractPageData({
   page,
   pageUrl,
   allowedHostname,
+  includeImages,
 }: {
   page: Page;
   pageUrl: string;
   allowedHostname: string;
+  includeImages?: boolean;
 }): Promise<ExtractPageDataResult> {
   const title: string = await page.title();
 
@@ -51,73 +53,248 @@ export async function extractPageData({
       return "";
     });
 
-  // Allow brief time for client-side rendered images/backgrounds to load.
-  await new Promise((r) => setTimeout(r, config.scraper.prefetch.waitMs));
+  // If images aren't requested, skip waits/scrolls and image enumeration
+  // to speed up extraction for page-only runs.
+  let allImagesRaw: unknown[] = [];
+  if (includeImages) {
+    // Allow brief time for client-side rendered images/backgrounds to load.
+    await new Promise((r) => setTimeout(r, config.scraper.prefetch.waitMs));
 
-  // Perform an automated gentle scroll to trigger lazy-loading of images.
-  try {
-    const stepPx = config.scraper.prefetch.scrollStepPx;
-    const stepMs = config.scraper.prefetch.scrollStepMs;
-    const finalWait = config.scraper.prefetch.finalWaitMs;
-    await page.evaluate(
-      async (
-        stepPxArg: number,
-        stepMsArg: number,
-        finalWaitArg: number,
-        fallbackArg: number,
-      ) => {
-        const step = stepPxArg || window.innerHeight || fallbackArg;
-        let pos = 0;
-        const max =
-          document.body.scrollHeight || document.documentElement.scrollHeight;
-        while (pos < max) {
-          window.scrollBy(0, step);
-          // small pause between scroll steps
-          await new Promise((rr) => setTimeout(rr, stepMsArg));
-          pos += step;
+    // Perform an automated gentle scroll to trigger lazy-loading of images.
+    try {
+      const stepPx = config.scraper.prefetch.scrollStepPx;
+      const stepMs = config.scraper.prefetch.scrollStepMs;
+      const finalWait = config.scraper.prefetch.finalWaitMs;
+      await page.evaluate(
+        async (
+          stepPxArg: number,
+          stepMsArg: number,
+          finalWaitArg: number,
+          fallbackArg: number,
+        ) => {
+          const step = stepPxArg || window.innerHeight || fallbackArg;
+          let pos = 0;
+          const max =
+            document.body.scrollHeight || document.documentElement.scrollHeight;
+          while (pos < max) {
+            window.scrollBy(0, step);
+            // small pause between scroll steps
+            await new Promise((rr) => setTimeout(rr, stepMsArg));
+            void e;
+          }
+          await new Promise((rr) => setTimeout(rr, finalWaitArg));
+          window.scrollTo(0, 0);
+        },
+        stepPx,
+        stepMs,
+        finalWait,
+        config.scraper.prefetch.scrollStepPx,
+      );
+    } catch {
+      // ignore scrolling failures and proceed with extraction
+    }
+
+    const images = await page.$$eval("img", (imgs: HTMLImageElement[]) =>
+      imgs.flatMap((img, index) => {
+        const out: Array<{ src: string; alt: string; index: number }> = [];
+        try {
+          let src = img.src || "";
+          if (src && !src.startsWith("http"))
+            src = new URL(src, window.location.href).href;
+          if (src) out.push({ src, alt: img.alt, index });
+        } catch {
+          // ignore
         }
-        await new Promise((rr) => setTimeout(rr, finalWaitArg));
-        window.scrollTo(0, 0);
-      },
-      stepPx,
-      stepMs,
-      finalWait,
-      config.scraper.prefetch.scrollStepPx,
+        // Parse srcset entries (e.g. responsive images)
+        try {
+          const ss = img.getAttribute("srcset") || "";
+          if (ss) {
+            ss.split(",")
+              .map((s) => s.trim().split(/\s+/)[0])
+              .filter(Boolean)
+              .forEach((entry) => {
+                try {
+                  let url = entry;
+                  if (url && !url.startsWith("http"))
+                    url = new URL(url, window.location.href).href;
+                  if (url) out.push({ src: url, alt: img.alt, index });
+                } catch {
+                  // ignore
+                }
+              });
+          }
+        } catch {
+          // ignore
+        }
+        return out;
+      }),
     );
-  } catch {
-    // ignore scrolling failures and proceed with extraction
+
+    const bgImages = await page.$$eval(
+      "*",
+      (elements: Element[], imagesLength) => {
+        return elements
+          .map((el: Element, index) => {
+            const style = window.getComputedStyle(el);
+            const bg = style.backgroundImage;
+            if (bg && bg.startsWith("url(")) {
+              let url = bg.slice(4, -1).replace(/['"]+/g, "");
+              url = new URL(url, window.location.href).href;
+              if (url.startsWith("http"))
+                return { src: url, alt: "", index: imagesLength + index };
+            }
+          })
+          .filter(Boolean);
+      },
+      images.length,
+    );
+
+    // Also collect <source> elements (used by <picture>) and their src/srcset
+    const sourceImages = await page.$$eval("source", (sources: Element[]) =>
+      sources
+        .flatMap((s, index) => {
+          const out: Array<{ src: string; alt: string; index: number }> = [];
+          try {
+            const srcAttr = (s as HTMLSourceElement).getAttribute("src") || "";
+            if (srcAttr) {
+              let url = srcAttr;
+              if (url && !url.startsWith("http"))
+                url = new URL(url, window.location.href).href;
+              if (url) out.push({ src: url, alt: "", index });
+            }
+          } catch {
+            // ignore
+          }
+          try {
+            const ss = (s as HTMLSourceElement).getAttribute("srcset") || "";
+            if (ss) {
+              ss.split(",")
+                .map((r) => r.trim().split(/\s+/)[0])
+                .filter(Boolean)
+                .forEach((entry) => {
+                  try {
+                    let url = entry;
+                    if (url && !url.startsWith("http"))
+                      url = new URL(url, window.location.href).href;
+                    if (url) out.push({ src: url, alt: "", index });
+                  } catch {
+                    // ignore
+                  }
+                });
+            }
+          } catch {
+            // ignore
+          }
+          return out;
+        })
+        .filter(Boolean),
+    );
+
+    // Merge image sources from <img>, <source>, and backgrounds
+    allImagesRaw = [...images, ...sourceImages, ...bgImages].filter(Boolean);
   }
 
-  const images = await page.$$eval("img", (imgs: HTMLImageElement[]) =>
-    imgs.map((img, index) => {
-      let src = img.src;
-      if (!src.startsWith("http"))
-        src = new URL(src, window.location.href).href;
-      return { src, alt: img.alt, index };
-    }),
-  );
+  // Even when images are disabled we should perform a quick, lightweight
+  // scroll to surface lazy-loaded page content (links) that may only appear
+  // after a small scroll. This avoids missing pages while still avoiding
+  // the heavier image-loading waits.
+  if (!includeImages) {
+    try {
+      // First quick pass: short scroll + short wait. If this surfaces
+      // at least one page link we skip the longer pass to save time.
+      await page.evaluate(async () => {
+        try {
+          const h = Math.min(
+            window.innerHeight * 1.5,
+            document.body.scrollHeight || 0,
+          );
+          window.scrollBy(0, h);
+          await new Promise((r) => setTimeout(r, 150));
+          window.scrollTo(0, 0);
+        } catch {
+          // ignore
+        }
+      });
 
-  const bgImages = await page.$$eval(
-    "*",
-    (elements: Element[], imagesLength) => {
-      return elements
-        .map((el: Element, index) => {
-          const style = window.getComputedStyle(el);
-          const bg = style.backgroundImage;
-          if (bg && bg.startsWith("url(")) {
-            let url = bg.slice(4, -1).replace(/['"]+/g, "");
-            if (!url.startsWith("http"))
-              url = new URL(url, window.location.href).href;
-            if (url.startsWith("http"))
-              return { src: url, alt: "", index: imagesLength + index };
-          }
-        })
-        .filter(Boolean);
-    },
-    images.length,
-  );
+      // Check if any Zeroheight page links are present; if not, perform
+      // a longer second pass to catch late-inserted content.
+      const pageLinkCount = await page.evaluate(() => {
+        try {
+          return document.querySelectorAll('a[href*="/p/"]').length || 0;
+        } catch {
+          return 0;
+        }
+      });
 
-  const allImagesRaw = [...images, ...bgImages].filter(Boolean);
+      if (!pageLinkCount || pageLinkCount === 0) {
+        try {
+          await page.evaluate(async () => {
+            try {
+              const h = Math.min(
+                window.innerHeight * 1.5,
+                document.body.scrollHeight || 0,
+              );
+              window.scrollBy(0, h);
+              // longer wait to allow mutation scripts to run
+              await new Promise((r) => setTimeout(r, 600));
+              window.scrollTo(0, 0);
+            } catch {
+              // ignore
+            }
+          });
+        } catch {
+          // ignore
+        }
+      }
+      // If we still have no page links, wait briefly for DOM mutations that
+      // may inject links (e.g. client-side rendering that reacts to scroll
+      // events). This is cheaper than enabling images and catches late
+      // insertions without a full page re-fetch.
+      const pageLinkCountAfterWait = await page.evaluate(() => {
+        try {
+          return document.querySelectorAll('a[href*="/p/"]').length || 0;
+        } catch {
+          return 0;
+        }
+      });
+
+      if (!pageLinkCountAfterWait || pageLinkCountAfterWait === 0) {
+        try {
+          await page.evaluate(async () => {
+            // Wait up to 800ms for nodes matching the selector to appear.
+            return await new Promise((resolve) => {
+              try {
+                if (document.querySelector('a[href*="/p/"]'))
+                  return resolve(true);
+                const obs = new MutationObserver(() => {
+                  if (document.querySelector('a[href*="/p/"]')) {
+                    obs.disconnect();
+                    resolve(true);
+                  }
+                });
+                obs.observe(document.body || document.documentElement, {
+                  childList: true,
+                  subtree: true,
+                });
+                setTimeout(() => {
+                  try {
+                    obs.disconnect();
+                  } catch {}
+                  resolve(false);
+                }, 800);
+              } catch {
+                resolve(false);
+              }
+            });
+          });
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
   const allImages: ExtractedImage[] = allImagesRaw
     .filter(isRecord)
     .map((it) => {

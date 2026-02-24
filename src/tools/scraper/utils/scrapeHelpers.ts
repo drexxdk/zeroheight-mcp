@@ -140,6 +140,7 @@ export async function navigateAndResolveProcessingLink(args: {
   processed: Set<string>;
   formatLinkForConsole: (u: string) => string;
   progress: OverallProgress;
+  includeImages?: boolean;
 }): Promise<string | null> {
   const {
     page,
@@ -151,12 +152,15 @@ export async function navigateAndResolveProcessingLink(args: {
     redirects,
     processed,
     formatLinkForConsole,
+    includeImages,
   } = args;
   // `rootUrl` removed from args list; ensure not referenced below
 
   const _navStart = Date.now();
   await page.goto(link, {
-    waitUntil: config.scraper.viewport.navWaitUntil,
+    waitUntil: includeImages
+      ? config.scraper.viewport.navWaitUntil
+      : ("domcontentloaded" as const),
     timeout: config.scraper.viewport.navTimeoutMs,
   });
   try {
@@ -219,6 +223,7 @@ export async function extractAndProcessPage(args: {
   allExistingImageUrls: Set<string>;
   logProgress: (s1: string, s2: string) => void;
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
+  includeImages?: boolean;
 }): Promise<{
   pageUpsert: { url: string; title: string; content: string };
   processedPageEntry: {
@@ -249,6 +254,7 @@ export async function extractAndProcessPage(args: {
     allExistingImageUrls,
     logProgress,
     checkProgressInvariant,
+    includeImages,
   } = args;
 
   let title: string;
@@ -285,6 +291,7 @@ export async function extractAndProcessPage(args: {
         page,
         pageUrl: processingLink,
         allowedHostname: hostname,
+        includeImages: args.includeImages,
       })) as ExtractResult;
     } catch {
       extracted = fallback;
@@ -294,6 +301,23 @@ export async function extractAndProcessPage(args: {
     supportedImages = extracted.supportedImages || [];
     normalizedImages = extracted.normalizedImages || [];
     pageLinks = extracted.pageLinks || [];
+  }
+
+  try {
+    logProgress(
+      "🐛",
+      `extractAndProcessPage includeImages=${Boolean(args.includeImages)} supportedImages=${(supportedImages || []).length}`,
+    );
+  } catch {
+    // best-effort
+  }
+
+  // If images are disabled for this run, clear discovered images so we do not
+  // reserve progress items or attempt uploads.
+  if (!args.includeImages) {
+    supportedImages = [];
+    normalizedImages = [];
+    pageLinks = pageLinks || [];
   }
 
   if (supportedImages.length > 0) {
@@ -343,6 +367,39 @@ export async function extractAndProcessPage(args: {
     })();
   }
 
+  // Record discovered images as progress items *before* processing so the
+  // pending "supported" state is set and preserved even if processing fails.
+  try {
+    const supportedSet = new Set((supportedImages || []).map((s) => s.src));
+    for (const img of normalizedImages || []) {
+      try {
+        let key = String(img.src || "");
+        try {
+          key = normalizeImageUrl({ src: img.src });
+        } catch {
+          key = String(img.src || "");
+        }
+        if (supportedSet.has(img.src)) {
+          try {
+            markImagePending(key);
+          } catch {
+            // best-effort
+          }
+        } else {
+          try {
+            markImageUnsupported(key);
+          } catch {
+            // best-effort
+          }
+        }
+      } catch {
+        // best-effort
+      }
+    }
+  } catch {
+    // best-effort
+  }
+
   // time the page+image processing to identify hotspots
   const _procStart = Date.now();
   const {
@@ -364,6 +421,7 @@ export async function extractAndProcessPage(args: {
     shouldCancel: undefined,
     checkProgressInvariant: (p: OverallProgress, ctx: string) =>
       checkProgressInvariant(p, ctx),
+    includeImages: includeImages,
     preExtracted: {
       title,
       content,
@@ -503,47 +561,6 @@ export function postProcessPageResults(args: {
   processed.add(processingLink);
   if (processingLink !== pageUpsert.url) processed.add(pageUpsert.url);
   logProgress("✅", `Processed ${formatLinkForConsole(processingLink)}`);
-
-  // Record discovered images as progress items so summaries can be derived
-  // from the progress service. Mark supported images as pending so they
-  // will be counted when processed; mark unsupported images as skipped.
-  (function recordDiscoveredImages() {
-    try {
-      const supportedSet = new Set((retSupported || []).map((s) => s.src));
-      for (const img of retNorm || []) {
-        try {
-          // Normalize discovered image URLs so that later processing and
-          // upload code operate on the same canonical form used by the
-          // ProgressService. This prevents mismatches where pending items
-          // and uploaded items use different keys.
-          let key = String(img.src || "");
-          try {
-            key = normalizeImageUrl({ src: img.src });
-          } catch {
-            // fall back to raw src on normalization failure
-            key = String(img.src || "");
-          }
-          if (supportedSet.has(img.src)) {
-            try {
-              markImagePending(key);
-            } catch {
-              // best-effort
-            }
-          } else {
-            try {
-              markImageUnsupported(key);
-            } catch {
-              // best-effort
-            }
-          }
-        } catch {
-          // best-effort
-        }
-      }
-    } catch {
-      // best-effort
-    }
-  })();
 }
 
 export async function processLinkForWorker(args: {
@@ -571,6 +588,7 @@ export async function processLinkForWorker(args: {
   logProgress: (s1: string, s2: string) => void;
   progress: OverallProgress;
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
+  includeImages?: boolean;
 }): Promise<void> {
   const {
     page,
@@ -594,7 +612,16 @@ export async function processLinkForWorker(args: {
     logProgress,
     progress,
     checkProgressInvariant,
+    includeImages,
   } = args;
+  try {
+    logProgress(
+      "🐛",
+      `processLinkForWorker called includeImages=${Boolean(includeImages)} for ${formatPathForConsole(link)}`,
+    );
+  } catch {
+    // best-effort
+  }
 
   const processingLink = await navigateAndResolveProcessingLink({
     page,
@@ -636,6 +663,7 @@ export async function processLinkForWorker(args: {
     allExistingImageUrls,
     logProgress,
     checkProgressInvariant,
+    includeImages,
   });
 
   postProcessPageResults({
