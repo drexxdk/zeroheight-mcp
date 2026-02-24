@@ -5,6 +5,4 @@ export type QueryPage = {
   images: Record<string, string>;
 };
 
-export type QueryDataResult = {
-  pages: QueryPage[];
-};
+export type QueryDataResult = QueryPage[];

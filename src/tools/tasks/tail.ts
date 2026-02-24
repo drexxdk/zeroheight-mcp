@@ -31,30 +31,32 @@ const tasksTailInput = z.object({
 });
 
 export type TasksTailResult = {
-  taskId: string;
-  status: string;
-  lines: string[];
-  nextCursor: number;
-  finished_at?: string | null;
-  error?: string | null;
+  task: {
+    taskId: string;
+    status: string;
+    lines: string[];
+    nextCursor: number;
+    finished_at?: string | null;
+    error?: string | null;
+  };
 };
 
 export const tasksTailTool: ToolDefinition<
   typeof tasksTailInput,
-  | TasksTailResult
-  | { taskId: string; status: string; lines: string[]; nextCursor: number }
-  | ReturnType<typeof createErrorResponse>
+  TasksTailResult | ReturnType<typeof createErrorResponse>
 > = {
   title: "TASKS_tail",
   description: "Tail logs for a taskId (polls DB and returns new log lines).",
   inputSchema: tasksTailInput,
   outputSchema: z.object({
-    taskId: z.string(),
-    status: z.string(),
-    lines: z.array(z.string()),
-    nextCursor: z.number().int(),
-    finished_at: z.string().nullable().optional(),
-    error: z.string().nullable().optional(),
+    task: z.object({
+      taskId: z.string(),
+      status: z.string(),
+      lines: z.array(z.string()),
+      nextCursor: z.number().int(),
+      finished_at: z.string().nullable().optional(),
+      error: z.string().nullable().optional(),
+    }),
   }),
   handler: async ({ taskId, sinceLine, timeoutMs, intervalMs }) => {
     try {
@@ -94,7 +96,9 @@ export const tasksTailTool: ToolDefinition<
         await new Promise((r) => setTimeout(r, interval));
       }
 
-      return { taskId, status: "running", lines: [], nextCursor: cursor };
+      return {
+        task: { taskId, status: "running", lines: [], nextCursor: cursor },
+      };
     } catch (e) {
       return createErrorResponse({
         message: String(e instanceof Error ? e.message : e),
@@ -111,12 +115,14 @@ function formatTailLinesResult(
   if (!isRecord(j))
     return createErrorResponse({ message: "Invalid job record" });
   return {
-    taskId: String(j.id),
-    status: String(j.status),
-    lines: newLines,
-    nextCursor: cursor,
-    finished_at: (j.finished_at as string) ?? null,
-    error: (j.error as string) ?? null,
+    task: {
+      taskId: String(j.id),
+      status: String(j.status),
+      lines: newLines,
+      nextCursor: cursor,
+      finished_at: (j.finished_at as string) ?? null,
+      error: (j.error as string) ?? null,
+    },
   };
 }
 
@@ -127,11 +133,13 @@ function formatTailTerminalResult(
   if (!isRecord(j))
     return createErrorResponse({ message: "Invalid job record" });
   return {
-    taskId: String(j.id),
-    status: String(j.status),
-    lines: [],
-    nextCursor: cursor,
-    finished_at: (j.finished_at as string) ?? null,
-    error: (j.error as string) ?? null,
+    task: {
+      taskId: String(j.id),
+      status: String(j.status),
+      lines: [],
+      nextCursor: cursor,
+      finished_at: (j.finished_at as string) ?? null,
+      error: (j.error as string) ?? null,
+    },
   };
 }

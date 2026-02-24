@@ -53,16 +53,14 @@ export const queryDataTool: ToolDefinition<
   description:
     "Query the cached Zeroheight data from the database. Supports searching by title/content (use `searchInTitle`/`searchInContent`), exact URL lookup, or listing; can include image data with full Supabase storage URLs.",
   inputSchema: queryDataInput,
-  outputSchema: z.object({
-    pages: z.array(
-      z.object({
-        url: z.string().nullable(),
-        title: z.string().nullable(),
-        content: z.string().nullable(),
-        images: z.record(z.string(), z.string()),
-      }),
-    ),
-  }),
+  outputSchema: z.array(
+    z.object({
+      url: z.string().nullable(),
+      title: z.string().nullable(),
+      content: z.string().nullable(),
+      images: z.record(z.string(), z.string()),
+    }),
+  ),
   handler: async ({
     search,
     searchInTitle,
@@ -212,8 +210,8 @@ export const queryDataTool: ToolDefinition<
       },
     );
 
-    // Return a domain-shaped result so callers can rely on typed output.
-    const out: QueryDataResult = { pages: result };
+    // Return typed array directly.
+    const out: QueryDataResult = result;
     return out;
   },
 };
