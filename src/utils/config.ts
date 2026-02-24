@@ -9,6 +9,20 @@
 // The rest of runtime values are exposed under `config`.
 
 import { z } from "zod";
+// Ensure a sensible libuv threadpool size for Sharp-heavy workloads.
+// This can be overridden by setting `UV_THREADPOOL_SIZE` in the environment.
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE ?? "64";
+
+// Configure Sharp concurrency for CPU-bound image processing. Some
+// environments may not support this call, so guard it.
+import sharp from "sharp";
+try {
+  if (typeof sharp.concurrency === "function") {
+    sharp.concurrency(16);
+  }
+} catch {
+  // ignore runtime errors when tuning concurrency
+}
 
 // Normalize process.env values: treat empty-string as undefined for clarity
 const rawEnv = {
@@ -138,7 +152,9 @@ export const config = {
     pageUpsertChunk: 200,
     imageInsertChunk: 500,
     debug: true,
-    imageConcurrency: 4,
+    imageConcurrency: 8,
+    // Total across all pages/workers. Increase to allow more concurrent uploads.
+    imageConcurrencyTotal: 16,
     prefetch: {
       waitMs: 400,
       scrollStepMs: 120,
@@ -229,3 +245,17 @@ export const config = {
     testTaskTickMs: 1000,
   },
 };
+
+// Tune libuv threadpool and Sharp concurrency early in the process.
+// Respect existing env if set by the caller.
+if (!process.env.UV_THREADPOOL_SIZE) {
+  // Leave a generous default for Sharp and other native modules.
+  process.env.UV_THREADPOOL_SIZE = "64";
+}
+
+try {
+  // Set Sharp concurrency if it's available.
+  if (typeof sharp.concurrency === "function") sharp.concurrency(16);
+} catch (_err) {
+  // Non-fatal; continue without tuning Sharp if it fails.
+}

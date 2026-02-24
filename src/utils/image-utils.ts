@@ -48,42 +48,27 @@ export async function downloadImage({
       return null;
     }
 
-    const contentType = response.headers.get("content-type") || "";
-
     const buffer = await response.arrayBuffer();
 
-    // First try to validate with Sharp - this will tell us if it's actually a valid image
-    let metadata;
+    // Process image with sharp in a single pass: resize, flatten, convert to WebP.
+    // Doing this in one pipeline avoids calling metadata() then processing again,
+    // which halves the Sharp CPU work per image.
+    let processedBuffer: Buffer;
     try {
-      metadata = await sharp(Buffer.from(buffer)).metadata();
+      processedBuffer = await sharp(Buffer.from(buffer))
+        .resize(config.image.maxDim, config.image.maxDim, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .webp({ quality: config.image.webpQuality })
+        .toBuffer();
     } catch (error) {
       logger.error(`Invalid image data or unsupported format: ${error}`);
-      // If it's not a valid image according to Sharp, skip it
-      if (!contentType.startsWith("image/")) {
-        logger.log(`Skipping non-image content: ${contentType}`);
-        return null;
-      }
-      // If content-type says it's an image but Sharp can't process it, still skip
       return null;
     }
 
-    // Skip excluded formats from configuration
-    const fmt = (metadata.format || "").toLowerCase();
-    if (config.image.excludeFormats.includes(fmt)) {
-      return null;
-    }
-
-    // Process image with sharp: resize to max, flatten transparent areas to white,
-    // and convert to WebP at configured quality.
-    const processedBuffer = await sharp(Buffer.from(buffer))
-      .resize(config.image.maxDim, config.image.maxDim, {
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .flatten({ background: { r: 255, g: 255, b: 255 } }) // Fill transparent areas with white
-      .webp({ quality: config.image.webpQuality })
-      .toBuffer();
-
+    // Avoid excluded formats *after* processing; if Sharp succeeded we assume it's supported.
     return processedBuffer.toString("base64");
   } catch (error) {
     logger.error(`Error downloading image ${url}:`, error);

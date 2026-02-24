@@ -1,6 +1,8 @@
 import puppeteer, { HTTPRequest, Page, Browser } from "puppeteer";
 import logger from "@/utils/logger";
 
+const attachedPages = new WeakSet<Page>();
+
 type BlockOptions = {
   allow?: Set<string>;
   block?: Set<string>;
@@ -124,6 +126,10 @@ export async function attachDefaultInterception(
   page: Page,
   opts?: BlockOptions,
 ): Promise<void> {
+  // Make idempotent: avoid attaching multiple listeners to the same page.
+  // Use a module-level WeakSet instead of mutating the Page object.
+  if (attachedPages.has(page)) return;
+  attachedPages.add(page);
   const allowSet = opts?.allow ?? new Set<string>();
   const blockSet = opts?.block ?? new Set<string>();
   const blockImages = opts?.blockImages ?? false;
@@ -143,11 +149,17 @@ export async function attachDefaultInterception(
     );
     if (reason) {
       opts?.onRequest?.(req, "blocked", reason);
-      void req.abort().catch((e) => logger.debug("req.abort error:", e));
+      void req.abort().catch((e) => {
+        if (String(e).includes("Request is already handled")) return;
+        logger.debug("req.abort error:", e);
+      });
       return;
     }
     opts?.onRequest?.(req, "continued");
-    void req.continue().catch((e) => logger.debug("req.continue error:", e));
+    void req.continue().catch((e) => {
+      if (String(e).includes("Request is already handled")) return;
+      logger.debug("req.continue error:", e);
+    });
   });
 
   page.on("requestfailed", (req) => logger.debug("request failed:", req.url()));
@@ -156,3 +168,37 @@ export async function attachDefaultInterception(
   });
 }
 export const puppeteerHelper = { launchBrowser, attachDefaultInterception };
+
+// Login & cookie helper: perform a single login flow and return serialized
+// cookies suitable for a `Cookie` header in fetch requests. Caller is
+// responsible for providing the page navigation URL and optional password.
+export async function getAuthenticatedCookieHeader(options: {
+  browser: Browser;
+  url: string;
+  password?: string;
+}): Promise<string> {
+  const { browser, url, password } = options;
+  const page = await browser.newPage();
+  try {
+    const cfg = await import("@/utils/config");
+    const navTimeout = cfg.config.scraper.viewport.debugNavTimeoutMs ?? 60000;
+    await page.goto(url, { waitUntil: "networkidle2", timeout: navTimeout });
+    try {
+      const { tryLogin } = await import("@/utils/common/scraperHelpers");
+      if (password) await tryLogin({ page, password });
+    } catch (_e) {
+      // ignore login helper failures
+    }
+    const cookies = await page.cookies();
+    // map to simple name/value pairs
+    const pairs = cookies.map((c) => ({ name: c.name, value: c.value }));
+    const { serializeCookies } = await import("./fetchExtractor");
+    return serializeCookies(pairs);
+  } finally {
+    try {
+      await page.close();
+    } catch {
+      // ignore
+    }
+  }
+}

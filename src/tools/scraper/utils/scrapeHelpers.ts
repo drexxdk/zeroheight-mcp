@@ -10,6 +10,7 @@ import type { Page, Browser } from "puppeteer";
 import { tryLogin } from "@/utils/common/scraperHelpers";
 import { getProp } from "@/utils/common/typeGuards";
 import { extractPageData } from "./pageExtraction";
+import { fetchAndExtract } from "./fetchExtractor";
 import { processPageAndImages } from "./processPageAndImages";
 import { normalizeUrl } from "./prefetch";
 import progressService, {
@@ -29,6 +30,9 @@ type PreExtracted = {
   normalizedImages: Array<{ src: string; alt: string }>;
   pageLinks: string[];
 };
+
+// Simple in-memory cache mapping hostname -> serialized cookie header
+const COOKIE_CACHE = new Map<string, string>();
 
 export function formatPathForConsole(u: string): string {
   try {
@@ -219,6 +223,7 @@ export async function extractAndProcessPage(args: {
   allExistingImageUrls: Set<string>;
   logProgress: (s1: string, s2: string) => void;
   checkProgressInvariant: (p: OverallProgress, ctx: string) => void;
+  cookieHeader?: string;
 }): Promise<{
   pageUpsert: { url: string; title: string; content: string };
   processedPageEntry: {
@@ -250,54 +255,78 @@ export async function extractAndProcessPage(args: {
     logProgress,
     checkProgressInvariant,
   } = args;
-
-  let title: string;
-  let content: string;
-  let supportedImages: ExtractedImage[];
-  let normalizedImages: Array<{ src: string; alt: string }>;
-  let pageLinks: string[];
-
-  if (preExtractedMap && preExtractedMap.has(processingLink)) {
-    const e = preExtractedMap.get(processingLink)!;
-    title = e.title;
-    content = e.content;
-    supportedImages = e.supportedImages || [];
-    normalizedImages = e.normalizedImages || [];
-    pageLinks = e.pageLinks || [];
-  } else {
-    type ExtractResult = {
-      pageLinks: string[];
-      normalizedImages: ExtractedImage[];
-      supportedImages: ExtractedImage[];
+  // Gather extraction data (title/content/images/links). Split into helper
+  // so this function remains small and focused.
+  const { title, content, supportedImages, normalizedImages, pageLinks } =
+    await (async function performExtraction(): Promise<{
       title: string;
       content: string;
-    };
-    const fallback: ExtractResult = {
-      pageLinks: [],
-      normalizedImages: [],
-      supportedImages: [],
-      title: "",
-      content: "",
-    };
-    let extracted: ExtractResult = fallback;
-    try {
-      extracted = (await extractPageData({
-        page,
-        pageUrl: processingLink,
-        allowedHostname: hostname,
-      })) as ExtractResult;
-    } catch {
-      extracted = fallback;
-    }
-    title = extracted.title;
-    content = extracted.content;
-    supportedImages = extracted.supportedImages || [];
-    normalizedImages = extracted.normalizedImages || [];
-    pageLinks = extracted.pageLinks || [];
-  }
+      supportedImages: ExtractedImage[];
+      normalizedImages: Array<{ src: string; alt: string }>;
+      pageLinks: string[];
+    }> {
+      if (preExtractedMap && preExtractedMap.has(processingLink)) {
+        const e = preExtractedMap.get(processingLink)!;
+        return {
+          title: e.title,
+          content: e.content,
+          supportedImages: e.supportedImages || [],
+          normalizedImages: e.normalizedImages || [],
+          pageLinks: e.pageLinks || [],
+        };
+      }
+
+      const fallback = {
+        pageLinks: [] as string[],
+        normalizedImages: [] as ExtractedImage[],
+        supportedImages: [] as ExtractedImage[],
+        title: "",
+        content: "",
+      };
+
+      type ExtractResult = typeof fallback;
+
+      try {
+        if (args.cookieHeader) {
+          try {
+            const f = await fetchAndExtract({
+              url: processingLink,
+              cookieHeader: args.cookieHeader,
+              allowedHostname: hostname,
+            });
+            return {
+              title: f.title,
+              content: f.content,
+              supportedImages: f.supportedImages as ExtractedImage[],
+              normalizedImages: f.normalizedImages as ExtractedImage[],
+              pageLinks: f.pageLinks,
+            } as ExtractResult;
+          } catch (_e) {
+            try {
+              const extracted = (await extractPageData({
+                page,
+                pageUrl: processingLink,
+                allowedHostname: hostname,
+              })) as ExtractResult;
+              return extracted;
+            } catch {
+              return fallback;
+            }
+          }
+        }
+        const extracted = (await extractPageData({
+          page,
+          pageUrl: processingLink,
+          allowedHostname: hostname,
+        })) as ExtractResult;
+        return extracted;
+      } catch {
+        return fallback;
+      }
+    })();
 
   if (supportedImages.length > 0) {
-    await (async function reserveImageItems() {
+    await (async function reserveImageItems(): Promise<void> {
       try {
         for (const img of supportedImages) {
           try {
@@ -312,7 +341,6 @@ export async function extractAndProcessPage(args: {
           }
         }
       } catch {
-        // fallback to coarse reservation if per-image upserts fail
         try {
           progressService.reserve(supportedImages.length, undefined);
         } catch {
@@ -616,6 +644,39 @@ export async function processLinkForWorker(args: {
   const { storage } = (
     await import("@/utils/common/supabaseClients")
   ).getClient();
+  // Determine cookie header for fetch-based extractor when we have a project
+  // password. Cache per-hostname to avoid repeating the login flow.
+  let cookieHeader: string | undefined;
+  try {
+    if (password) {
+      const host = new URL(rootUrl).hostname;
+      if (COOKIE_CACHE.has(host)) cookieHeader = COOKIE_CACHE.get(host);
+      else {
+        try {
+          // Import helper that knows how to perform login and serialize cookies
+          const { getAuthenticatedCookieHeader } = await import("./puppeteer");
+          const browser = (
+            page as unknown as { browser?: () => Browser }
+          ).browser?.();
+          if (browser && typeof getAuthenticatedCookieHeader === "function") {
+            const ch = await getAuthenticatedCookieHeader({
+              browser,
+              url: rootUrl,
+              password,
+            });
+            if (ch) {
+              COOKIE_CACHE.set(host, ch);
+              cookieHeader = ch;
+            }
+          }
+        } catch (_e) {
+          // best-effort: continue without cookieHeader
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
 
   const {
     pageUpsert,
@@ -636,6 +697,7 @@ export async function processLinkForWorker(args: {
     allExistingImageUrls,
     logProgress,
     checkProgressInvariant,
+    cookieHeader,
   });
 
   postProcessPageResults({
