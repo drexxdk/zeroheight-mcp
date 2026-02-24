@@ -311,6 +311,17 @@ export async function navigateAndResolveProcessingLink(args: {
     link,
   });
 
+  // When images are disabled we use a faster navigation mode. Some pages
+  // render main content asynchronously after DOMContentLoaded; wait briefly
+  // for the `#main-content` element to appear so extraction sees real content.
+  if (!includeImages) {
+    try {
+      await page.waitForSelector("#main-content", { timeout: 4000 });
+    } catch {
+      // ignore — fallback extraction will try `body` if the selector doesn't appear
+    }
+  }
+
   const finalRaw = page.url();
   const final = normalizeUrl({ u: finalRaw, base: rootUrl });
   let processingLink = link;

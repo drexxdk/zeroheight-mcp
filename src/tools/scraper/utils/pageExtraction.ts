@@ -253,6 +253,31 @@ export async function extractPageData({
 }): Promise<ExtractPageDataResult> {
   const title: string = await page.title();
 
+  // Try to wait briefly for `#main-content` to populate text content.
+  // Some pages render main content asynchronously; poll for non-empty
+  // innerText for up to ~2000ms before extracting. This is a lightweight
+  // attempt and will fall back to existing extraction logic if not found.
+  try {
+    // Wait until the element exists and has >20 trimmed chars (heuristic)
+    // Keep timeout short to avoid slowing fast runs.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await page.waitForFunction(
+      () => {
+        try {
+          const el = document.querySelector("#main-content");
+          if (!el) return false;
+          const txt = (el as HTMLElement).innerText || el.textContent || "";
+          return txt.trim().length > 20;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 2000 },
+    );
+  } catch {
+    // ignore — fallback extraction will try `body` if content isn't available
+  }
+
   const content: string = await page
     .$eval("#main-content", (el: Element) => {
       try {
