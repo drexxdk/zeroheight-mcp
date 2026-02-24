@@ -3,6 +3,7 @@
 
 # Prevent committing `debugger` and run lint
 # Run the TypeScript version via tsx so it works without a separate build step
+npx --no-install lint-staged || exit 1
 npx tsx scripts/check-no-debugger.ts || exit 1
 npm run lint || exit 1
 

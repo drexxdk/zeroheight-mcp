@@ -127,97 +127,41 @@
   npx tsx scripts/clear-zeroheight-mcp.ts "$ZEROHEIGHT_MCP_ACCESS_TOKEN"
   ```
 
-  ```bash
-  # Avoid: curl in PowerShell, use Node instead
-  curl -X POST "http://localhost:3000/api/mcp" \
-    -H "Authorization: Bearer $ZEROHEIGHT_MCP_ACCESS_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{"jsonrpc":"2.0",...}'
-  ```
+  ````bash
+  ```instructions
+  # Repository assistant instructions (condensed)
 
-### TypeScript Best Practices
+  These guidelines are intended to be short, authoritative, and easy for any assistant or contributor to follow.
 
-- Use specific types instead of `any`
-- Define interfaces for complex objects
-- Use proper return types for functions
-- Leverage TypeScript's type inference when appropriate
+  ## Core rules
 
-### Code Style
+  - **Follow ESLint**: Always obey the rules in `eslint.config.mjs`. Before producing edits, read `eslint.config.mjs` and make a best-effort to generate code that passes `npm run lint` and `npm run build`.
+  - **TypeScript safety**: Never emit `any` or use `as unknown as Type` casts. Prefer concrete types, generated DB types (`src/database-schema.ts` / `src/database-types.ts`), or `unknown` with runtime checks.
+  - **Validate changes**: After edits, run `npx eslint .` and `npm run build` (or `npx -y tsc --noEmit`). Apply `npx eslint --fix` where safe; if lint/build failures remain, stop and ask the user prior to committing.
 
-- Follow the existing project's ESLint configuration
-- Maintain consistent formatting and structure
-- Use meaningful variable and function names
-- Add comments for complex logic
+  ## Scraper & MCP guidance
 
-### Always follow ESLint config file
+  - **Don't run local scrapers from chat**: Never start local scraper scripts from a chat session. Use the MCP tools exposed by the app API (see `app/api/[transport]/route.ts`) and call them via the server API with the appropriate token.
+  - **Stop after MCP actions**: After performing any MCP action, report results and wait for the user's next instruction; do not chain additional operations automatically.
 
-- **Priority**: High
-- **Action**: Always obey the rules defined in `eslint.config.mjs` (root of the repository) when creating or editing files. Before committing, run `npx eslint .` and fix or ask about any reported issues. Do not add temporary `console.log` or other rule-violating code to make tests pass — follow the configuration.
-- **Rationale**: Keeps code consistent, avoids CI failures, and ensures automated lint rules are respected.
+  ## Tooling & repository hygiene
 
-### Interaction Guidelines
+  - **No hidden repo changes**: Do not add/modify/remove repo-level scripts or CI helpers without explicit user permission.
+  - **Use generated DB types**: Regenerate and use `src/database-schema.ts` / `src/database-types.ts` after DB migrations.
 
-- **Don't suggest follow-up commands**: Only suggest or execute follow-up commands when explicitly asked, or when it's necessary to complete the current task
-- **Focus on requested actions**: Complete the user's specific request without adding unsolicited suggestions for next steps
+  ## Assistant pre-edit checklist (required)
 
-- **Run tools via MCP by default**: When a user asks you to "run", "call", or "invoke" a tool, assume they mean the MCP-exposed tool and call it through the MCP server API unless they explicitly specify that they mean a local script from the `scripts/` folder or say "run locally". Always confirm if there's ambiguity.
+  Before editing or generating code, the assistant MUST:
 
-### Tooling & Repository Changes
+  - Read `eslint.config.mjs` at the repo root and honor its rules when producing code.
+  - Preface any file-editing tool call with a concise (1–2 sentence) preamble naming the file(s) to change and the lint rules being focused on.
+  - Attempt to run `npm run lint` and `npm run build` after edits; apply `npx eslint --fix` where safe. If issues remain, stop and ask the user for guidance instead of committing.
+  - Use the repository's todo tracking (assistant's TODO tool) for multi-step code changes.
 
-- **Priority**: High
-- **Action**: Do not add, modify, or remove repository-level scripts or helper tooling (files under `scripts/`, changes to `package.json` scripts, test-runner helpers, CI helpers, etc.) without explicitly asking the user for permission first.
-- **Action**: Do not create temporary diagnostic scripts or helpers committed to the repository unless the user explicitly authorizes this; prefer in-memory diagnostics or asking the user to run commands locally.
-- **Action**: If you must add a helper file with the user's permission, place it in a clearly named temporary path (for example `scripts/.tmp/`) and remove it before committing. Document the reason in the commit message and the PR description.
-- **Action**: Before committing any change, run the standard checks and fix problems: `npx eslint .` (fix where safe), `npm run build` (or `npx -y tsc --noEmit`) and `npm run test` (or a targeted subset). If any check fails and automatic fix is not safe, ask the user for guidance instead of committing broken code.
-- **Rationale**: These rules prevent accidental repository pollution, keep CI/Dev environments stable, and ensure edits follow the project's standards.
+  ## Short rationale
 
-### Database Schema & Types
+  This file exists to keep automated and human contributors aligned on the project's quality rules. Prefer small, well-typed changes and avoid temporary workarounds that bypass lint or type checks.
 
-- **Purpose**: Use the auto-generated `src/database-schema.ts` and `src/database-types.ts` as the authoritative source of truth for DB table shapes and runtime Zod schemas. Always regenerate them after migrations and import their types in code instead of hand-writing table shapes or using `any`.
-- **When to regenerate**: After applying migrations (for example, running `001_create_tasks_table.sql`), run the schema/type generation scripts immediately.
-- **Commands**:
-  - Generate the TypeScript DB schema (supabase CLI):
+  ````
 
-    ```bash
-    npx -y supabase@2.72.8 gen types typescript --project-id <project-id> --schema public > src/database-schema.ts
-    ```
-
-  - Convert the schema into runtime Zod schemas and inferred types (project helper):
-
-    ```bash
-    npm run generate-database-types
-    # or
-    npx tsx scripts/generate-database-types.ts
-    ```
-
-- **Files produced**:
-  - `src/database-schema.ts` — static TS types representing DB tables (use this as the generic for Supabase clients)
-  - `src/database-types.ts` — runtime Zod schemas and inferred TS types (`TasksType`, `PagesType`, etc.)
-
-- **How to use in code**:
-  - Create a typed Supabase client:
-
-    ```ts
-    import type { Database } from "src/database-schema";
-    const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY);
-    ```
-
-  - When referencing a table name in `supabase.from(...)`, prefer a `const` literal so the type system recognizes it:
-
-    ```ts
-    const table = "tasks" as const;
-    await supabase.from(table).select("*");
-    ```
-
-  - Import generated runtime/inferred types when you need a concrete shape:
-
-    ```ts
-    import type { TasksType } from "src/database-types";
-    type JobRecord = TasksType;
-    ```
-
-- **Guidelines for changes**:
-  - Regenerate the schema & types after any DB migration and commit the generated `src/` files to the repo.
-  - Prefer the generated `Database` generic on Supabase clients to avoid `any` casts and manual `as any` workarounds.
-  - Avoid using dynamic `string` table names; use `as const` literals to satisfy typed table names.
-  - If a new table is added and TypeScript errors appear, regenerate types then run `npm run build` and `npm run lint`.
+  - Attempt to run `npm run lint` and `npm run build` after edits; apply `npx eslint --fix` where safe, and if errors remain, stop and ask the user for guidance rather than committing or merging.
