@@ -432,7 +432,7 @@ async function runWorkerForScrape(options: {
 }): Promise<void> {
   const { shouldCancel, getNextLink, pagePool, includeImages } = options;
   defaultLogger.debug(
-    `[debug] runWorkerForScrape start includeImages=${Boolean(includeImages)}`,
+    `runWorkerForScrape start includeImages=${Boolean(includeImages)}`,
   );
   const page: Page = await pagePool.acquire();
   try {
@@ -701,7 +701,7 @@ export async function scrape({
 > {
   try {
     defaultLogger.debug(
-      `[debug] scrape() called includeImages=${Boolean(includeImages)}`,
+      `scrape() called includeImages=${Boolean(includeImages)}`,
     );
     const concurrency = config.scraper.concurrency;
     const idleTimeout = config.scraper.idleTimeoutMs;
@@ -987,8 +987,7 @@ export const scrapeTool: ToolDefinition<
         } catch (e) {
           defaultLogger.debug("Error during some scrape step:", e);
         }
-        if (config.scraper.debug) defaultLogger.debug(`[debug] ${s}`);
-        else defaultLogger.log(s);
+        defaultLogger.debug(s);
       };
 
       try {

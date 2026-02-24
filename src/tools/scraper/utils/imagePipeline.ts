@@ -90,11 +90,9 @@ export async function processAndUploadImage(options: {
     }
     const path = uploadRes.path;
     if (!path) return { uploaded: false, error: "no_path_returned" };
-    if (config.scraper.debug) {
-      logger.debug(
-        `[debug] uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
-      );
-    }
+    logger.debug(
+      `uploaded image: downloadUrl=${downloadUrl} normalized=${sanitizedUrl} path=${path}`,
+    );
     addPendingImageRecord({
       pendingImageRecords,
       pageUrl: link,

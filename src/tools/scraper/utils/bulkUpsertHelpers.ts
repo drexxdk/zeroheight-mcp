@@ -545,78 +545,74 @@ export async function inspectDbForIntersection(
     storage_path: ImagesType["storage_path"];
   }>,
 ): Promise<void> {
+  // Log a small sample of the intersection and, if present, inspect DB rows.
   try {
     logger.debug(
-      `[debug] intersection sample (first ${config.scraper.log.sampleSize}): ${intersection
+      `intersection sample (first ${config.scraper.log.sampleSize}): ${intersection
         .slice(0, config.scraper.log.sampleSize)
         .join(", ")}`,
     );
 
-    // If we have intersection URLs, fetch DB rows for inspection (up to configured limit)
     if (intersection.length > 0 && db) {
-      try {
-        const maybeDbData = await fetchDbRowsForIntersection(db, intersection);
-        if (isRecord(maybeDbData)) {
-          const maybeData = getProp(maybeDbData, "data");
-          logger.debug(
-            `[debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
-              Array.isArray(maybeData)
-                ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
-                : [],
-              null,
-              2,
-            )}`,
-          );
-        } else {
-          logger.debug(
-            ` [debug] DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
-          );
-        }
-      } catch (err) {
-        (function handleDbInspectError(e: unknown) {
-          if (config.scraper.debug) {
-            try {
-              const msg =
-                e && typeof e === "object" && "message" in e
-                  ? String((e as { message?: unknown }).message ?? String(e))
-                  : String(e);
-              const stack =
-                e && typeof e === "object" && "stack" in e
-                  ? String((e as { stack?: unknown }).stack ?? "")
-                  : undefined;
-              const details = safeSerialize(e, {
-                maxDepth: 4,
-                showErrorStack: false,
-              });
-              logger.debug(
-                `[debug] DB inspection error: ${msg}${stack ? `\n${stack}` : ""}\n${details}`,
-              );
-            } catch {
-              logger.debug(`[debug] DB inspection error`);
-            }
-          } else {
-            logger.debug(
-              `[debug] DB inspection skipped due to runtime client error`,
-            );
-          }
-        })(err);
-      }
+      await fetchAndLogDbInspection(db, intersection);
     }
 
     logger.debug(
-      `[debug] pendingImageRecords (first ${config.scraper.log.sampleSize}): ${pendingImageRecords
+      `pendingImageRecords (first ${config.scraper.log.sampleSize}): ${pendingImageRecords
         .slice(0, config.scraper.log.sampleSize)
         .map((p) => p.original_url)
         .join(", ")}`,
     );
     logger.debug(
-      `[debug] imagesToInsert (first ${config.scraper.log.sampleSize}): ${imagesToInsert
+      `imagesToInsert (first ${config.scraper.log.sampleSize}): ${imagesToInsert
         .slice(0, config.scraper.log.sampleSize)
         .map((i) => i.original_url + " -> " + i.storage_path)
         .join(", ")}`,
     );
   } catch (err) {
-    logger.debug(`[debug] DB inspection error: ${String(err)}`);
+    logger.debug(`DB inspection error: ${String(err)}`);
+  }
+}
+
+async function fetchAndLogDbInspection(
+  db: unknown,
+  intersection: string[],
+): Promise<void> {
+  try {
+    const maybeDbData = await fetchDbRowsForIntersection(db, intersection);
+    if (isRecord(maybeDbData)) {
+      const maybeData = getProp(maybeDbData, "data");
+      logger.debug(
+        `DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): ${JSON.stringify(
+          Array.isArray(maybeData)
+            ? maybeData.slice(0, config.scraper.db.inspectSampleSize)
+            : [],
+          null,
+          2,
+        )}`,
+      );
+    } else {
+      logger.debug(
+        `DB inspection for intersection (up to ${config.scraper.db.inspectLimit} rows): []`,
+      );
+    }
+  } catch (err) {
+    const e = err as unknown;
+    const msg =
+      e && typeof e === "object" && "message" in e
+        ? String((e as { message?: unknown }).message ?? String(e))
+        : String(e);
+    const stack =
+      e && typeof e === "object" && "stack" in e
+        ? String((e as { stack?: unknown }).stack ?? "")
+        : undefined;
+    const details = safeSerialize(e, {
+      maxDepth: 4,
+      showErrorStack: false,
+    });
+    logger.debug(
+      `DB inspection error: ${msg}${stack ? `\n${stack}` : ""}\n${details}`,
+    );
   }
 }
 

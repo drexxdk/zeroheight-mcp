@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import { config } from "@/utils/config";
 import type { TestDbClient } from "./mockDb";
 import { getClient } from "@/utils/common/supabaseClients";
@@ -16,7 +16,7 @@ import {
   computeImagesAlreadyAssociatedCount,
 } from "./bulkUpsertHelpers";
 import { PagesType, ImagesType } from "@/generated/database-types";
-import logger from "@/utils/logger";
+// logger intentionally not used here; summary formatting only
 
 function normalizeOriginalUrls(input: Set<string>): Set<string> {
   const out = new Set<string>();
@@ -155,43 +155,6 @@ export async function bulkUpsertPagesAndImages(options: {
     allExistingImageUrls,
   );
 
-  if (config.scraper.debug) {
-    try {
-      logger.debug(
-        `[debug] insertedOriginalUrls (sample ${config.scraper.log.sampleSize}): ${Array.from(
-          insertedOriginalUrls,
-        )
-          .slice(0, config.scraper.log.sampleSize)
-          .join(", ")}`,
-      );
-      logger.debug(
-        `[debug] normalizedInsertedOriginals (sample ${config.scraper.log.sampleSize}): ${Array.from(
-          normalizedInsertedOriginals,
-        )
-          .slice(0, config.scraper.log.sampleSize)
-          .join(", ")}`,
-      );
-      logger.debug(
-        `[debug] dbExistingAfterInsert size=${dbExistingAfterInsert.size} (sample ${config.scraper.log.sampleSize}): ${Array.from(
-          dbExistingAfterInsert,
-        )
-          .slice(0, config.scraper.log.sampleSize)
-          .join(", ")}`,
-      );
-      // pre-run associated count will be logged later after it's computed
-      logger.debug(
-        `[debug] urlToId (sample ${config.scraper.log.sampleSize}): ${Array.from(
-          urlToId.entries(),
-        )
-          .slice(0, config.scraper.log.sampleSize)
-          .map(([u, id]) => `${u}->${id}`)
-          .join(", ")}`,
-      );
-    } catch {
-      // best-effort logging
-    }
-  }
-
   // Compute unique images skipped based on the pre-run snapshot (`allExistingImageUrls`).
   // If the post-insert DB state indicates that the only existing rows are the
   // ones we just inserted (i.e. postCount === normalizedInsertedOriginals.size),
@@ -214,15 +177,6 @@ export async function bulkUpsertPagesAndImages(options: {
 
   // Compute associations before (we already had this value from imageInsertRes)
   const existingAssocBefore = imagesAlreadyAssociatedCount;
-  if (config.scraper.debug) {
-    try {
-      logger.debug(
-        `[debug] imagesAlreadyAssociatedCount (pre): ${existingAssocBefore}`,
-      );
-    } catch {
-      // best-effort
-    }
-  }
   // Compute associations after insertion and take the delta as new associations
   const pageIdSet = new Set<number>(Array.from(urlToId.values()));
   const existingAssocAfter = await computeImagesAlreadyAssociatedCount(
@@ -230,18 +184,6 @@ export async function bulkUpsertPagesAndImages(options: {
     Array.from(uniqueAllowedImageUrls),
     pageIdSet,
   );
-  if (config.scraper.debug) {
-    try {
-      logger.debug(
-        `[debug] imagesAlreadyAssociatedCount (after): ${existingAssocAfter}`,
-      );
-      logger.debug(
-        `[debug] newAssociations: ${Math.max(0, existingAssocAfter - existingAssocBefore)}`,
-      );
-    } catch {
-      // best-effort
-    }
-  }
   const newAssociations = Math.max(0, existingAssocAfter - existingAssocBefore);
   // Prefer the delta of associations computed from DB queries. When that
   // is zero (mocked DBs, DB drivers that don't return inserted rows, or

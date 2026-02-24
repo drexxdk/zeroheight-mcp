@@ -6,7 +6,6 @@ export type PendingImageRecord = {
   storage_path: string;
 };
 
-import { config } from "@/utils/config";
 import logger from "@/utils/logger";
 
 export function addPendingImageRecord({
@@ -29,9 +28,7 @@ export function addPendingImageRecord({
     storage_path: storagePath,
   });
   allExistingImageUrls.add(normalized);
-  if (config.scraper.debug) {
-    logger.debug(
-      `[debug] addPendingImageRecord page=${pageUrl} download=${downloadUrl} normalized=${normalized} storage=${storagePath}`,
-    );
-  }
+  logger.debug(
+    `addPendingImageRecord page=${pageUrl} download=${downloadUrl} normalized=${normalized} storage=${storagePath}`,
+  );
 }
