@@ -54,6 +54,8 @@ export async function createJobInDb({
     name,
     // SEP-1686: initial state should be `working` (the request is being processed)
     status: "working",
+    // mark started_at immediately so tasks reflect the run has been initiated
+    started_at: new Date().toISOString(),
     args: argsPayload,
   };
 

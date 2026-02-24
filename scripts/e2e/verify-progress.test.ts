@@ -29,7 +29,6 @@ async function run(): Promise<void> {
 
   const res = await scrape({
     rootUrl: pageUrls[0],
-    password: undefined,
     pageUrls,
     logger: (s) => logger.log(s),
   });

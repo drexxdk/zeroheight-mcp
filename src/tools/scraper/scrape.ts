@@ -684,14 +684,12 @@ function makeQueueHelpers(opts: {
 // Primary scraper (previously V2) - coordinator-based queue, deterministic totals, parallel workers
 export async function scrape({
   rootUrl,
-  password,
   pageUrls,
   logger,
   shouldCancel,
   includeImages,
 }: {
   rootUrl: string;
-  password?: string;
   pageUrls?: string[];
   logger?: (s: string) => void;
   shouldCancel?: () => boolean | Promise<boolean>;
@@ -706,6 +704,8 @@ export async function scrape({
     const concurrency = config.scraper.concurrency;
     const idleTimeout = config.scraper.idleTimeoutMs;
     const browser = await launchBrowser();
+    // Project password comes from configuration rather than caller input.
+    const password = config.env.zeroheightProjectPassword;
     const queue: string[] = [];
     const inQueue = new Set<string>();
     const processed = new Set<string>();
@@ -927,8 +927,11 @@ import { PagesType, ImagesType } from "../../generated/database-types";
 
 const scrapeInput = z.object({
   pageUrls: z.array(z.string()).optional(),
-  password: z.string().optional(),
-  includeImages: z.boolean().optional(),
+  includeImages: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Whether to include image data in the response"),
 });
 
 export const scrapeTool: ToolDefinition<
@@ -950,11 +953,7 @@ export const scrapeTool: ToolDefinition<
       pollInterval: z.number().optional(),
     }),
   }),
-  handler: async ({
-    pageUrls,
-    password,
-    includeImages,
-  }: z.infer<typeof scrapeInput>) => {
+  handler: async ({ pageUrls, includeImages }: z.infer<typeof scrapeInput>) => {
     const projectUrl = config.env.zeroheightProjectUrl;
     if (!projectUrl)
       return createErrorResponse({ message: "ZEROHEIGHT_PROJECT_URL not set" });
@@ -993,7 +992,6 @@ export const scrapeTool: ToolDefinition<
       try {
         const res = await scrape({
           rootUrl: projectUrl,
-          password,
           pageUrls: pageUrls || undefined,
           includeImages: includeImages ?? false,
           logger: (msg: string) => {
