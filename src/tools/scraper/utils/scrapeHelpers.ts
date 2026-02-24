@@ -814,7 +814,13 @@ export async function performBulkUpsertSummary(
   const imageItems = items.filter((it) => it.type === "image");
   const derivedUniqueAll = new Set(imageItems.map((i) => i.url));
   const derivedUniqueAllowed = new Set(
-    imageItems.filter((i) => i.reason === "supported").map((i) => i.url),
+    imageItems
+      .filter((i) =>
+        ["supported", "uploaded", "already_present", "duplicate"].includes(
+          String(i.reason || ""),
+        ),
+      )
+      .map((i) => i.url),
   );
   const derivedUniqueUnsupported = new Set(
     imageItems.filter((i) => i.reason === "unsupported").map((i) => i.url),

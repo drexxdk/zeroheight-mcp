@@ -82,7 +82,13 @@ async function finalizeScrape({
   const imageItems = items.filter((it) => it.type === "image");
   const uniqueAllImageUrls = new Set(imageItems.map((i) => i.url));
   const uniqueAllowedImageUrls = new Set(
-    imageItems.filter((i) => i.reason === "supported").map((i) => i.url),
+    imageItems
+      .filter((i) =>
+        ["supported", "uploaded", "already_present", "duplicate"].includes(
+          String(i.reason || ""),
+        ),
+      )
+      .map((i) => i.url),
   );
   const uniqueUnsupportedImageUrls = new Set(
     imageItems.filter((i) => i.reason === "unsupported").map((i) => i.url),

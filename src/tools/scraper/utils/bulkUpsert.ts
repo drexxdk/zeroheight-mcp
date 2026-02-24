@@ -16,6 +16,20 @@ import {
   computeImagesAlreadyAssociatedCount,
 } from "./bulkUpsertHelpers";
 import { PagesType, ImagesType } from "@/generated/database-types";
+import logger from "@/utils/logger";
+
+function normalizeOriginalUrls(input: Set<string>): Set<string> {
+  const out = new Set<string>();
+  for (const val of input) {
+    try {
+      const u = new URL(String(val));
+      out.add(`${u.protocol}//${u.hostname}${u.pathname}`);
+    } catch {
+      out.add(String(val));
+    }
+  }
+  return out;
+}
 
 // Allow either the real Supabase client or a lightweight test stub that
 // provides a `from` method. Tests supply a `MockSupabaseClient` with a
@@ -130,17 +144,8 @@ export async function bulkUpsertPagesAndImages(options: {
   };
 
   // Normalize inserted original URLs to canonical form used for DB comparisons
-  const normalizedInsertedOriginals = new Set<string>();
-  for (const val of insertedOriginalUrls) {
-    try {
-      const u = new URL(String(val));
-      normalizedInsertedOriginals.add(
-        `${u.protocol}//${u.hostname}${u.pathname}`,
-      );
-    } catch {
-      normalizedInsertedOriginals.add(String(val));
-    }
-  }
+  const normalizedInsertedOriginals =
+    normalizeOriginalUrls(insertedOriginalUrls);
 
   // Re-query the DB for existing allowed image URLs after the insert
   // to get the authoritative post-run set.
@@ -149,6 +154,43 @@ export async function bulkUpsertPagesAndImages(options: {
     uniqueAllowedImageUrls,
     allExistingImageUrls,
   );
+
+  if (config.scraper.debug) {
+    try {
+      logger.debug(
+        `[debug] insertedOriginalUrls (sample ${config.scraper.log.sampleSize}): ${Array.from(
+          insertedOriginalUrls,
+        )
+          .slice(0, config.scraper.log.sampleSize)
+          .join(", ")}`,
+      );
+      logger.debug(
+        `[debug] normalizedInsertedOriginals (sample ${config.scraper.log.sampleSize}): ${Array.from(
+          normalizedInsertedOriginals,
+        )
+          .slice(0, config.scraper.log.sampleSize)
+          .join(", ")}`,
+      );
+      logger.debug(
+        `[debug] dbExistingAfterInsert size=${dbExistingAfterInsert.size} (sample ${config.scraper.log.sampleSize}): ${Array.from(
+          dbExistingAfterInsert,
+        )
+          .slice(0, config.scraper.log.sampleSize)
+          .join(", ")}`,
+      );
+      // pre-run associated count will be logged later after it's computed
+      logger.debug(
+        `[debug] urlToId (sample ${config.scraper.log.sampleSize}): ${Array.from(
+          urlToId.entries(),
+        )
+          .slice(0, config.scraper.log.sampleSize)
+          .map(([u, id]) => `${u}->${id}`)
+          .join(", ")}`,
+      );
+    } catch {
+      // best-effort logging
+    }
+  }
 
   // Compute unique images skipped based on the pre-run snapshot (`allExistingImageUrls`).
   // If the post-insert DB state indicates that the only existing rows are the
@@ -172,6 +214,15 @@ export async function bulkUpsertPagesAndImages(options: {
 
   // Compute associations before (we already had this value from imageInsertRes)
   const existingAssocBefore = imagesAlreadyAssociatedCount;
+  if (config.scraper.debug) {
+    try {
+      logger.debug(
+        `[debug] imagesAlreadyAssociatedCount (pre): ${existingAssocBefore}`,
+      );
+    } catch {
+      // best-effort
+    }
+  }
   // Compute associations after insertion and take the delta as new associations
   const pageIdSet = new Set<number>(Array.from(urlToId.values()));
   const existingAssocAfter = await computeImagesAlreadyAssociatedCount(
@@ -179,13 +230,28 @@ export async function bulkUpsertPagesAndImages(options: {
     Array.from(uniqueAllowedImageUrls),
     pageIdSet,
   );
+  if (config.scraper.debug) {
+    try {
+      logger.debug(
+        `[debug] imagesAlreadyAssociatedCount (after): ${existingAssocAfter}`,
+      );
+      logger.debug(
+        `[debug] newAssociations: ${Math.max(0, existingAssocAfter - existingAssocBefore)}`,
+      );
+    } catch {
+      // best-effort
+    }
+  }
   const newAssociations = Math.max(0, existingAssocAfter - existingAssocBefore);
-  // Prefer the delta of associations computed from DB queries, but when that
-  // is zero (mocked DBs or simple test stubs), fall back to the count of
-  // inserted rows reported by the insert flow so summaries reflect inserts.
+  // Prefer the delta of associations computed from DB queries. When that
+  // is zero (mocked DBs, DB drivers that don't return inserted rows, or
+  // unexpected insert response shapes), fall back to other runtime signals
+  // that indicate work was done: the insert flow's reported count or the
+  // runtime-uploaded image count from the progress snapshot.
   const imagesDbInsertedCount = Math.max(
     newAssociations,
     insertedCountTotal || 0,
+    imagesStats.uploaded || 0,
   );
 
   const params = buildSummaryParams({

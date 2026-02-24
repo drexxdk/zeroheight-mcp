@@ -171,7 +171,12 @@ class ProgressService {
         if (item.status === "external") pagesExternalIgnored += 1;
         if (item.status === "failed") pagesFailed += 1;
       }
-      if (item.type === "image" && item.status === "processed")
+      if (
+        item.type === "image" &&
+        item.status === "processed" &&
+        item.reason !== "already_present" &&
+        item.reason !== "duplicate"
+      )
         imagesProcessed += 1;
     }
 
