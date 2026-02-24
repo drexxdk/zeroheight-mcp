@@ -260,7 +260,6 @@ export async function extractPageData({
   try {
     // Wait until the element exists and has >20 trimmed chars (heuristic)
     // Keep timeout short to avoid slowing fast runs.
-    // eslint-disable-next-line @typescript-eslint/await-thenable
     await page.waitForFunction(
       () => {
         try {

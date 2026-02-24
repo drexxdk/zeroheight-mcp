@@ -12,12 +12,12 @@ const queryDataInput = z.object({
     .string()
     .optional()
     .describe("Search term to find in page titles or content"),
-  searchTitle: z
+  searchInTitle: z
     .boolean()
     .optional()
     .default(true)
     .describe("Whether to search in page titles"),
-  searchContent: z
+  searchInContent: z
     .boolean()
     .optional()
     .default(true)
@@ -51,7 +51,7 @@ export const queryDataTool: ToolDefinition<
 > = {
   title: "query_data",
   description:
-    "Query the cached Zeroheight data from the database. Supports searching by title, content, or URL, and can include image data with full Supabase storage URLs.",
+    "Query the cached Zeroheight data from the database. Supports searching by title/content (use `searchInTitle`/`searchInContent`), exact URL lookup, or listing; can include image data with full Supabase storage URLs.",
   inputSchema: queryDataInput,
   outputSchema: z.object({
     pages: z.array(
@@ -65,8 +65,8 @@ export const queryDataTool: ToolDefinition<
   }),
   handler: async ({
     search,
-    searchTitle,
-    searchContent,
+    searchInTitle,
+    searchInContent,
     url,
     includeImages,
     limit,
@@ -88,13 +88,13 @@ export const queryDataTool: ToolDefinition<
       const runSearch = async (): Promise<null | ReturnType<
         typeof createErrorResponse
       >> => {
-        const effectiveSearchTitle = searchTitle ?? true;
-        const effectiveSearchContent = searchContent ?? true;
+        const effectiveSearchInTitle = searchInTitle ?? true;
+        const effectiveSearchInContent = searchInContent ?? true;
 
-        if (!effectiveSearchTitle && !effectiveSearchContent) {
+        if (!effectiveSearchInTitle && !effectiveSearchInContent) {
           return createErrorResponse({
             message:
-              "When providing a search term, enable at least one of searchTitle or searchContent",
+              "When providing a search term, enable at least one of searchInTitle or searchInContent",
           });
         }
 
@@ -108,7 +108,7 @@ export const queryDataTool: ToolDefinition<
           error?: { message: string } | null;
         } | null = null;
 
-        if (effectiveSearchTitle) {
+        if (effectiveSearchInTitle) {
           titleResult = await supabase
             .from("pages")
             .select(
@@ -123,7 +123,7 @@ export const queryDataTool: ToolDefinition<
           }
         }
 
-        if (effectiveSearchContent) {
+        if (effectiveSearchInContent) {
           contentResult = await supabase
             .from("pages")
             .select(
