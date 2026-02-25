@@ -83,188 +83,24 @@ export async function processImagesForPage(options: {
   // same Node process coordinate and avoid duplicate uploads for the same
   // normalized URL.
   const inProgress = GLOBAL_IN_PROGRESS;
-
-  /* eslint-disable complexity */
   logProgress(
     "🐛",
     `Starting image processing for page ${link} with ${supportedImages.length} images`,
   );
   const results = await mapWithConcurrency(
     supportedImages,
-    async (img) => {
-      if (shouldCancel && shouldCancel()) {
-        logProgress("⏹️", "Cancellation requested - stopping image processing");
-        try {
-          logProgress(
-            "🕒",
-            `Cancellation detected in processImagesForPage for page=${formatPathForConsole?.(link) ?? link}`,
-          );
-        } catch {
-          // best-effort
-        }
-        throw new JobCancelled();
-      }
-
-      // Mark image processing as started so the overall `current` reflects
-      // active work units immediately instead of waiting for completion.
-      let imageKey = String(img.src || "");
-      try {
-        imageKey = normalizeImageUrl({ src: img.src });
-      } catch {
-        imageKey = String(img.src || "");
-      }
-      try {
-        upsertItem({ url: imageKey, type: "image", status: "started" });
-        try {
-          const s = getProgressSnapshot();
-          if (s.current > s.total) {
-            logger.warn(
-              `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
-            );
-          }
-          if (s.current < 0) {
-            logger.warn(
-              `⚠️ Progress invariant violated: current is negative (${s.current})`,
-            );
-          }
-        } catch {
-          // ignore
-        }
-      } catch {
-        // ignore
-      }
-
-      if (!(img.src && img.src.startsWith("http"))) {
-        logProgress("❌", `Invalid image source: ${img.src.split("/").pop()}`);
-        // Count this image as processed (it consumed a reserved slot)
-        // Delegate uniqueness/counting to the central ProgressService.
-        try {
-          const key = normalizeImageUrl
-            ? normalizeImageUrl({ src: String(img.src || "") })
-            : String(img.src || "");
-          markImageInvalid(key);
-        } catch {
-          try {
-            markImageInvalid(String(img.src || ""));
-          } catch {
-            // best-effort
-          }
-        }
-        try {
-          const s = getProgressSnapshot();
-          if (s.current > s.total)
-            logger.warn(
-              `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
-            );
-        } catch {
-          // ignore
-        }
-        return { processed: 0, uploaded: 0, skipped: 0, failed: 1 };
-      }
-
-      const normalizedSrc = normalizeImageUrl({ src: img.src });
-      if (allExistingImageUrls.has(normalizedSrc)) {
-        logProgress("🚫", "Skipping image - already processed");
-        try {
-          markImageAlreadyPresent(normalizedSrc);
-        } catch {
-          // best-effort
-        }
-        try {
-          const s = getProgressSnapshot();
-          if (s.current > s.total)
-            logger.warn(
-              `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
-            );
-        } catch {
-          // ignore
-        }
-        return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
-      }
-      // Avoid race where multiple concurrent tasks both see the URL as not
-      // existing and start uploads. If another task is already processing the
-      // same normalized URL, treat this one as skipped to avoid duplicate
-      // uploads.
-      if (inProgress.has(normalizedSrc)) {
-        logProgress("⏭️", "Skipping duplicate image in-progress");
-        try {
-          markImageDuplicate(normalizedSrc);
-        } catch {
-          // best-effort
-        }
-        try {
-          const s = getProgressSnapshot();
-          if (s.current > s.total)
-            logger.warn(
-              `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
-            );
-        } catch {
-          // ignore
-        }
-        return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
-      }
-      inProgress.add(normalizedSrc);
-
-      logProgress("📷", `Processing image: ${img.src.split("/").pop()}`);
-
-      const downloadUrl = img.originalSrc || img.src;
-      let result: ProcessAndUploadResult | undefined;
-      try {
-        await acquireGlobalUpload();
-        try {
-          result = await processAndUploadImage({
-            storage,
-            downloadUrl,
-            link,
-            logProgress,
-            pendingImageRecords,
-            allExistingImageUrls,
-            shouldCancel,
-          });
-          logProgress(
-            "🐛",
-            `processAndUploadImage result for ${downloadUrl}: ${JSON.stringify(result)}`,
-          );
-        } finally {
-          releaseGlobalUpload();
-        }
-      } finally {
-        // Ensure we release the in-progress lock so other occurrences can be
-        // considered (they will now see the URL in `allExistingImageUrls`).
-        inProgress.delete(normalizedSrc);
-        // Count this image as completed (success, skip, or failure) — only
-        // increment the global counter the first time we encounter this
-        // normalized URL across the entire scraper run.
-        try {
-          // Derive a concise reason for the processed state so summary
-          // derivation can be exact. Prefer explicit outcomes when
-          // available.
-          const keyToMark =
-            result && result.normalizedUrl
-              ? result.normalizedUrl
-              : normalizedSrc;
-          if (result && result.uploaded) {
-            markImageUploaded(keyToMark);
-          } else if (result && result.error) {
-            markImageFailed(keyToMark, String(result.error));
-          } else {
-            markImageFailed(keyToMark);
-          }
-        } catch {
-          // best-effort
-        }
-      }
-      if (result && result.uploaded)
-        return { processed: 1, uploaded: 1, skipped: 0, failed: 0 };
-      logProgress(
-        "❌",
-        `Failed to process image ${img.src.split("/").pop()}: ${result?.error ?? "unknown"}`,
-      );
-      return { processed: 1, uploaded: 0, skipped: 0, failed: 1 };
-    },
+    (img) =>
+      processSingleImage(img, {
+        shouldCancel,
+        inProgress,
+        storage,
+        link,
+        logProgress,
+        pendingImageRecords,
+        allExistingImageUrls,
+      }),
     concurrency,
   );
-  /* eslint-enable complexity */
 
   const totals = results.reduce(
     (acc, r) => {
@@ -278,4 +114,291 @@ export async function processImagesForPage(options: {
   );
 
   return totals;
+}
+
+async function processSingleImage(
+  img: { src: string; alt: string; originalSrc?: string },
+  ctx: {
+    shouldCancel?: () => boolean;
+    inProgress: Set<string>;
+    storage: StorageHelper;
+    link: string;
+    logProgress: LogProgressFn;
+    pendingImageRecords: Array<{
+      pageUrl: string;
+      original_url: string;
+      storage_path: string;
+    }>;
+    allExistingImageUrls: Set<string>;
+  },
+): Promise<ProcessImagesResult> {
+  const {
+    shouldCancel,
+    storage,
+    link,
+    logProgress,
+    pendingImageRecords,
+    allExistingImageUrls,
+  } = ctx;
+
+  const prep = prepareImageProcessing(img, ctx);
+  if (prep.early) return prep.early;
+
+  const { normalizedSrc, downloadUrl } = prep;
+
+  logProgress("📷", `Processing image: ${String(img.src).split("/").pop()}`);
+
+  const result = await doUpload(downloadUrl!, {
+    storage,
+    link,
+    logProgress,
+    pendingImageRecords,
+    allExistingImageUrls,
+    shouldCancel,
+  });
+
+  finalizeResult(result, normalizedSrc!);
+  if (result && result.uploaded)
+    return { processed: 1, uploaded: 1, skipped: 0, failed: 0 };
+  logProgress(
+    "❌",
+    `Failed to process image ${String(img.src).split("/").pop()}: ${result?.error ?? "unknown"}`,
+  );
+  return { processed: 1, uploaded: 0, skipped: 0, failed: 1 };
+}
+
+function prepareImageProcessing(
+  img: { src: string; alt: string; originalSrc?: string },
+  ctx: {
+    shouldCancel?: () => boolean;
+    inProgress: Set<string>;
+    storage: StorageHelper;
+    link: string;
+    logProgress: LogProgressFn;
+    pendingImageRecords: Array<{
+      pageUrl: string;
+      original_url: string;
+      storage_path: string;
+    }>;
+    allExistingImageUrls: Set<string>;
+  },
+): {
+  early?: ProcessImagesResult;
+  normalizedSrc?: string;
+  downloadUrl?: string;
+} {
+  const { shouldCancel, inProgress, logProgress, allExistingImageUrls } = ctx;
+  if (shouldCancel && shouldCancel()) {
+    // will throw
+    handleCancellation(ctx.link, logProgress);
+  }
+
+  const imageKey = buildImageKey(img.src);
+  markStartedSafe(imageKey);
+
+  if (!isValidHttpSrc(img.src))
+    return { early: handleInvalidSource(img.src, logProgress) };
+
+  const normalizedSrc = normalizeImageUrl({ src: img.src });
+  const already = handleExisting(
+    normalizedSrc,
+    allExistingImageUrls,
+    logProgress,
+  );
+  if (already) return { early: already };
+
+  if (inProgress.has(normalizedSrc))
+    return { early: handleDuplicate(normalizedSrc, logProgress) };
+  inProgress.add(normalizedSrc);
+
+  const downloadUrl = img.originalSrc || img.src;
+  return { normalizedSrc, downloadUrl };
+}
+
+function handleCancellation(link: string, logProgress: LogProgressFn): never {
+  logProgress("⏹️", "Cancellation requested - stopping image processing");
+  try {
+    logProgress(
+      "🕒",
+      `Cancellation detected in processImagesForPage for page=${formatPathForConsole?.(link) ?? link}`,
+    );
+  } catch {
+    // best-effort
+  }
+  throw new JobCancelled();
+}
+
+function buildImageKey(src?: string): string {
+  try {
+    return normalizeImageUrl({ src: String(src || "") });
+  } catch {
+    return String(src || "");
+  }
+}
+
+function markStartedSafe(imageKey: string): void {
+  try {
+    upsertItem({ url: imageKey, type: "image", status: "started" });
+    try {
+      const s = getProgressSnapshot();
+      if (s.current > s.total)
+        logger.warn(
+          `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+        );
+      if (s.current < 0)
+        logger.warn(
+          `⚠️ Progress invariant violated: current is negative (${s.current})`,
+        );
+    } catch {
+      // ignore
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function isValidHttpSrc(src?: string): boolean {
+  return Boolean(src && src.startsWith("http"));
+}
+
+function handleInvalidSource(
+  src: string | undefined,
+  logProgress: LogProgressFn,
+): ProcessImagesResult {
+  logProgress("❌", `Invalid image source: ${String(src).split("/").pop()}`);
+  try {
+    const key = normalizeImageUrl
+      ? normalizeImageUrl({ src: String(src || "") })
+      : String(src || "");
+    markImageInvalid(key);
+  } catch {
+    try {
+      markImageInvalid(String(src || ""));
+    } catch {
+      // best-effort
+    }
+  }
+  try {
+    const s = getProgressSnapshot();
+    if (s.current > s.total)
+      logger.warn(
+        `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+      );
+  } catch {
+    // ignore
+  }
+  return { processed: 0, uploaded: 0, skipped: 0, failed: 1 };
+}
+
+function handleExisting(
+  normalizedSrc: string,
+  allExistingImageUrls: Set<string>,
+  logProgress: LogProgressFn,
+): ProcessImagesResult | null {
+  if (allExistingImageUrls.has(normalizedSrc)) {
+    logProgress("🚫", "Skipping image - already processed");
+    try {
+      markImageAlreadyPresent(normalizedSrc);
+    } catch {
+      // best-effort
+    }
+    try {
+      const s = getProgressSnapshot();
+      if (s.current > s.total)
+        logger.warn(
+          `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+        );
+    } catch {
+      // ignore
+    }
+    return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
+  }
+  return null;
+}
+
+function handleDuplicate(
+  normalizedSrc: string,
+  logProgress: LogProgressFn,
+): ProcessImagesResult {
+  logProgress("⏭️", "Skipping duplicate image in-progress");
+  try {
+    markImageDuplicate(normalizedSrc);
+  } catch {
+    // best-effort
+  }
+  try {
+    const s = getProgressSnapshot();
+    if (s.current > s.total)
+      logger.warn(
+        `⚠️ Progress invariant violated: current (${s.current}) > total (${s.total})`,
+      );
+  } catch {
+    // ignore
+  }
+  return { processed: 0, uploaded: 0, skipped: 1, failed: 0 };
+}
+
+async function doUpload(
+  downloadUrl: string,
+  ctx: {
+    storage: StorageHelper;
+    link: string;
+    logProgress: LogProgressFn;
+    pendingImageRecords: Array<{
+      pageUrl: string;
+      original_url: string;
+      storage_path: string;
+    }>;
+    allExistingImageUrls: Set<string>;
+    shouldCancel?: () => boolean;
+  },
+): Promise<ProcessAndUploadResult | undefined> {
+  const {
+    storage,
+    link,
+    logProgress,
+    pendingImageRecords,
+    allExistingImageUrls,
+    shouldCancel,
+  } = ctx;
+  let result: ProcessAndUploadResult | undefined;
+  try {
+    await acquireGlobalUpload();
+    try {
+      result = await processAndUploadImage({
+        storage,
+        downloadUrl,
+        link,
+        logProgress,
+        pendingImageRecords,
+        allExistingImageUrls,
+        shouldCancel,
+      });
+      logProgress(
+        "🐛",
+        `processAndUploadImage result for ${downloadUrl}: ${JSON.stringify(result)}`,
+      );
+    } finally {
+      releaseGlobalUpload();
+    }
+  } finally {
+    // noop here; caller will finalize
+  }
+  return result;
+}
+
+function finalizeResult(
+  result: ProcessAndUploadResult | undefined,
+  normalizedSrc: string,
+): void {
+  try {
+    const keyToMark =
+      result && result.normalizedUrl ? result.normalizedUrl : normalizedSrc;
+    if (result && result.uploaded) markImageUploaded(keyToMark);
+    else if (result && result.error)
+      markImageFailed(keyToMark, String(result.error));
+    else markImageFailed(keyToMark);
+  } catch {
+    // best-effort
+  }
 }
