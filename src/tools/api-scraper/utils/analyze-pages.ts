@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve } from "path";
-import logger from "../src/utils/logger";
+import logger from "@/utils/logger";
 
 type RawPage = Record<string, unknown> & { id?: unknown };
 
@@ -36,11 +36,17 @@ function pickBest<T>(items: T[], score: (t: T) => number): T | null {
   return best;
 }
 
-async function main(): Promise<void> {
-  const repoRoot = resolve(__dirname, "..");
-  const srcGenerated = resolve(repoRoot, "src", "generated");
-  const pagesJsonPath = resolve(srcGenerated, "pages.json");
-  const outPath = resolve(srcGenerated, "pages-query.json");
+export function analyzePages(): void {
+  const repoRoot = resolve(__dirname, "..", "..", "..");
+  const pagesJsonPath = resolve(
+    repoRoot,
+    "src",
+    "tools",
+    "api-scraper",
+    "generated",
+    "pages.json",
+  );
+  const outPath = resolve(__dirname, "pages-query.json");
 
   if (!existsSync(pagesJsonPath)) {
     logger.error(
@@ -111,21 +117,18 @@ function extractPageFields(p: RawPage): {
 function selectGroupsResults(map: Map<string, Grouped>): Grouped[] {
   const results: Grouped[] = [];
   for (const g of map.values()) {
-    // pick title by frequency, fallback to longest
     const freq = new Map<string, number>();
     for (const t of g.titles) freq.set(t, (freq.get(t) ?? 0) + 1);
     const titleCandidates = Array.from(freq.keys());
     let selectedTitle: string | null = null;
     if (titleCandidates.length === 1) selectedTitle = titleCandidates[0];
     else if (titleCandidates.length > 1) {
-      // prefer most frequent, then longest
       selectedTitle = pickBest(
         titleCandidates,
         (t) => (freq.get(t) ?? 0) * 1000 + t.length,
       ) as string;
     }
 
-    // pick content by score: attachments presence and length
     const selectedContentEntry = pickBest(g.entries, (e) => {
       const c =
         getString(
@@ -156,7 +159,6 @@ function selectGroupsResults(map: Map<string, Grouped>): Grouped[] {
         ) ?? null)
       : null;
 
-    // dedupe images
     const images = Array.from(new Set(g.images.filter(Boolean)));
 
     results.push({ ...g, selectedTitle, selectedContent, images });
@@ -189,9 +191,4 @@ function groupPages(input: RawPage[]): Map<string, Grouped> {
   return map;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((err) => {
-    logger.error(err);
-    process.exitCode = 1;
-  });
-}
+export default analyzePages;

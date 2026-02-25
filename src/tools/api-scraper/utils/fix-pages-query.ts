@@ -1,17 +1,17 @@
 import { readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import logger from "../src/utils/logger";
+import logger from "@/utils/logger";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const file = resolve(__dirname, "..", "src", "generated", "pages-query.json");
+const file = resolve(__dirname, "pages-query.json");
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-function main(): void {
+export function fixPagesQuery(): void {
   const raw = readFileSync(file, { encoding: "utf8" });
   let parsed: unknown;
   try {
@@ -36,7 +36,6 @@ function main(): void {
       try {
         arr = JSON.parse(text);
       } catch (_err) {
-        // try common unescaping then parse
         const unescaped = text
           .replace(/\\"/g, '"')
           .replace(/\\n/g, "\n")
@@ -72,4 +71,4 @@ function main(): void {
   logger.log(`Total image associations: ${imageCount}`);
 }
 
-main();
+export default fixPagesQuery;

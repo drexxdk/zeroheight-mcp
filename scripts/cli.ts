@@ -5,10 +5,15 @@
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 import type { KnownModule } from "./utils/toolTypes";
+import path from "path";
 
 export type Command =
   | "scrape-pages"
+  | "api-scraper"
   | "scrape-project"
+  | "build-pages-model"
+  | "analyze-pages"
+  | "fix-pages-query"
   | "scrape"
   | "run-tool"
   | "check-task-status"
@@ -116,18 +121,54 @@ export async function run(
         "https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system",
       ];
       const password = config.env.zeroheightProjectPassword || undefined;
-      await runTool("@/tools/scraper/scrape" as KnownModule, {
-        exportName: "scrapeTool",
-        args: { pageUrls: urls, password },
+      const api = await import("@/tools/api-scraper/api-scraper");
+      const outFile = path.join(
+        process.cwd(),
+        "src",
+        "generated",
+        "pages.json",
+      );
+      await api.fetchPages({
+        rootUrl: urls[0] ?? config.env.zeroheightProjectUrl,
+        password,
+        outFile,
+      });
+      return;
+    }
+
+    case "api-scraper": {
+      // Run the API scraper (browser capture of pages API)
+      const password = config.env.zeroheightProjectPassword || undefined;
+      const api = await import("@/tools/api-scraper/api-scraper");
+      const outFile = path.join(
+        process.cwd(),
+        "src",
+        "tools",
+        "api-scraper",
+        "generated",
+        "pages.json",
+      );
+      await api.fetchPages({
+        rootUrl: config.env.zeroheightProjectUrl,
+        password,
+        outFile,
       });
       return;
     }
 
     case "scrape-project": {
       const password = config.env.zeroheightProjectPassword || undefined;
-      await runTool("@/tools/scraper/scrape" as KnownModule, {
-        exportName: "scrapeTool",
-        args: { password },
+      const api = await import("@/tools/api-scraper/api-scraper");
+      const outFile = path.join(
+        process.cwd(),
+        "src",
+        "generated",
+        "pages.json",
+      );
+      await api.fetchPages({
+        rootUrl: config.env.zeroheightProjectUrl,
+        password,
+        outFile,
       });
       return;
     }
@@ -144,6 +185,24 @@ export async function run(
         exportName: exportName as string,
         args: toolArgs,
       });
+      return;
+    }
+
+    case "build-pages-model": {
+      const build = await import("@/tools/api-scraper/utils/build-pages-model");
+      await build.default();
+      return;
+    }
+
+    case "analyze-pages": {
+      const analyze = await import("@/tools/api-scraper/utils/analyze-pages");
+      await analyze.default();
+      return;
+    }
+
+    case "fix-pages-query": {
+      const fix = await import("@/tools/api-scraper/utils/fix-pages-query");
+      await fix.default();
       return;
     }
 
@@ -377,7 +436,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       const validCommands: Command[] = [
         "scrape",
         "scrape-pages",
+        "api-scraper",
         "scrape-project",
+        "build-pages-model",
+        "analyze-pages",
+        "fix-pages-query",
         "run-tool",
         "check-task-status",
         "clear-data",

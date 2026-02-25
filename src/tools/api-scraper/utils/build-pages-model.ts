@@ -1,21 +1,29 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { convertPagesToModel } from "../src/utils/pages-to-model";
-import { config } from "../src/utils/config";
-import logger from "../src/utils/logger";
+import { convertPagesToModel } from "@/utils/pages-to-model";
+import { config } from "@/utils/config";
+import logger from "@/utils/logger";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const src = resolve(__dirname, "..", "src", "generated", "pages-query.json");
-const out = resolve(__dirname, "..", "src", "generated", "pages-model.json");
+const src = resolve(__dirname, "pages-query.json");
+const out = resolve(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "src",
+  "tools",
+  "api-scraper",
+  "generated",
+  "pages-model.json",
+);
 
 type Q = Record<string, unknown>;
 
 declare global {
-  // expose a captured title->images map for debugging/fallbacks
-
   var __capture_title_to_images: Map<string, string[]> | undefined;
 }
 
@@ -77,7 +85,7 @@ function loadCaptureMap(capturePath: string): Map<string, string[]> {
     try {
       captureOrigin = new URL(config.env.zeroheightProjectUrl).origin;
     } catch (_e) {
-      // fall back to first captured model's origin below
+      // fall back
     }
     if (!captureOrigin && capturedModels.length > 0) {
       try {
@@ -105,7 +113,7 @@ function loadCaptureMap(capturePath: string): Map<string, string[]> {
     }
     globalThis.__capture_title_to_images = titleToImages;
   } catch {
-    // ignore capture read/parse errors; fall back to empty image sets
+    // ignore
   }
   return captureMap;
 }
@@ -168,14 +176,18 @@ function findImagesForUrl(
   return images;
 }
 
-function main(): void {
+export function buildPagesModel(): void {
   const raw = readRawPages(src);
   const byUrl = buildByUrlMap(raw);
 
   const capturePath = resolve(
     __dirname,
     "..",
+    "..",
+    "..",
     "src",
+    "tools",
+    "api-scraper",
     "generated",
     "pages.json",
   );
@@ -202,4 +214,4 @@ function main(): void {
   logger.log(`Total image associations in model: ${imgCount}`);
 }
 
-main();
+export default buildPagesModel;
