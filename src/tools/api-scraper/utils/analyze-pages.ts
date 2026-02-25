@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import logger from "@/utils/logger";
@@ -49,8 +49,6 @@ export function analyzePages(): void {
     "generated",
     "pages.json",
   );
-  const outPath = resolve(__dirname, "pages-query.json");
-
   if (!existsSync(pagesJsonPath)) {
     logger.error(
       `Missing ${pagesJsonPath} — run the api-scraper to capture pages.json first.`,
@@ -69,10 +67,17 @@ export function analyzePages(): void {
   const byUrl = groupPages(pages);
   const results = selectGroupsResults(byUrl);
 
-  writeFileSync(outPath, JSON.stringify(results, null, 2), {
-    encoding: "utf8",
-  });
-  logger.log(`Wrote ${results.length} groups to ${outPath}`);
+  // NOTE: writing to `pages-query.json` is intentionally disabled.
+  // This script produces analysis results to stdout for downstream tools
+  // to consume without mutating the repository file `pages-query.json`.
+  // To keep behavior explicit, we do NOT write to disk here.
+  logger.log(
+    `Analyzed ${results.length} groups; not writing pages-query.json (disabled)`,
+  );
+  // Emit JSON to stdout so callers can redirect if they really want a file.
+  // Keep the output compact and parseable.
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(results, null, 2));
 }
 
 function extractUrl(p: RawPage): string {
@@ -176,7 +181,7 @@ function groupPages(input: RawPage[]): Map<string, Grouped> {
     const key =
       url || `__MISSING_URL__${String(p.id ?? title ?? Math.random())}`;
     const group = map.get(key) ?? {
-      url: url || "",
+      url: key,
       titles: [],
       selectedTitle: null,
       contents: [],

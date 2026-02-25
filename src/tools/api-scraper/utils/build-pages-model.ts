@@ -73,10 +73,32 @@ function buildByUrlMap(raw: unknown[]): Map<string, Q[]> {
   return m;
 }
 
-function loadCaptureMap(capturePath: string): Map<string, string[]> {
+function loadCaptureMap(capturePath: string): {
+  captureMap: Map<string, string[]>;
+  titleToUrl: Map<string, string>;
+  urlToModel: Map<
+    string,
+    {
+      url: string;
+      title?: string | null;
+      content?: string | null;
+      images?: string[];
+    }
+  >;
+} {
   const captureMap = new Map<string, string[]>();
+  const titleToUrl = new Map<string, string>();
+  const urlToModel = new Map<
+    string,
+    {
+      url: string;
+      title?: string | null;
+      content?: string | null;
+      images?: string[];
+    }
+  >();
   try {
-    if (!existsSync(capturePath)) return captureMap;
+    if (!existsSync(capturePath)) return { captureMap, titleToUrl, urlToModel };
     const rawCapture = JSON.parse(
       readFileSync(capturePath, { encoding: "utf8" }),
     );
@@ -111,17 +133,26 @@ function loadCaptureMap(capturePath: string): Map<string, string[]> {
       const t = getString(m.title) ?? "";
       if (t && cleanImgs.length)
         titleToImages.set(t.trim().toLowerCase(), cleanImgs);
+      // also expose title -> url mapping for captured pages
+      if (t) titleToUrl.set(t.trim().toLowerCase(), normalizeUrl(m.url || ""));
+      if (key)
+        urlToModel.set(key, {
+          url: normalizeUrl(m.url || ""),
+          title: m.title ?? null,
+          content: m.content ?? null,
+          images: cleanImgs,
+        });
     }
     globalThis.__capture_title_to_images = titleToImages;
   } catch {
     // ignore
   }
-  return captureMap;
+  return { captureMap, titleToUrl, urlToModel };
 }
 
 function chooseTitle(items: Q[]): string | null {
   const titles: string[] = items
-    .map((i) => getString(i.title) ?? "")
+    .map((i) => getString(i.selectedTitle) ?? getString(i.title) ?? "")
     .filter(Boolean);
   const titleFreq = new Map<string, number>();
   for (const t of titles) titleFreq.set(t, (titleFreq.get(t) ?? 0) + 1);
@@ -133,12 +164,17 @@ function chooseTitle(items: Q[]): string | null {
       (t) => (titleFreq.get(t) ?? 0) * 1000 + t.length,
     ) as string;
   }
-  return getString(items[0]?.title ?? items[0]?.name) ?? null;
+  return (
+    getString(items[0]?.selectedTitle) ??
+    getString(items[0]?.title) ??
+    getString(items[0]?.name) ??
+    null
+  );
 }
 
 function chooseContent(items: Q[]): string | null {
   const contentEntry = pickBest(items, (it) => {
-    const c = getString(it.content) ?? "";
+    const c = getString(it.selectedContent) ?? getString(it.content) ?? "";
     let s = c.length;
     if (it.images && Object.keys(it.images).length > 0) s += 2000;
     if (
@@ -147,7 +183,11 @@ function chooseContent(items: Q[]): string | null {
       s += 1000;
     return s;
   });
-  return contentEntry ? (getString(contentEntry.content) ?? null) : null;
+  return contentEntry
+    ? (getString(contentEntry.selectedContent) ??
+        getString(contentEntry.content) ??
+        null)
+    : null;
 }
 
 function findImagesForUrl(
@@ -193,7 +233,10 @@ export function buildPagesModel(): void {
     "generated",
     "pages.json",
   );
-  const captureMap = loadCaptureMap(capturePath);
+  const loaded = loadCaptureMap(capturePath);
+  const captureMap = loaded.captureMap;
+  const captureTitleToUrl = loaded.titleToUrl;
+  const captureUrlToModel = loaded.urlToModel;
 
   const model: Array<{
     url: string;
@@ -205,8 +248,50 @@ export function buildPagesModel(): void {
   for (const [url, items] of byUrl) {
     const title = chooseTitle(items);
     const content = chooseContent(items);
-    const images = findImagesForUrl(url, title, captureMap);
-    model.push({ url, title, content, images });
+    // if the analyzer produced a placeholder url, prefer the captured page URL
+    let finalUrl = url;
+    if ((String(finalUrl) || "").startsWith("__MISSING_URL__")) {
+      if (title) {
+        const mapped = captureTitleToUrl.get(title.trim().toLowerCase());
+        if (mapped) finalUrl = normalizeUrl(mapped);
+      }
+    }
+
+    // prefer captured page title/content when analyzer produced placeholders or JSON blobs
+    let finalTitle = title;
+    let finalContent = content;
+    try {
+      const captured = captureUrlToModel.get(normalizeUrl(finalUrl));
+      if (captured) {
+        if (
+          !finalTitle ||
+          /\.\.\.|…/.test(finalTitle) ||
+          (captured.title &&
+            finalTitle &&
+            captured.title.length > finalTitle.length &&
+            captured.title.includes(finalTitle))
+        ) {
+          finalTitle = captured.title ?? finalTitle;
+        }
+        if (
+          !finalContent ||
+          /^[\s]*[{\[]/.test(String(finalContent)) ||
+          (finalContent && finalContent.length < 40)
+        ) {
+          finalContent = captured.content ?? finalContent;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    const images = findImagesForUrl(finalUrl, title, captureMap);
+    model.push({
+      url: finalUrl,
+      title: finalTitle,
+      content: finalContent,
+      images,
+    });
   }
 
   writeFileSync(out, JSON.stringify(model, null, 2), { encoding: "utf8" });

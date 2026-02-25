@@ -12,7 +12,6 @@ export type Command =
   | "api-scraper"
   | "scrape-project"
   | "build-pages-model"
-  | "analyze-pages"
   | "fix-pages-query"
   | "scrape"
   | "run-tool"
@@ -153,6 +152,17 @@ export async function run(
         password,
         outFile,
       });
+
+      // After capturing pages, run analysis and build steps to produce the
+      // canonical pages-model.json so `npx tsx scripts/cli.ts api-scraper`
+      // performs the full capture→analyze→build flow.
+      try {
+        const build =
+          await import("@/tools/api-scraper/utils/build-pages-model");
+        await build.default();
+      } catch (e) {
+        // continue even if build fails
+      }
       return;
     }
 
@@ -194,11 +204,7 @@ export async function run(
       return;
     }
 
-    case "analyze-pages": {
-      const analyze = await import("@/tools/api-scraper/utils/analyze-pages");
-      await analyze.default();
-      return;
-    }
+    /* analyzer removed: use existing pages-query.json as reference only */
 
     case "fix-pages-query": {
       const fix = await import("@/tools/api-scraper/utils/fix-pages-query");
@@ -439,7 +445,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         "api-scraper",
         "scrape-project",
         "build-pages-model",
-        "analyze-pages",
         "fix-pages-query",
         "run-tool",
         "check-task-status",
