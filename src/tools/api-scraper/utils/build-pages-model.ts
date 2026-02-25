@@ -14,6 +14,7 @@ const out = resolve(
   "..",
   "..",
   "..",
+  "..",
   "src",
   "tools",
   "api-scraper",
@@ -182,6 +183,7 @@ export function buildPagesModel(): void {
 
   const capturePath = resolve(
     __dirname,
+    "..",
     "..",
     "..",
     "..",

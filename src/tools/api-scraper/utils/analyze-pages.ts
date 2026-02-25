@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import { resolve } from "path";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 import logger from "@/utils/logger";
 
 type RawPage = Record<string, unknown> & { id?: unknown };
@@ -37,7 +38,9 @@ function pickBest<T>(items: T[], score: (t: T) => number): T | null {
 }
 
 export function analyzePages(): void {
-  const repoRoot = resolve(__dirname, "..", "..", "..");
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const repoRoot = resolve(__dirname, "..", "..", "..", "..");
   const pagesJsonPath = resolve(
     repoRoot,
     "src",
@@ -50,7 +53,7 @@ export function analyzePages(): void {
 
   if (!existsSync(pagesJsonPath)) {
     logger.error(
-      "Missing src/generated/pages.json — run the fetch script first.",
+      `Missing ${pagesJsonPath} — run the api-scraper to capture pages.json first.`,
     );
     process.exitCode = 1;
     return;
