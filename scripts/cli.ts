@@ -160,7 +160,7 @@ export async function run(
         const build =
           await import("@/tools/api-scraper/utils/build-pages-model");
         await build.default();
-      } catch (e) {
+      } catch {
         // continue even if build fails
       }
       return;

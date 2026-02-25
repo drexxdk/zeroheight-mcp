@@ -73,6 +73,7 @@ function buildByUrlMap(raw: unknown[]): Map<string, Q[]> {
   return m;
 }
 
+// eslint-disable-next-line complexity
 function loadCaptureMap(capturePath: string): {
   captureMap: Map<string, string[]>;
   titleToUrl: Map<string, string>;
@@ -217,6 +218,7 @@ function findImagesForUrl(
   return images;
 }
 
+// eslint-disable-next-line complexity
 export function buildPagesModel(): void {
   const raw = readRawPages(src);
   const byUrl = buildByUrlMap(raw);
