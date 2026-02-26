@@ -3,6 +3,7 @@ import type { StorageHelper } from "@/utils/common/scraperHelpers";
 import { hashFilenameFromUrl, normalizeImageUrl } from "./imageHelpers";
 import { uploadBufferToStorage } from "./uploadHelpers";
 import { addPendingImageRecord } from "./pendingRecords";
+import { markImageUploaded } from "@/utils/common/progress";
 import { config } from "@/utils/config";
 import logger from "@/utils/logger";
 import { retryWithBackoff } from "./retryHelpers";
@@ -100,6 +101,13 @@ export async function processAndUploadImage(options: {
       storagePath: path,
       allExistingImageUrls,
     });
+    // Record progress immediately so the central ProgressService reflects
+    // the upload even if the caller fails before marking it.
+    try {
+      markImageUploaded(sanitizedUrl);
+    } catch {
+      // best-effort
+    }
     const visibleName =
       sanitizedUrl.split("/").filter(Boolean).pop() ?? filename;
     logProgress("✅", `Successfully uploaded image: ${visibleName}`);

@@ -7,9 +7,9 @@ dotenv.config({ path: ".env.local" });
 import type { KnownModule } from "./utils/toolTypes";
 
 export type Command =
+  | "scrape"
   | "scrape-pages"
   | "scrape-project"
-  | "scrape"
   | "run-tool"
   | "check-task-status"
   | "clear-data"
@@ -99,8 +99,7 @@ export async function run(
         // page-only default
         const urls: string[] = (opts?.args &&
           (opts.args.pageUrls as unknown as string[])) ?? [
-          "https://designsystem.lruddannelse.dk/10548dffa/p/51380f-graph-patterns-wip",
-          "https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system",
+          "https://designsystem.lruddannelse.dk/10548dffa/p/3559bd-farver",
         ];
         await runTool("@/tools/scraper/scrape" as KnownModule, {
           exportName: "scrapeTool",
@@ -108,29 +107,6 @@ export async function run(
         });
       }
       return;
-
-    case "scrape-pages": {
-      const urls: string[] = (opts?.args &&
-        (opts.args.pageUrls as unknown as string[])) ?? [
-        "https://designsystem.lruddannelse.dk/10548dffa/p/51380f-graph-patterns-wip",
-        "https://designsystem.lruddannelse.dk/10548dffa/p/3441e1-lindhardt-og-ringhof-uddannelse-design-system",
-      ];
-      const password = config.env.zeroheightProjectPassword || undefined;
-      await runTool("@/tools/scraper/scrape" as KnownModule, {
-        exportName: "scrapeTool",
-        args: { pageUrls: urls, password },
-      });
-      return;
-    }
-
-    case "scrape-project": {
-      const password = config.env.zeroheightProjectPassword || undefined;
-      await runTool("@/tools/scraper/scrape" as KnownModule, {
-        exportName: "scrapeTool",
-        args: { password },
-      });
-      return;
-    }
 
     case "run-tool": {
       // Generic entry to run any tool module via the existing runTool helper.

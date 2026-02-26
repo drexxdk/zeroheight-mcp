@@ -308,6 +308,17 @@ export async function computeImagesAlreadyAssociatedCount(
   if (!db || imagesFoundArray.length === 0) return imagesAlreadyAssociatedCount;
   try {
     for (const norm of imagesFoundArray) {
+      // Normalize the provided URL to the canonical form used in the DB
+      // (protocol + hostname + pathname) so `ilike`/prefix matching is
+      // consistent with stored `original_url` values. Fall back to the
+      // raw string if parsing fails.
+      let normCanon = String(norm || "");
+      try {
+        const u = new URL(normCanon);
+        normCanon = `${u.protocol}//${u.hostname}${u.pathname}`;
+      } catch {
+        // leave as-is
+      }
       try {
         const fromProp = Reflect.get(db as object, "from");
         if (typeof fromProp !== "function") continue;
@@ -324,7 +335,7 @@ export async function computeImagesAlreadyAssociatedCount(
           ilikeFn && typeof ilikeFn === "function"
             ? await (
                 ilikeFn as (k: string, v: string) => Promise<unknown>
-              ).call(selectRes, "original_url", `${norm}%`)
+              ).call(selectRes, "original_url", `${normCanon}%`)
             : await (selectRes as Promise<unknown>);
         const qdata = qres as unknown;
         if (!isRecord(qdata)) continue;
@@ -498,7 +509,15 @@ export function buildSummaryParams(opts: {
       ? progressSnap.imagesProcessed
       : imagesStats.processed || 0;
 
-  const imagesUploadedCount = imagesStats.uploaded;
+  // Prefer authoritative DB-driven counts for uploads when available.
+  // `insertedOriginalUrls.size` is the set of canonical original URLs
+  // that were actually inserted during this run and is the most
+  // reliable indicator of how many images were uploaded.
+  const imagesUploadedCount = Math.max(
+    imagesStats.uploaded || 0,
+    insertedOriginalUrls ? insertedOriginalUrls.size : 0,
+    insertedCountTotal || 0,
+  );
   const imagesDbInsertedCount = insertedCountTotal;
   const uniqueTotalImages = uniqueAllImageUrls.size;
   const uniqueUnsupported = uniqueUnsupportedImageUrls.size;

@@ -137,7 +137,8 @@ export const config = {
     seedPrefetchConcurrency: 4,
     pageUpsertChunk: 200,
     imageInsertChunk: 500,
-    debug: true,
+    // Allow enabling verbose debug logging via env var for troubleshooting.
+    debug: process.env.ZEROHEIGHT_SCRAPER_DEBUG === "true" || false,
     imageConcurrency: 4,
     prefetch: {
       waitMs: 400,
