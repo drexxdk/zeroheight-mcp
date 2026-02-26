@@ -4,7 +4,7 @@ import type { BulkUpsertResult } from "./bulkUpsert";
 import { formatSummaryBox, bulkUpsertPagesAndImages } from "./bulkUpsert";
 import type { ImagesType, PagesType } from "@/generated/database-types";
 import type { OverallProgress } from "./processPageAndImages";
-import type { ExtractedImage } from "./pageExtraction";
+import type { ExtractedImage, ExtractPageDataResult } from "./pageExtraction";
 import type { SummaryParams } from "./bulkUpsertHelpers";
 import type { Page, Browser } from "puppeteer";
 import { tryLogin } from "@/utils/common/scraperHelpers";
@@ -54,15 +54,49 @@ async function getExtractionResult(opts: {
 }> {
   const { page, processingLink, hostname, preExtractedMap, includeImages } =
     opts;
-  if (preExtractedMap && preExtractedMap.has(processingLink)) {
-    const e = preExtractedMap.get(processingLink)!;
+  // helpers used to simplify control flow and reduce function complexity
+  async function safeExtract(): Promise<ExtractPageDataResult | null> {
+    try {
+      return await extractPageData({
+        page,
+        pageUrl: processingLink,
+        allowedHostname: hostname,
+        includeImages,
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  function toReturnShape(e: Partial<PreExtracted> | null): {
+    title: string;
+    content: string;
+    supportedImages: ExtractedImage[];
+    normalizedImages: Array<{ src: string; alt: string }>;
+    pageLinks: string[];
+  } {
+    if (!e)
+      return {
+        title: "",
+        content: "",
+        supportedImages: [],
+        normalizedImages: [],
+        pageLinks: [],
+      };
     return {
-      title: e.title,
-      content: e.content,
+      title: e.title ?? "",
+      content: e.content ?? "",
       supportedImages: e.supportedImages || [],
       normalizedImages: e.normalizedImages || [],
       pageLinks: e.pageLinks || [],
     };
+  }
+  if (preExtractedMap && preExtractedMap.has(processingLink)) {
+    const cached = preExtractedMap.get(processingLink)!;
+    if (!includeImages) return toReturnShape(cached);
+    const live = await safeExtract();
+    if (live) return toReturnShape(live);
+    return toReturnShape(cached);
   }
 
   try {
@@ -1039,8 +1073,18 @@ function printSummaryLines(
 ): void {
   if (!lines || !lines.length) return;
   const out = lines.join("\n");
-  if (logger) logger(out);
-  else defaultLogger.log(out);
+  // Always print the summary to the console so users see the result box
+  // even when `config.scraper.debug` is disabled. If a job `logger` is
+  // provided (which appends to the background job log), call it as well
+  // so the summary is recorded in the job history.
+  if (logger) {
+    try {
+      logger(out);
+    } catch (e) {
+      defaultLogger.debug("Error calling job logger:", e);
+    }
+  }
+  defaultLogger.log(out);
 }
 
 export async function logSummaryAndClose(args: {

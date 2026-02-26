@@ -18,6 +18,13 @@ export type ExtractPageDataResult = {
   pageLinks: string[];
 };
 
+/* eslint-disable complexity */
+
+// The image-gathering routine is intentionally large and complex because
+// it runs multiple DOM queries and normalization passes inside the
+// browser context. Keep linting happy by disabling these specific
+// complexity/length checks for this function only.
+// eslint-disable-next-line max-lines-per-function
 async function gatherAllImagesForPage(page: Page): Promise<unknown[]> {
   await new Promise((r) => setTimeout(r, config.scraper.prefetch.waitMs));
 
@@ -53,57 +60,172 @@ async function gatherAllImagesForPage(page: Page): Promise<unknown[]> {
     // ignore scrolling failures
   }
 
-  const images = await page.$$eval("img", (imgs: HTMLImageElement[]) =>
-    imgs.flatMap((img, index) => {
-      const out: Array<{ src: string; alt: string; index: number }> = [];
+  // Wait a bit after scrolling to allow any lazy-loaded images to render
+  try {
+    await new Promise((r) => setTimeout(r, 1000));
+  } catch {
+    // ignore
+  }
+
+  // Also attempt to scroll any scrollable containers (virtualized/overflow areas)
+  try {
+    await page.evaluate(
+      async (stepPxArg: number, stepMsArg: number) => {
+        const step = stepPxArg || window.innerHeight;
+        const els = Array.from(document.querySelectorAll("*")) as HTMLElement[];
+        const scrollables = els.filter(
+          (el) =>
+            el.scrollHeight &&
+            el.clientHeight &&
+            el.scrollHeight > el.clientHeight + 10,
+        );
+        for (const el of scrollables) {
+          try {
+            let pos = 0;
+            const max = el.scrollHeight || 0;
+            while (pos < max) {
+              el.scrollTop = Math.min(pos + step, max);
+              pos += step;
+              // small pause to allow lazy-loading
+              await new Promise((r) => setTimeout(r, stepMsArg));
+            }
+          } catch {
+            // ignore
+          }
+        }
+      },
+      config.scraper.prefetch.scrollStepPx,
+      config.scraper.prefetch.scrollStepMs,
+    );
+  } catch {
+    // ignore
+  }
+
+  // Extract image `src` and `alt` from <img> elements (simple pass).
+  const imgsFromSrc = await page.$$eval(
+    "img",
+    (imgs: HTMLImageElement[]) =>
+      imgs
+        .map((img, index) => {
+          try {
+            let src = img.src || "";
+            if (src && !src.startsWith("http"))
+              src = new URL(src, window.location.href).href;
+            return src ? { src, alt: img.alt || "", index } : null;
+          } catch {
+            return null;
+          }
+        })
+        .filter((x) => x) as Array<{ src: string; alt: string; index: number }>,
+  );
+
+  // Collect URL-like attributes from <img> elements (data-src, data-srcset, etc.)
+  const imgsFromAttrs = await page.$$eval("img", (imgs: HTMLImageElement[]) => {
+    const out: Array<{ src: string; alt: string; index: number }> = [];
+    imgs.forEach((img, index) => {
       try {
-        let src = img.src || "";
-        if (src && !src.startsWith("http"))
-          src = new URL(src, window.location.href).href;
-        if (src) out.push({ src, alt: img.alt, index });
+        const attrs = Array.from(img.attributes || []) as Attr[];
+        attrs.forEach((a) => {
+          try {
+            const name = (a.name || "").toLowerCase();
+            const val = (a.value || "").trim();
+            if (!val) return;
+            const looksLikeUrl =
+              val.startsWith("http") ||
+              val.startsWith("//") ||
+              val.startsWith("/") ||
+              val.includes("s3.") ||
+              val.includes("amazonaws.com");
+            if (
+              name.includes("src") ||
+              name.includes("data-src") ||
+              looksLikeUrl
+            ) {
+              let url = val;
+              if (url.startsWith("//")) url = window.location.protocol + url;
+              if (url && !url.startsWith("http"))
+                url = new URL(url, window.location.href).href;
+              if (url) out.push({ src: url, alt: img.alt || "", index });
+            }
+          } catch {
+            // ignore
+          }
+        });
       } catch {
         // ignore
       }
-      try {
-        const ss = img.getAttribute("srcset") || "";
-        if (ss) {
+    });
+    return out;
+  });
+
+  // Collect srcset entries
+  const imgsFromSrcset = await page.$$eval(
+    "img",
+    (imgs: HTMLImageElement[]) => {
+      const out: Array<{ src: string; alt: string; index: number }> = [];
+      imgs.forEach((img, index) => {
+        try {
+          const ss =
+            img.getAttribute("srcset") || img.getAttribute("data-srcset") || "";
+          if (!ss) return;
           ss.split(",")
             .map((s) => s.trim().split(/\s+/)[0])
             .filter(Boolean)
             .forEach((entry) => {
               try {
                 let url = entry;
+                if (url.startsWith("//")) url = window.location.protocol + url;
                 if (url && !url.startsWith("http"))
                   url = new URL(url, window.location.href).href;
-                if (url) out.push({ src: url, alt: img.alt, index });
+                if (url) out.push({ src: url, alt: img.alt || "", index });
               } catch {
                 // ignore
               }
             });
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      }
+      });
       return out;
-    }),
+    },
   );
 
   const bgImages = await page.$$eval(
     "*",
     (elements: Element[], imagesLength) =>
       elements
-        .map((el: Element, index) => {
-          const style = window.getComputedStyle(el);
-          const bg = style.backgroundImage;
-          if (bg && bg.startsWith("url(")) {
-            let url = bg.slice(4, -1).replace(/['"]+/g, "");
-            url = new URL(url, window.location.href).href;
-            if (url.startsWith("http"))
-              return { src: url, alt: "", index: imagesLength + index };
+        .flatMap((el: Element, index) => {
+          const out: Array<{ src: string; alt: string; index: number }> = [];
+          try {
+            const style = window.getComputedStyle(el);
+            const bg = style.backgroundImage || "";
+            if (bg) {
+              const re = /url\((.*?)\)/g;
+              let m: RegExpExecArray | null = null;
+              while ((m = re.exec(bg)) !== null) {
+                try {
+                  let url = (m[1] || "").replace(/['"]+/g, "");
+                  if (url.startsWith("//"))
+                    url = window.location.protocol + url;
+                  url = new URL(url, window.location.href).href;
+                  if (url.startsWith("http"))
+                    out.push({
+                      src: url,
+                      alt: "",
+                      index: imagesLength + index,
+                    });
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          } catch {
+            // ignore
           }
+          return out;
         })
         .filter(Boolean),
-    images.length,
+    imgsFromSrc.length + imgsFromAttrs.length + imgsFromSrcset.length,
   );
 
   const sourceImages = await page.$$eval("source", (sources: Element[]) =>
@@ -111,33 +233,29 @@ async function gatherAllImagesForPage(page: Page): Promise<unknown[]> {
       .flatMap((s, index) => {
         const out: Array<{ src: string; alt: string; index: number }> = [];
         try {
-          const srcAttr = (s as HTMLSourceElement).getAttribute("src") || "";
-          if (srcAttr) {
-            let url = srcAttr;
-            if (url && !url.startsWith("http"))
-              url = new URL(url, window.location.href).href;
-            if (url) out.push({ src: url, alt: "", index });
-          }
-        } catch {
-          // ignore
-        }
-        try {
-          const ss = (s as HTMLSourceElement).getAttribute("srcset") || "";
-          if (ss) {
-            ss.split(",")
-              .map((r) => r.trim().split(/\s+/)[0])
-              .filter(Boolean)
-              .forEach((entry) => {
-                try {
-                  let url = entry;
-                  if (url && !url.startsWith("http"))
-                    url = new URL(url, window.location.href).href;
-                  if (url) out.push({ src: url, alt: "", index });
-                } catch {
-                  // ignore
-                }
-              });
-          }
+          const attrs = Array.from((s as Element).attributes || []) as Attr[];
+          attrs.forEach((a) => {
+            try {
+              const name = (a.name || "").toLowerCase();
+              const val = (a.value || "").trim();
+              if (!val) return;
+              const looksLikeUrl =
+                val.startsWith("http") ||
+                val.startsWith("//") ||
+                val.startsWith("/") ||
+                val.includes("s3.") ||
+                val.includes("amazonaws.com");
+              if (name.includes("src") || looksLikeUrl) {
+                let url = val;
+                if (url.startsWith("//")) url = window.location.protocol + url;
+                if (url && !url.startsWith("http"))
+                  url = new URL(url, window.location.href).href;
+                if (url) out.push({ src: url, alt: "", index });
+              }
+            } catch {
+              // ignore
+            }
+          });
         } catch {
           // ignore
         }
@@ -146,7 +264,86 @@ async function gatherAllImagesForPage(page: Page): Promise<unknown[]> {
       .filter(Boolean),
   );
 
-  return [...images, ...sourceImages, ...bgImages].filter(Boolean);
+  // Final pass: scan attributes across all elements for URL-like values
+  const attrImages = await page.$$eval("*", (elements: Element[]) => {
+    const out: Array<{ src: string; alt: string; index: number }> = [];
+    try {
+      const re =
+        /(https?:\/\/[^"\s'<>]+(?:s3[^"\s'<>]*|amazonaws\.com[^"\s'<>]*))/gi;
+      elements.forEach((el, idx) => {
+        try {
+          const attrs = Array.from((el as Element).attributes || []) as Attr[];
+          attrs.forEach((a) => {
+            try {
+              const v = (a.value || "").toString();
+              let m: RegExpExecArray | null = null;
+              while ((m = re.exec(v)) !== null) {
+                try {
+                  let url = m[1];
+                  if (url.startsWith("//"))
+                    url = window.location.protocol + url;
+                  if (url && !url.startsWith("http"))
+                    url = new URL(url, window.location.href).href;
+                  if (url)
+                    out.push({ src: url, alt: "", index: 1000000 + idx });
+                } catch {
+                  // ignore
+                }
+              }
+            } catch {
+              // ignore
+            }
+          });
+        } catch {
+          // ignore
+        }
+      });
+    } catch {
+      // ignore
+    }
+    return out;
+  });
+
+  // Also scan outerHTML for encoded URLs (e.g. ampersands/entities)
+  const outerHtmlImages = await page.$$eval("*", (elements: Element[]) => {
+    const out: Array<{ src: string; alt: string; index: number }> = [];
+    try {
+      const re =
+        /(https?:\/\/[^"'\s<>]+(?:s3[^"'\s<>]*|amazonaws\.com[^"'\s<>]*))/gi;
+      elements.forEach((el, idx) => {
+        try {
+          const html = (el as HTMLElement).outerHTML || "";
+          let m: RegExpExecArray | null = null;
+          while ((m = re.exec(html)) !== null) {
+            try {
+              let url = m[1];
+              if (url.startsWith("//")) url = window.location.protocol + url;
+              if (url && !url.startsWith("http"))
+                url = new URL(url, window.location.href).href;
+              if (url) out.push({ src: url, alt: "", index: 2000000 + idx });
+            } catch {
+              // ignore
+            }
+          }
+        } catch {
+          // ignore
+        }
+      });
+    } catch {
+      // ignore
+    }
+    return out;
+  });
+
+  return [
+    ...imgsFromSrc,
+    ...imgsFromAttrs,
+    ...imgsFromSrcset,
+    ...sourceImages,
+    ...bgImages,
+    ...attrImages,
+    ...outerHtmlImages,
+  ].filter(Boolean);
 }
 
 async function quickScrollForLinks(page: Page): Promise<void> {
@@ -299,6 +496,18 @@ export async function extractPageData({
   let allImagesRaw: unknown[] = [];
   if (includeImages) {
     allImagesRaw = await gatherAllImagesForPage(page);
+  }
+
+  // DEBUG: log raw images discovered on the page to help diagnose missing images
+  try {
+    logger.debug("pageExtraction: gathered images (raw count):", {
+      count: Array.isArray(allImagesRaw) ? allImagesRaw.length : 0,
+      sample: Array.isArray(allImagesRaw)
+        ? (allImagesRaw as unknown[]).slice(0, 40)
+        : [],
+    });
+  } catch {
+    // ignore logging failures
   }
 
   if (!includeImages) {

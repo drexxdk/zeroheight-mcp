@@ -49,6 +49,28 @@ export type ProcessImagesResult = {
   failed: number;
 };
 
+function dedupeSupportedImages(
+  supportedImages:
+    | Array<{ src: string; alt: string; originalSrc?: string }>
+    | undefined,
+): Array<{ src: string; alt: string; originalSrc?: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ src: string; alt: string; originalSrc?: string }> = [];
+  for (const img of supportedImages || []) {
+    let key = String(img.src || "");
+    try {
+      key = normalizeImageUrl({ src: img.src });
+    } catch {
+      key = String(img.src || "");
+    }
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(img);
+    }
+  }
+  return out;
+}
+
 export async function processImagesForPage(options: {
   supportedImages: Array<{ src: string; alt: string; originalSrc?: string }>;
   link: string;
@@ -85,12 +107,15 @@ export async function processImagesForPage(options: {
   const inProgress = GLOBAL_IN_PROGRESS;
 
   /* eslint-disable complexity */
+  // Dedupe supportedImages by normalized URL to avoid repeated work and
+  // excessive "Skipping duplicate image in-progress" log lines.
+  const dedupedSupported = dedupeSupportedImages(supportedImages);
   logProgress(
     "🐛",
-    `Starting image processing for page ${link} with ${supportedImages.length} images`,
+    `Starting image processing for page ${link} with ${dedupedSupported.length} images (deduped from ${supportedImages.length})`,
   );
   const results = await mapWithConcurrency(
-    supportedImages,
+    dedupedSupported,
     async (img) => {
       if (shouldCancel && shouldCancel()) {
         logProgress("⏹️", "Cancellation requested - stopping image processing");
