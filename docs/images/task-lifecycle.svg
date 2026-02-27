@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="360" viewBox="0 0 1000 360">
+  <style>
+    .box { fill: #ffffff; stroke: #111827; stroke-width: 2; rx: 12; }
+    .title { font: 700 18px/1.1 Inter, Arial, sans-serif; fill: #0f172a; }
+    .label { font: 500 14px/1.2 Inter, Arial, sans-serif; fill: #0f172a; }
+    .arrow { stroke: #0f172a; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    .note { font: 400 12px/1.2 Inter, Arial, sans-serif; fill: #334155; }
+    .bg { fill: #f8fafc; }
+  </style>
+
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#0f172a" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1000" height="360" rx="8"/>
+
+  <!-- Queued -->
+  <g transform="translate(40,40)">
+    <rect class="box" width="200" height="90"/>
+    <text x="16" y="32" class="title">QUEUED</text>
+    <text x="16" y="56" class="label">Client: `createJob()` → jobId</text>
+    <text x="16" y="76" class="note">Metadata: name, args, idempotency_key</text>
+  </g>
+
+  <!-- Worker claim -->
+  <g transform="translate(300,40)">
+    <rect class="box" width="200" height="90"/>
+    <text x="16" y="32" class="title">CLAIMED</text>
+    <text x="16" y="56" class="label">Worker atomically reserves job</text>
+    <text x="16" y="76" class="note">(UPDATE ... RETURNING / SKIP LOCKED)</text>
+  </g>
+
+  <!-- Working -->
+  <g transform="translate(560,40)">
+    <rect class="box" width="260" height="90"/>
+    <text x="16" y="32" class="title">WORKING</text>
+    <text x="16" y="56" class="label">set started_at, perform work</text>
+    <text x="16" y="76" class="note">appendJobLog(jobId, message)</text>
+  </g>
+
+  <!-- Arrows top row -->
+  <path class="arrow" d="M240 85 L300 85" />
+  <path class="arrow" d="M500 85 L560 85" />
+
+  <!-- Progress / logs -->
+  <g transform="translate(40,160)">
+    <rect class="box" width="360" height="80"/>
+    <text x="16" y="30" class="title">PROGRESS / LOGS</text>
+    <text x="16" y="54" class="note">Append logs incrementally; tail via `tailJob`</text>
+  </g>
+
+  <!-- Success -->
+  <g transform="translate(440,160)">
+    <rect class="box" width="200" height="80"/>
+    <text x="16" y="30" class="title">SUCCESS</text>
+    <text x="16" y="54" class="label">finishJob({ success: true, result })</text>
+  </g>
+
+  <!-- Failure / Retry -->
+  <g transform="translate(700,160)">
+    <rect class="box" width="240" height="80"/>
+    <text x="16" y="30" class="title">FAILED (retry)</text>
+    <text x="16" y="54" class="note">increment attempts → set next_attempt_at</text>
+  </g>
+
+  <!-- Arrows middle row -->
+  <path class="arrow" d="M300 130 L300 160" />
+  <path class="arrow" d="M560 130 L560 160" />
+  <path class="arrow" d="M400 200 L440 200" />
+  <path class="arrow" d="M640 200 L700 200" />
+
+  <!-- Retry loop arrow -->
+  <path class="arrow" d="M820 200 L820 260 L280 260 L280 240" />
+
+  <!-- Footer notes -->
+  <text x="40" y="320" class="note">Notes: use indices on `status, next_attempt_at`; store large artifacts externally and reference in `result`.</text>
+</svg>

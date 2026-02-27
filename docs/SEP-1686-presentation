@@ -1,0 +1,96 @@
+# SEP-1686 — Tasks
+
+## Agenda
+
+- What are MCP tasks?
+- When would you use them?
+- Demonstration of tasks flow
+- Look at tasks code in demonstration
+- How could this be scaled up?
+
+---
+
+## What are MCP tasks?
+
+A lightweight RPC-driven job shape used by the MCP surface: create a job, return a job id, append logs, and produce a structured result.
+
+- RPC = Remote Procedure Call: a caller invokes a named function on a remote service as if it were local, and gets a response (success, error, or an acknowledgement).
+- "RPC‑driven" here means the task system is exposed as RPC endpoints (tools) — e.g., a client calls `createJob(...)` and the server immediately returns a `jobId`.
+
+![Task lifecycle](images/task-lifecycle.svg "Task lifecycle")
+
+## When would you use them?
+
+![Task lifecycle](images/QBd2kLB5qDmysEXre9.webp "Task lifecycle")
+
+- Long-running work that should not block HTTP/RPC responses (scraping, image processing, bulk upserts).
+- Work needing progress observation (tailing logs) or retry policies (idempotency/backoff).
+- Integrations where immediate acknowledgement is required but processing is async.
+
+## Demonstration of tasks flow
+
+1. Client calls `createJob({ name, args })` → receives `jobId` immediately.
+2. Worker claims job atomically and sets `started_at`.
+3. Worker appends logs: `appendJobLog(jobId, message)` while working.
+4. On success: `finishJob({ jobId, success: true, result })` (sets `finished_at`, `status=completed`).
+5. On failure: increment `attempts`, set `next_attempt_at`, or mark `failed` after retries.
+
+---
+
+## Look at tasks code in demonstration
+
+Key implementation locations:
+
+- [src/tools/tasks](../src/tools/tasks) — MCP tool handlers for task RPCs (`createJob`, `getJob`, `tailJob`) and the public API surface.
+- [src/tools/tasks/types.ts](../src/tools/tasks/types.ts) — Local task input/output type definitions and validation helpers.
+- [src/generated/database-types.ts](../src/generated/database-types.ts) — Generated DB types used to shape `tasks` rows and `result` payloads.
+- [src/tools/tasks/utils/jobStore.ts](../src/tools/tasks/utils/jobStore.ts) — Job storage helpers (create, append logs, finish) and the implementation of `appendJobLog`.
+- [src/tools/scraper/scrape.ts](../src/tools/scraper/scrape.ts) — The scraper's usage of the task APIs (creates jobs, wraps `appendJobLog` calls) — useful for demoing runtime behavior.
+
+## How could this be scaled up?
+
+Below are practical, relatable areas to scale — mapped to what exists in the app and short next-step ideas.
+
+- Workers & concurrency (current → improve)
+  - Current: workers use atomic claims patterns; the scraper exposes `scraper.concurrency` and `scraper.imageConcurrency` knobs in `src/utils/config.ts`.
+  - Improve: autoscale worker replicas by queue depth; add per-job-type worker pools and soft limits to avoid hot partitions.
+
+- Partitioning & routing
+  - Current: single task table with `status` + `next_attempt_at` indexes.
+  - Improve: shard by job type or tenant (logical partitions), or use dedicated high-throughput queues for heavy tasks.
+
+- Database & batching
+  - Current: DB batching exists for pages/images (e.g. `pageUpsertChunk`, `imageInsertChunk`) to reduce writes.
+  - Improve: ensure critical hot-paths (upserts, image inserts) are batched and retried with backoff; add connection pool tuning to avoid DB saturation.
+
+- Retries, idempotency & backoff
+  - Current: jobs record attempts and `next_attempt_at`; workers implement retry logic and idempotency keys are supported.
+  - Improve: centralize backoff policy, expose per-job retry policies, and add dead-letter handling for persistent failures.
+
+- Observability, metrics & autoscaling
+  - Current: runtime metrics and `scraper.debug` exist for tuning; generated types and structured results make telemetry easier to parse.
+  - Improve: emit metrics for queue depth, processing latency, retry counts, error rates, and DB write rates; use these to drive horizontal autoscaling and alerting.
+
+- Backpressure & throttling
+  - Current: concurrency knobs provide basic control for throttling.
+  - Improve: add circuit-breakers for external services (image storage), per-tenant rate limits, and graceful degradation (skip non-critical work under load).
+
+- Storage, retention & artifacts
+  - Current: results are compact and large artifacts are referenced rather than embedded.
+  - Improve: archive old results/logs to object storage, keep compact summaries in-task rows, and implement retention policies to bound storage costs.
+
+- Logging & tailing (concise)
+  - Current: `appendJobLog` appends to a `tasks.logs` field and the scraper calls it per message.
+  - Improve: for high-volume scenarios prefer per-line append-only `task_logs` rows or DB-side atomic append, or buffer-and-flush from the scraper to reduce DB churn.
+
+- Security & access control
+  - Current: MCP tools are validated with `zod` schemas and tool wrappers.
+  - Improve: enforce RBAC on admin tools (tailing/finishing jobs), audit log access, and rate-limit unauthenticated endpoints.
+
+- Deployment & operational practices
+  - Improve: run workers in multiple availability zones, add health checks for long-running workers, and provide maintenance windows for large backfill jobs.
+
+- Testing & migrations
+  - Improve: add end-to-end test fixtures for job lifecycle, and plan DB migrations for new task-related tables (use existing migration patterns under `src/migrations`).
+
+The project can evolve from a demo setup into a resilient, multi-tenant, high-throughput system by applying small, focused improvements across these areas; the recommended changes align with existing code and configuration in the repository.
