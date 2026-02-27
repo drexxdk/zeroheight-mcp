@@ -10,6 +10,8 @@
 
 ---
 
+<div style="height:75vh"></div>
+
 ## What are MCP tasks?
 
 A lightweight RPC-driven job shape used by the MCP surface: create a job, return a job id, append logs, and produce a structured result.
@@ -17,15 +19,19 @@ A lightweight RPC-driven job shape used by the MCP surface: create a job, return
 - RPC = Remote Procedure Call: a caller invokes a named function on a remote service as if it were local, and gets a response (success, error, or an acknowledgement).
 - "RPC‑driven" here means the task system is exposed as RPC endpoints (tools) — e.g., a client calls `createJob(...)` and the server immediately returns a `jobId`.
 
-![Task lifecycle](images/task-lifecycle.svg "Task lifecycle")
+![Task lifecycle diagram](images/task-lifecycle.svg "Task lifecycle diagram (SVG)")
+
+<div style="height:75vh"></div>
 
 ## When would you use them?
 
-![Task lifecycle](images/QBd2kLB5qDmysEXre9.webp "Task lifecycle")
+![Example tasks UI screenshot](images/QBd2kLB5qDmysEXre9.webp "Example tasks UI screenshot")
 
 - Long-running work that should not block HTTP/RPC responses (scraping, image processing, bulk upserts).
 - Work needing progress observation (tailing logs) or retry policies (idempotency/backoff).
 - Integrations where immediate acknowledgement is required but processing is async.
+
+<div style="height:75vh"></div>
 
 ## Demonstration of tasks flow
 
@@ -37,6 +43,8 @@ A lightweight RPC-driven job shape used by the MCP surface: create a job, return
 
 ---
 
+<div style="height:75vh"></div>
+
 ## Look at tasks code in demonstration
 
 Key implementation locations:
@@ -46,6 +54,8 @@ Key implementation locations:
 - [src/generated/database-types.ts](../src/generated/database-types.ts) — Generated DB types used to shape `tasks` rows and `result` payloads.
 - [src/tools/tasks/utils/jobStore.ts](../src/tools/tasks/utils/jobStore.ts) — Job storage helpers (create, append logs, finish) and the implementation of `appendJobLog`.
 - [src/tools/scraper/scrape.ts](../src/tools/scraper/scrape.ts) — The scraper's usage of the task APIs (creates jobs, wraps `appendJobLog` calls) — useful for demoing runtime behavior.
+
+<div style="height:75vh"></div>
 
 ## How could this be scaled up?
 
