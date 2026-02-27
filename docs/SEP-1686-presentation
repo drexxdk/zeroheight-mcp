@@ -14,10 +14,12 @@
 
 ## What are MCP tasks?
 
-A lightweight RPC-driven job shape used by the MCP surface: create a job, return a job id, append logs, and produce a structured result.
+A simple RPC-based job workflow used by the MCP: create a job to receive an ID, append log messages as the job runs, and return a final structured result.
 
 - RPC = Remote Procedure Call: a caller invokes a named function on a remote service as if it were local, and gets a response (success, error, or an acknowledgement).
 - "RPC‑driven" here means the task system is exposed as RPC endpoints (tools) — e.g., a client calls `createJob(...)` and the server immediately returns a `jobId`.
+
+![Task lifecycle diagram](images/b.png "Official lifecycle diagram (PNG)")
 
 ![Task lifecycle diagram](images/task-lifecycle.svg "Task lifecycle diagram (SVG)")
 

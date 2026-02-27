@@ -19,6 +19,12 @@ const testTaskInputSchema = z.object({
     .positive()
     .optional()
     .describe("Duration in minutes; defaults to 10"),
+  tickIntervalSeconds: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Tick interval in seconds; defaults to 1"),
 });
 
 export const testTaskTool: ToolDefinition<
@@ -27,7 +33,7 @@ export const testTaskTool: ToolDefinition<
 > = {
   title: "TASKS_test",
   description:
-    "Start a safe test task that ticks once per second for a duration (minutes).",
+    "Start a safe test task that ticks at a configurable interval (seconds) for a duration (minutes).",
   inputSchema: testTaskInputSchema,
   outputSchema: z.object({
     task: z.object({
@@ -42,8 +48,13 @@ export const testTaskTool: ToolDefinition<
   }),
   handler: async ({
     durationMinutes,
+    tickIntervalSeconds,
   }: z.infer<typeof testTaskInputSchema> = {}) => {
     const minutes = durationMinutes ?? 15;
+    const tickSeconds =
+      tickIntervalSeconds ??
+      Math.max(1, Math.floor(config.tuning.testTaskTickMs / 1000));
+    const tickMs = tickSeconds * 1000;
     try {
       const jobId = await createTestJobInDb({
         name: "testtask",
@@ -64,7 +75,8 @@ export const testTaskTool: ToolDefinition<
       (async () => {
         try {
           const totalSeconds = minutes * 60;
-          for (let i = 1; i <= totalSeconds; i++) {
+          const totalTicks = Math.max(1, Math.ceil(totalSeconds / tickSeconds));
+          for (let i = 1; i <= totalTicks; i++) {
             const j = await getJobFromDb({ jobId });
             if (j && j.status === "cancelled") {
               await appendJobLog({
@@ -79,13 +91,12 @@ export const testTaskTool: ToolDefinition<
               });
               return;
             }
+            const elapsed = Math.min(i * tickSeconds, totalSeconds);
             await appendJobLog({
               jobId,
-              line: `tick ${i}/${totalSeconds}`,
+              line: `tick ${i}/${totalTicks} (${elapsed}s)`,
             });
-            await new Promise((res) =>
-              setTimeout(res, config.tuning.testTaskTickMs),
-            );
+            await new Promise((res) => setTimeout(res, tickMs));
           }
           await appendJobLog({ jobId, line: "Test task completed" });
           await finishJob({

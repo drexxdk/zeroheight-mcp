@@ -227,6 +227,6 @@ export const config = {
     imageUtilsSampleLimit: 50,
     // Short delays used by scripts/tests (ms)
     shortDelayMs: 1000,
-    testTaskTickMs: 1000,
+    testTaskTickMs: 5000,
   },
 };
