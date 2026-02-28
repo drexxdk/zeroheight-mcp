@@ -6,21 +6,23 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 import type { KnownModule } from "./utils/toolTypes";
 
-export type Command =
-  | "scrape"
-  | "scrape-pages"
-  | "scrape-project"
-  | "run-tool"
-  | "check-task-status"
-  | "clear-data"
-  | "run-tools-list"
-  | "test-mcp-list"
-  | "cancel-task"
-  | "tail-job"
-  | "tail-job-long"
-  | "tail-job-admin"
-  | "start-test-task"
-  | "check-task";
+export const VALID_COMMANDS = [
+  "scrape",
+  "api-scrape",
+  "run-tool",
+  "check-task-status",
+  "clear-data",
+  "run-tools-list",
+  "test-mcp-list",
+  "cancel-task",
+  "tail-job",
+  "tail-job-long",
+  "tail-job-admin",
+  "start-test-task",
+  "check-task",
+] as const;
+
+export type Command = (typeof VALID_COMMANDS)[number];
 
 export async function run(
   command: Command,
@@ -33,6 +35,7 @@ export async function run(
 
   switch (command) {
     case "scrape":
+    case "api-scrape":
       {
         // unified scrape entry that accepts flags for includeImages and fullScrape
         const parseBoolFlag = (names: string[]): boolean => {
@@ -89,10 +92,18 @@ export async function run(
           .zeroheightProjectPassword as string | undefined;
 
         if (fullScrape) {
-          await runTool("@/tools/scraper/scrape" as KnownModule, {
-            exportName: "scrapeTool",
-            args: { password, includeImages },
-          });
+          if (command === "scrape") {
+            await runTool("@/tools/scraper/scrape" as KnownModule, {
+              exportName: "scrapeTool",
+              args: { password, includeImages },
+            });
+          } else {
+            await runTool("@/tools/api-scraper/api-scraper" as KnownModule, {
+              exportName: "scrapeTool",
+              args: { password, includeImages },
+            });
+          }
+
           return;
         }
 
@@ -101,10 +112,17 @@ export async function run(
           (opts.args.pageUrls as unknown as string[])) ?? [
           "https://designsystem.lruddannelse.dk/10548dffa/p/3559bd-farver",
         ];
-        await runTool("@/tools/scraper/scrape" as KnownModule, {
-          exportName: "scrapeTool",
-          args: { pageUrls: urls, password, includeImages },
-        });
+        if (command === "scrape") {
+          await runTool("@/tools/scraper/scrape" as KnownModule, {
+            exportName: "scrapeTool",
+            args: { pageUrls: urls, password, includeImages },
+          });
+        } else {
+          await runTool("@/tools/api-scraper/api-scraper" as KnownModule, {
+            exportName: "scrapeTool",
+            args: { pageUrls: urls, password, includeImages },
+          });
+        }
       }
       return;
 
@@ -349,23 +367,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         logger.error("Usage: npx tsx scripts/cli.ts <command> [args]");
         process.exit(2);
       }
-      // runtime-validate command string
-      const validCommands: Command[] = [
-        "scrape",
-        "scrape-pages",
-        "scrape-project",
-        "run-tool",
-        "check-task-status",
-        "clear-data",
-        "run-tools-list",
-        "test-mcp-list",
-        "cancel-task",
-        "tail-job",
-        "tail-job-long",
-        "tail-job-admin",
-        "start-test-task",
-        "check-task",
-      ];
+      // runtime-validate command string using single source of truth
+      const validCommands: Command[] = [...VALID_COMMANDS];
       if (!validCommands.includes(commandRaw as Command)) {
         const logger = (await import("@/utils/logger")).default;
         logger.error(`Unknown command: ${commandRaw}`);
