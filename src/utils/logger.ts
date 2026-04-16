@@ -10,6 +10,7 @@ function log(...args: unknown[]): void {
 
 function warn(...args: unknown[]): void {
   console.warn(...args);
+  debugger;
 }
 
 function error(...args: unknown[]): void {
